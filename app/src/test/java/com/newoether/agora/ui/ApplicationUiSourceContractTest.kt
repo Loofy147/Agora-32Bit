@@ -1,5 +1,6 @@
 package com.newoether.agora.ui
 
+import com.newoether.agora.util.bottomOverlayFadeStops
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -16,9 +17,9 @@ class ApplicationUiSourceContractTest {
         assertTrue(source.contains("motionPolicy.allowSpatialTransitions"))
         assertTrue(source.contains("stiffness = 400f"))
         assertTrue(source.contains("dampingRatio = 0.25f"))
-        assertTrue(source.contains("targetValue = if (pressed) 20.dp else 32.dp"))
-        assertTrue(source.contains("targetValue = if (pressed) 52.dp else 48.dp"))
-        assertTrue(source.contains("targetValue = if (pressed) 1.05f else 1f"))
+        assertTrue(source.contains("targetValue = if (pressed) 24.dp else 32.dp"))
+        assertTrue(source.contains("targetValue = if (pressed) 50.dp else 48.dp"))
+        assertTrue(source.contains("targetValue = if (pressed) 1.03f else 1f"))
         assertTrue(source.contains(".height(56.dp)"))
         assertTrue(source.contains(".scale(contentScale)"))
     }
@@ -77,17 +78,42 @@ class ApplicationUiSourceContractTest {
     }
 
     @Test
-    fun `normal chat bottom gradient completes above the bar`() {
+    fun `normal chat bottom fade reveals the live background instead of painting a static color`() {
         val source = sourceFile("app/src/main/java/com/newoether/agora/ui/chat/ChatApp.kt")
+        val masks = sourceFile("app/src/main/java/com/newoether/agora/util/GradientBlur.kt")
 
-        assertTrue(source.contains("val normalGradientTopPaddingPx = with(density) { 0.dp.toPx() }"))
         assertTrue(source.contains("val expandedGradientTopPaddingPx = with(density) { 20.dp.toPx() }"))
         assertTrue(source.contains("val gradientWidthPx = with(density) { 40.dp.toPx() }"))
-        assertTrue(source.contains("if (!isExpanded) Spacer(modifier = Modifier.height(8.dp))"))
+        assertTrue(source.contains("if (!isExpanded) Spacer(modifier = Modifier.height(12.dp))"))
         assertTrue(source.contains("expandedHeightPx = with(density) { 44.dp.toPx() }"))
-        assertTrue(source.contains("val h = expandedGradientTopPaddingPx.coerceAtMost"))
-        assertTrue(source.contains("val te = (normalGradientTopPaddingPx / totalH)"))
-        assertTrue(source.contains("normalGradientTopPaddingPx + gradientWidthPx"))
+        assertTrue(source.contains("verticalBottomOverlayFade("))
+        assertTrue(source.contains("fadeHeightDp = 40f"))
+        assertTrue(source.contains("bottomOverlayHeight = bottomBarHeight + with(density) { outerSpacerHeightPx.toDp() } + 12.dp"))
+        assertTrue(source.contains("if (isExpanded && totalH > 0f)"))
+        assertFalse(source.contains("normalGradientTopPaddingPx"))
+        assertTrue(masks.contains("fun Modifier.verticalBottomOverlayFade("))
+        assertTrue(masks.contains("fun bottomOverlayFadeStops("))
+        assertTrue(masks.contains("CompositingStrategy.Offscreen"))
+        assertTrue(masks.contains("blendMode = BlendMode.DstIn"))
+    }
+
+    @Test
+    fun `bottom overlay fade geometry tracks the live composer cover and clamps safely`() {
+        val regular = bottomOverlayFadeStops(
+            canvasHeightPx = 1_000f,
+            fadeHeightPx = 40f,
+            bottomOverlayHeightPx = 200f,
+        )
+        assertEquals(0.8f, regular.first, 0.0001f)
+        assertEquals(0.84f, regular.second, 0.0001f)
+
+        val oversizedOverlay = bottomOverlayFadeStops(
+            canvasHeightPx = 1_000f,
+            fadeHeightPx = 40f,
+            bottomOverlayHeightPx = 1_500f,
+        )
+        assertEquals(0f, oversizedOverlay.first, 0.0001f)
+        assertEquals(0.04f, oversizedOverlay.second, 0.0001f)
     }
 
     @Test
@@ -298,6 +324,9 @@ class ApplicationUiSourceContractTest {
     @Test
     fun `every full screen viewer uses shared spatial entrance and exit with reduced motion fallback`() {
         val source = sourceFile("app/src/main/java/com/newoether/agora/MainActivity.kt")
+        val mediaViewer = sourceFile(
+            "app/src/main/java/com/newoether/agora/ui/chat/FullScreenMediaViewer.kt",
+        )
 
         assertTrue(source.contains(
             "private fun fullScreenPreviewEnterTransition(allowSpatialTransitions: Boolean)"
@@ -336,6 +365,15 @@ class ApplicationUiSourceContractTest {
         ))
         assertTrue(source.contains("val urls = lastUrls ?: return@AnimatedVisibility"))
         assertTrue(source.contains("if (savedContent != null && savedName != null)"))
+        assertTrue(mediaViewer.contains(
+            "val currentPageIsVideo = rememberIsVideoMedia(urls[pagerState.currentPage])",
+        ))
+        assertTrue(mediaViewer.contains("if (currentPageIsVideo == true) closing = true"))
+        assertTrue(mediaViewer.contains("else onClose()"))
+        assertTrue(mediaViewer.contains("BackHandler { requestClose() }"))
+        assertTrue(mediaViewer.contains("onClick = { requestClose() }"))
+        assertFalse(mediaViewer.contains("LaunchedEffect(closing)"))
+        assertFalse(mediaViewer.contains("kotlinx.coroutines.delay(400)"))
     }
 
     private fun stringValue(xml: String, key: String): String {

@@ -144,7 +144,7 @@ internal object BranchDeletionPlanner {
                 }
                 .sortedWith(compareBy<MessageEntity> { it.timestamp }.thenBy { it.id })
                 .toList()
-            val replacement = previousThenNext(
+            val replacement = nextThenPrevious(
                 orderedIds = siblings.map { it.id },
                 removedId = selectedId,
                 deletedIds = deletedMessageIds,
@@ -174,7 +174,7 @@ internal object BranchDeletionPlanner {
                 .sortedWith(compareBy<RunEntity> { it.startedAt }.thenBy { it.id })
                 .map { it.id }
                 .toList()
-            val replacement = previousThenNext(
+            val replacement = nextThenPrevious(
                 orderedIds = siblings,
                 removedId = selectedRunId,
                 deletedIds = deletedRunIds,
@@ -185,7 +185,7 @@ internal object BranchDeletionPlanner {
         return repaired
     }
 
-    private fun previousThenNext(
+    private fun nextThenPrevious(
         orderedIds: List<String>,
         removedId: String,
         deletedIds: Set<String>,
@@ -193,11 +193,11 @@ internal object BranchDeletionPlanner {
         val removedIndex = orderedIds.indexOf(removedId)
         if (removedIndex < 0) return null
         return orderedIds
-            .subList(0, removedIndex)
-            .lastOrNull { it !in deletedIds }
+            .subList(removedIndex + 1, orderedIds.size)
+            .firstOrNull { it !in deletedIds }
             ?: orderedIds
-                .subList(removedIndex + 1, orderedIds.size)
-                .firstOrNull { it !in deletedIds }
+                .subList(0, removedIndex)
+                .lastOrNull { it !in deletedIds }
     }
 
     private fun isSynthetic(messageId: String): Boolean =

@@ -561,7 +561,7 @@ fun WelcomeScreen(
                 val isContinuePressed by continueInteractionSource.collectIsPressedAsState()
                 val pressed = isContinuePressed && motionPolicy.allowSpatialTransitions
                 val horizontalInset by animateDpAsState(
-                    targetValue = if (pressed) 20.dp else 32.dp,
+                    targetValue = if (pressed) 24.dp else 32.dp,
                     animationSpec = if (motionPolicy.allowSpatialTransitions) {
                         spring(stiffness = 400f, dampingRatio = 0.25f)
                     } else {
@@ -570,7 +570,7 @@ fun WelcomeScreen(
                     label = "onboardingActionInset",
                 )
                 val actionHeight by animateDpAsState(
-                    targetValue = if (pressed) 52.dp else 48.dp,
+                    targetValue = if (pressed) 50.dp else 48.dp,
                     animationSpec = if (motionPolicy.allowSpatialTransitions) {
                         spring(stiffness = 400f, dampingRatio = 0.25f)
                     } else {
@@ -579,7 +579,7 @@ fun WelcomeScreen(
                     label = "onboardingActionHeight",
                 )
                 val contentScale by animateFloatAsState(
-                    targetValue = if (pressed) 1.05f else 1f,
+                    targetValue = if (pressed) 1.03f else 1f,
                     animationSpec = if (motionPolicy.allowSpatialTransitions) {
                         spring(stiffness = 400f, dampingRatio = 0.25f)
                     } else {

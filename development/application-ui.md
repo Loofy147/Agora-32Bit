@@ -26,9 +26,9 @@ Its press response reuses the Documentation FAB spring language with deliberatel
 - use one local press interaction source;
 - use spring stiffness `400f` and damping ratio `0.25f`;
 - reserve one fixed 56 dp outer-height slot so surrounding onboarding content does not jump;
-- animate horizontal inset from 32 dp at rest to 20 dp while pressed, making the full-width action
-  exactly 24 dp wider;
-- animate height from 48 dp to 52 dp and content scale from 1f to 1.05f while pressed;
+- animate horizontal inset from 32 dp at rest to 24 dp while pressed, making the full-width action
+  exactly 16 dp wider;
+- animate height from 48 dp to 50 dp and content scale from 1f to 1.03f while pressed;
 - when spatial transitions are disabled, keep 32 dp inset, 48 dp height, and 1f content scale.
 
 ## 3. Settings category copy
@@ -50,12 +50,17 @@ icon-label gap, labels, badges, switches, ordering, enablement, and click behavi
 
 ## 5. Chat bottom-bar answer fade
 
-In normal, non-expanded composer mode, the existing 40 dp vertical background fade uses zero
-transparent lead and a normal-only 8 dp host lift. The lift is outside the measured bottom-bar content,
-so the whole fade draws 8 dp farther upward without moving the actual chat-bottom Surface or changing
-`bottomBarHeightPx`. Its colors, 40 dp width, list/answer padding, IME/navigation insets,
-composer-expansion spacer ownership, and scroll ownership remain unchanged. Expanded composer mode
-receives no lift and retains its exact 20 dp compact-at-screen-top gradient geometry.
+In normal, non-expanded composer mode, the existing 40 dp vertical fade is an alpha mask on the
+conversation foreground, not a separately painted background-color cover. Its zero lead, normal-only
+12 dp host lift, measured bottom-bar height, and animated composer-expansion spacer place the mask at
+the same screen coordinates as the existing fade without moving the chat-bottom Surface or changing
+`bottomBarHeightPx`. The mask uses offscreen `DstIn` composition: conversation pixels stay opaque above
+the fade, become transparent through the 40 dp band, and remain transparent behind the composer, so
+the one actual `AnimatedBlobBackground` below is revealed pixel-for-pixel even while it moves. Normal
+mode must not sample, duplicate, freeze, or paint over that dynamic background. List/answer padding,
+IME/navigation insets, composer-expansion spacer ownership, and scroll ownership remain unchanged.
+Expanded composer mode receives no lift and retains its exact background-color cover with 20 dp
+compact-at-screen-top gradient geometry.
 
 ## 6. MCP page-entry refresh
 
@@ -127,8 +132,11 @@ same entrance of a 220 ms fade plus a 300 ms center scale from 0.96f to 1f with
 0.96f with `FastOutLinearInEasing`. Reduced Motion retains only the corresponding timed fades.
 
 The hosts keep their last payload through exit and release the top-level presentation owner only after
-the transition settles. Viewer-internal overlay/control fades, media decoding, video/PDF/pager/image
-behavior, gestures, close timing, and payload routing remain unchanged.
+the transition settles. A confirmed video page alone retains the viewer-internal 400 ms player fade
+before handing off to the shared top-level exit. Image, PDF, loading, and unresolved media pages hand
+off immediately without a pager-owned delay. The mixed-media pager has no duplicate close timer or
+second `onClose` owner. Media decoding, pager navigation, gestures, payload routing, shared exit
+transitions, and Reduced Motion remain unchanged.
 
 ## 12. Verification
 
@@ -144,5 +152,6 @@ protocol badge. Full-screen text-preview verification must cover current App-fon
 both Markdown and ordinary-text paths, exact 1.1 Markdown line-height scaling, explicit Bold H1-H6,
 unchanged Markdown font sizes, and the unchanged 13 sp / 20 sp ordinary-text metrics. It must also
 cover both shared full-screen transition hosts, the exact fade/scale durations and easings, Reduced
-Motion's fade-only fallback, last-payload retention, and release only after settled exit. The
+Motion's fade-only fallback, last-payload retention, release only after settled exit, confirmed-video
+close waiting, immediate non-video handoff, and absence of a duplicate pager close delay. The
 project-defined full build gate remains required after final code or resource changes.

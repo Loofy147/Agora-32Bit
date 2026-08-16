@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 
 private const val MAX_GRADIENT_BLUR_DP = 5f
 
@@ -115,6 +116,55 @@ fun Modifier.gradientBlurEdges(maxBlurDp: Float, edgeFadeDp: Float = 20f, topWei
  */
 fun Modifier.gradientBlur(radiusDp: Float): Modifier =
     gradientBlur(radiusDp, radiusDp)
+
+internal fun bottomOverlayFadeStops(
+    canvasHeightPx: Float,
+    fadeHeightPx: Float,
+    bottomOverlayHeightPx: Float,
+): Pair<Float, Float> {
+    val height = canvasHeightPx.coerceAtLeast(1f)
+    val overlayHeight = bottomOverlayHeightPx.coerceIn(0f, height)
+    val fadeStart = ((height - overlayHeight) / height).coerceIn(0f, 1f)
+    val fadeEnd = ((height - overlayHeight + fadeHeightPx.coerceAtLeast(0f)) / height)
+        .coerceIn(fadeStart, 1f)
+    return fadeStart to fadeEnd
+}
+
+/**
+ * Fades foreground content through the top edge of a bottom overlay while leaving the real
+ * background beneath this layer untouched.
+ */
+fun Modifier.verticalBottomOverlayFade(
+    fadeHeightDp: Float,
+    bottomOverlayHeight: Dp,
+): Modifier = composed {
+    val density = LocalDensity.current.density
+    val fadeHeightPx = fadeHeightDp.coerceAtLeast(0f) * density
+    val bottomOverlayHeightPx = bottomOverlayHeight.value.coerceAtLeast(0f) * density
+    if (fadeHeightPx <= 0f || bottomOverlayHeightPx <= 0f) return@composed this
+
+    Modifier
+        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+        .drawWithContent {
+            drawContent()
+            val (fadeStart, fadeEnd) = bottomOverlayFadeStops(
+                canvasHeightPx = size.height,
+                fadeHeightPx = fadeHeightPx,
+                bottomOverlayHeightPx = bottomOverlayHeightPx,
+            )
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colorStops = arrayOf(
+                        0f to Color.Black,
+                        fadeStart to Color.Black,
+                        fadeEnd to Color.Transparent,
+                        1f to Color.Transparent,
+                    ),
+                ),
+                blendMode = BlendMode.DstIn,
+            )
+        }
+}
 
 /**
  * Fades content alpha near the top and bottom edges.

@@ -275,9 +275,13 @@ private fun MediaPager(
     var closing by remember { mutableStateOf(false) }
     var actionsForUrl by remember { mutableStateOf<String?>(null) }
     val pagerState = rememberPagerState(initialPage = initialIndex.coerceIn(0, urls.size - 1)) { urls.size }
+    val currentPageIsVideo = rememberIsVideoMedia(urls[pagerState.currentPage])
+    fun requestClose() {
+        if (currentPageIsVideo == true) closing = true
+        else onClose()
+    }
     LaunchedEffect(pagerState.currentPage) { onNavigate(pagerState.currentPage) }
-    LaunchedEffect(closing) { if (closing) { kotlinx.coroutines.delay(400); onClose() } }
-    BackHandler { closing = true }
+    BackHandler { requestClose() }
     Box(
         modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.9f))
     ) {
@@ -343,7 +347,7 @@ private fun MediaPager(
                 }
                 Spacer(Modifier.weight(1f))
                 Surface(
-                    onClick = { closing = true },
+                    onClick = { requestClose() },
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.surfaceContainer,
                     modifier = Modifier.shadow(8.dp, CircleShape)

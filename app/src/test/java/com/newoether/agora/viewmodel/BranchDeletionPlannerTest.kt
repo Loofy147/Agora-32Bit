@@ -49,7 +49,7 @@ class BranchDeletionPlannerTest {
     }
 
     @Test
-    fun deletingRegeneration_selectsImmediatePreviousBranch_notLastBranch() {
+    fun deletingRegeneration_selectsImmediateNextBranch_beforePrevious() {
         val messages = listOf(
             message("u0", "run-0", Participant.USER, null, 0, 1),
             message("m0", "run-0", Participant.MODEL, "u0", 1, 2),
@@ -74,8 +74,8 @@ class BranchDeletionPlannerTest {
 
         assertEquals(setOf("m2"), plan.deletedMessageIds)
         assertEquals(setOf("run-2"), plan.rootRunIdsToDelete)
-        assertEquals("m1", plan.messageSelections["u0"])
-        assertEquals("run-1", plan.runSelections["run-0"])
+        assertEquals("m3", plan.messageSelections["u0"])
+        assertEquals("run-3", plan.runSelections["run-0"])
         assertTrue("m3" !in plan.deletedMessageIds)
     }
 
@@ -101,7 +101,7 @@ class BranchDeletionPlannerTest {
     }
 
     @Test
-    fun deletingEditedUser_removesItsWholeSubtreeAndSelectsPreviousEdit() {
+    fun deletingLastEditedUser_fallsBackToPreviousEdit() {
         val messages = listOf(
             message("previous", "previous-run", Participant.MODEL, null, 0, 1),
             message("u-left", "left-run", Participant.USER, "previous", 0, 2),

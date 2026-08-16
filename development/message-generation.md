@@ -192,6 +192,13 @@ durable message identity and cannot become a parallel message graph.
 - Repair only selections and dedicated Run ancestry necessary to keep surviving graphs valid.
 - Surviving messages are still grouped by the global Run contract; deletion cannot merge Runs.
 
+For ordinary structural message-branch deletion, selected-message and selected-Run repair use the
+same sibling order. If the selected branch is deleted, choose the immediate surviving later sibling
+first, fall back to the immediate surviving earlier sibling only when no later sibling exists, and
+remove the selection when neither exists. Message and Run selections must not diverge. This ordering
+rule does not broaden the deleted subtree, change synthetic-row filtering, or move transaction/file
+cleanup ownership.
+
 ### 8.5 Tool-result continuation priority
 
 After a durable tool result:
