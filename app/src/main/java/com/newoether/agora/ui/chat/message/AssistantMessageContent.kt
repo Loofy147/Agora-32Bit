@@ -114,6 +114,7 @@ private fun AssistantInlineActivity(
     retryText: String?,
     visibilityTransition: Transition<Boolean>,
     activityOpacity: Float,
+    retainExitLayout: Boolean,
 ) {
     var retainedMode by remember {
         mutableStateOf(
@@ -131,7 +132,10 @@ private fun AssistantInlineActivity(
     val activityVisible = visibilityTransition.targetState
     val visibleMode = if (activityVisible) mode else retainedMode
     val visibleRetryText = if (activityVisible) retryText else retainedRetryText
-    if (visibilityTransition.currentState || visibilityTransition.targetState) {
+    if (
+        visibilityTransition.targetState ||
+        (retainExitLayout && visibilityTransition.currentState)
+    ) {
         Row(
             modifier = Modifier
                 .graphicsLayer {
@@ -478,6 +482,7 @@ internal fun AssistantMessageContent(
                         retryText = message.retryText,
                         visibilityTransition = inlineActivityTransition,
                         activityOpacity = inlineActivityOpacity,
+                        retainExitLayout = !hasAnswerContent,
                     )
                 }
 

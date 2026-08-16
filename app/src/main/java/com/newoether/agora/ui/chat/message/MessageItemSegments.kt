@@ -1,10 +1,10 @@
 package com.newoether.agora.ui.chat.message
 
 import androidx.compose.animation.core.AnimationSpec
-import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -107,10 +107,9 @@ internal fun rememberAnimatedSegmentGroupShape(
     val targetBottomEnd = targetBottomStart
     val animationSpec: AnimationSpec<Dp> =
         if (motionPolicy.allowSpatialTransitions) {
-            spring(
-                dampingRatio = Spring.DampingRatioHighBouncy,
-                stiffness = Spring.StiffnessMediumLow,
-                visibilityThreshold = 0.01.dp,
+            tween(
+                durationMillis = 240,
+                easing = FastOutSlowInEasing,
             )
         } else {
             snap()

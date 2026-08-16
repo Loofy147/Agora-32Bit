@@ -23,10 +23,12 @@ class ExperimentalGenerationUiSourceContractTest {
         assertTrue(assistant.contains("GenerationErrorBar(errorContent.errorText)"))
         assertFalse(assistant.contains("if (mode == AssistantInlineActivityMode.NONE) return"))
         assertTrue(assistant.contains("var retainedMode by remember"))
+        assertTrue(assistant.contains("visibilityTransition.targetState ||"))
         assertTrue(assistant.contains(
-            "visibilityTransition.currentState || visibilityTransition.targetState"
+            "retainExitLayout && visibilityTransition.currentState"
         ))
         assertTrue(assistant.contains("alpha = activityOpacity"))
+        assertTrue(assistant.contains("retainExitLayout = !hasAnswerContent"))
         assertTrue(assistant.contains("clip = false"))
         assertFalse(assistant.contains("visibilityTransition.AnimatedVisibility("))
         assertTrue(assistant.contains("GenerationActivityDot()"))

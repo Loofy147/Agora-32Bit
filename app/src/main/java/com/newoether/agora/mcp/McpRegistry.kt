@@ -26,6 +26,15 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlin.math.min
 
+internal fun mcpServerIdsForPageEntryRefresh(
+    configs: List<McpServerConfig>,
+    snapshots: Map<String, McpServerSnapshot>,
+): List<String> = configs
+    .filter { it.enabled && it.url.isNotBlank() }
+    .filter { snapshots[it.id]?.status != McpConnectionStatus.CONNECTING }
+    .map(McpServerConfig::id)
+    .distinct()
+
 /**
  * Process-wide MCP supervisor.
  *
@@ -87,6 +96,23 @@ class McpRegistry(
         synchronized(lock) {
             val current = settings.mcpServers.value.firstOrNull { it.id == serverId } ?: return
             replaceRuntimeLocked(current)
+        }
+    }
+
+    fun refreshOnPageEntry() {
+        val serverIds = mcpServerIdsForPageEntryRefresh(
+            configs = settings.mcpServers.value,
+            snapshots = snapshots.value,
+        )
+        synchronized(lock) {
+            serverIds.forEach { serverId ->
+                val current = settings.mcpServers.value.firstOrNull {
+                    it.id == serverId && it.enabled && it.url.isNotBlank()
+                } ?: return@forEach
+                val runtime = runtimes[serverId]
+                if (runtime?.connectionJob?.isActive == true) return@forEach
+                replaceRuntimeLocked(current)
+            }
         }
     }
 

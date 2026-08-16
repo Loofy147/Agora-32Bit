@@ -21,14 +21,14 @@ validation, persistence, or completion semantics.
 The onboarding Continue/Get Started action preserves its full-width role, page validation, paging,
 completion callback, enabled state, colors, and label semantics.
 
-Its press response matches the Documentation FAB motion language exactly:
+Its press response reuses the Documentation FAB spring language with deliberately lower visual amplitude:
 
 - use one local press interaction source;
 - use spring stiffness `400f` and damping ratio `0.25f`;
 - reserve one fixed 56 dp outer-height slot so surrounding onboarding content does not jump;
-- animate horizontal inset from 32 dp at rest to 12 dp while pressed, making the full-width action
-  exactly 40 dp wider;
-- animate height from 48 dp to 56 dp and content scale from 1f to 1.1f while pressed;
+- animate horizontal inset from 32 dp at rest to 20 dp while pressed, making the full-width action
+  exactly 24 dp wider;
+- animate height from 48 dp to 52 dp and content scale from 1f to 1.05f while pressed;
 - when spatial transitions are disabled, keep 32 dp inset, 48 dp height, and 1f content scale.
 
 ## 3. Settings category copy
@@ -51,13 +51,23 @@ icon-label gap, labels, badges, switches, ordering, enablement, and click behavi
 ## 5. Chat bottom-bar answer fade
 
 In normal, non-expanded composer mode, the existing 40 dp vertical background fade uses zero
-transparent lead inside the retained 44 dp outer composer spacer. It therefore completes 4 dp above
-the actual chat-bottom Surface instead of extending inside it. Its colors, 40 dp width, bottom-bar
-height measurement, list/answer padding, IME/navigation insets, outer-spacer ownership, and scroll
-ownership remain unchanged. Expanded composer mode retains its exact 20 dp compact-at-screen-top
-gradient geometry.
+transparent lead and a normal-only 8 dp host lift. The lift is outside the measured bottom-bar content,
+so the whole fade draws 8 dp farther upward without moving the actual chat-bottom Surface or changing
+`bottomBarHeightPx`. Its colors, 40 dp width, list/answer padding, IME/navigation insets,
+composer-expansion spacer ownership, and scroll ownership remain unchanged. Expanded composer mode
+receives no lift and retains its exact 20 dp compact-at-screen-top gradient geometry.
 
-## 6. Localized category and Thinking-segment labels
+## 6. MCP page-entry refresh
+
+Entering the MCP Settings page triggers exactly one foreground refresh request for every enabled
+server with a nonblank URL, except a server already in CONNECTING state. The page delegates through
+the ViewModel to the process-wide `McpRegistry`; it does not create another connection authority.
+Recomposition and navigation within the page's editor do not retrigger refresh. No timer, delay loop,
+WorkManager job, alarm, service, background observer, or periodic polling participates. Existing
+Settings reconciliation, snapshot StateFlow, retry backoff, manual refresh, and runtime identity
+checks remain authoritative.
+
+## 7. Localized category and Thinking-segment labels
 
 The default resource and all eleven supported locale directories define localized values for
 `context_title`, `context_desc`, `thinking_segment_display_mode`,

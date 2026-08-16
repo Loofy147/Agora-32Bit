@@ -24,9 +24,14 @@ class Phase25UiSourceContractTest {
         val assistantActivity = assistant
             .substringAfter("private fun AssistantInlineActivity(")
             .substringBefore("/**")
+        assertTrue(assistantActivity.contains("retainExitLayout: Boolean"))
         assertTrue(assistantActivity.contains(
-            "visibilityTransition.currentState || visibilityTransition.targetState"
+            "visibilityTransition.targetState ||"
         ))
+        assertTrue(assistantActivity.contains(
+            "retainExitLayout && visibilityTransition.currentState"
+        ))
+        assertTrue(assistant.contains("retainExitLayout = !hasAnswerContent"))
         assertTrue(assistantActivity.contains("alpha = activityOpacity"))
         assertTrue(assistantActivity.contains("clip = false"))
         assertTrue(assistantActivity.contains("GenerationActivityDot()"))

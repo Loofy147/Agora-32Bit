@@ -1,5 +1,6 @@
 package com.newoether.agora.mcp
 
+import com.newoether.agora.data.McpServerConfig
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -71,6 +72,32 @@ class McpModelsTest {
         assertEquals(
             "string",
             definition.function.parameters.properties["tags"]?.items?.type,
+        )
+    }
+
+    @Test
+    fun pageEntryRefreshSelectsOnlyEnabledReadyServers() {
+        val configs = listOf(
+            McpServerConfig(id = "connected", enabled = true, url = "https://one.example/mcp"),
+            McpServerConfig(id = "new", enabled = true, url = "https://two.example/mcp"),
+            McpServerConfig(id = "connecting", enabled = true, url = "https://three.example/mcp"),
+            McpServerConfig(id = "disabled", enabled = false, url = "https://four.example/mcp"),
+            McpServerConfig(id = "blank", enabled = true, url = ""),
+        )
+        val snapshots = mapOf(
+            "connected" to McpServerSnapshot(
+                serverId = "connected",
+                status = McpConnectionStatus.CONNECTED,
+            ),
+            "connecting" to McpServerSnapshot(
+                serverId = "connecting",
+                status = McpConnectionStatus.CONNECTING,
+            ),
+        )
+
+        assertEquals(
+            listOf("connected", "new"),
+            mcpServerIdsForPageEntryRefresh(configs, snapshots),
         )
     }
 }

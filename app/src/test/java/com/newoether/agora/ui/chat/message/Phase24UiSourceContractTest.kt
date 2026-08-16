@@ -8,14 +8,16 @@ import org.junit.Test
 
 class Phase24UiSourceContractTest {
     @Test
-    fun `Timeline group corners animate through the established clamped motion policy`() {
+    fun `Timeline and sheet group corners use one monotonic clamped motion policy`() {
         val segments = source("message/MessageItemSegments.kt")
         val timeline = source("message/MessageItemTimeline.kt")
 
         assertTrue(segments.contains("internal fun rememberAnimatedSegmentGroupShape("))
-        assertTrue(segments.contains("Spring.DampingRatioHighBouncy"))
-        assertTrue(segments.contains("Spring.StiffnessMediumLow"))
-        assertTrue(segments.contains("visibilityThreshold = 0.01.dp"))
+        assertTrue(segments.contains("FastOutSlowInEasing"))
+        assertTrue(segments.contains("tween("))
+        assertTrue(segments.contains("durationMillis = 240"))
+        assertFalse(segments.contains("DampingRatioHighBouncy"))
+        assertFalse(segments.contains("spring("))
         assertEquals(4, segments.windowed(".coerceIn(innerCorner, outerCorner)".length)
             .count { it == ".coerceIn(innerCorner, outerCorner)" })
         assertTrue(segments.contains("motionPolicy.allowSpatialTransitions"))

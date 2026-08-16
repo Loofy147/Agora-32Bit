@@ -496,7 +496,7 @@ internal fun ContextCompactPill(
         Row(
             modifier = Modifier
                 .heightIn(min = 42.dp)
-                .padding(horizontal = 14.dp),
+                .padding(start = 14.dp, end = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {

@@ -8,7 +8,7 @@ import org.junit.Test
 
 class ApplicationUiSourceContractTest {
     @Test
-    fun `onboarding primary action reuses the documentation press spring geometry`() {
+    fun `onboarding primary action reuses the documentation spring with lower amplitude`() {
         val source = sourceFile("app/src/main/java/com/newoether/agora/ui/onboarding/WelcomeScreen.kt")
 
         assertTrue(source.contains("MutableInteractionSource()"))
@@ -16,9 +16,9 @@ class ApplicationUiSourceContractTest {
         assertTrue(source.contains("motionPolicy.allowSpatialTransitions"))
         assertTrue(source.contains("stiffness = 400f"))
         assertTrue(source.contains("dampingRatio = 0.25f"))
-        assertTrue(source.contains("targetValue = if (pressed) 12.dp else 32.dp"))
-        assertTrue(source.contains("targetValue = if (pressed) 56.dp else 48.dp"))
-        assertTrue(source.contains("targetValue = if (pressed) 1.1f else 1f"))
+        assertTrue(source.contains("targetValue = if (pressed) 20.dp else 32.dp"))
+        assertTrue(source.contains("targetValue = if (pressed) 52.dp else 48.dp"))
+        assertTrue(source.contains("targetValue = if (pressed) 1.05f else 1f"))
         assertTrue(source.contains(".height(56.dp)"))
         assertTrue(source.contains(".scale(contentScale)"))
     }
@@ -83,10 +83,31 @@ class ApplicationUiSourceContractTest {
         assertTrue(source.contains("val normalGradientTopPaddingPx = with(density) { 0.dp.toPx() }"))
         assertTrue(source.contains("val expandedGradientTopPaddingPx = with(density) { 20.dp.toPx() }"))
         assertTrue(source.contains("val gradientWidthPx = with(density) { 40.dp.toPx() }"))
+        assertTrue(source.contains("if (!isExpanded) Spacer(modifier = Modifier.height(8.dp))"))
         assertTrue(source.contains("expandedHeightPx = with(density) { 44.dp.toPx() }"))
         assertTrue(source.contains("val h = expandedGradientTopPaddingPx.coerceAtMost"))
         assertTrue(source.contains("val te = (normalGradientTopPaddingPx / totalH)"))
         assertTrue(source.contains("normalGradientTopPaddingPx + gradientWidthPx"))
+    }
+
+    @Test
+    fun `MCP refreshes once on page entry without polling or duplicate connecting restart`() {
+        val page = sourceFile("app/src/main/java/com/newoether/agora/ui/settings/SettingsMcpPage.kt")
+        val viewModel = sourceFile("app/src/main/java/com/newoether/agora/viewmodel/ChatViewModel.kt")
+        val registry = sourceFile("app/src/main/java/com/newoether/agora/mcp/McpRegistry.kt")
+
+        assertTrue(page.contains("LaunchedEffect(Unit)"))
+        assertTrue(page.contains("viewModel.refreshMcpServersOnPageEntry()"))
+        assertFalse(page.contains("delay("))
+        assertTrue(viewModel.contains("fun refreshMcpServersOnPageEntry()"))
+        assertTrue(viewModel.contains("mcpRegistry.refreshOnPageEntry()"))
+        assertTrue(registry.contains("fun refreshOnPageEntry()"))
+        assertTrue(registry.contains("it.enabled && it.url.isNotBlank()"))
+        assertTrue(registry.contains("McpConnectionStatus.CONNECTING"))
+        assertTrue(registry.contains("runtime?.connectionJob?.isActive == true"))
+        val entryRefresh = registry.substringAfter("fun refreshOnPageEntry()")
+            .substringBefore("suspend fun execute(")
+        assertFalse(entryRefresh.contains("delay("))
     }
 
     @Test

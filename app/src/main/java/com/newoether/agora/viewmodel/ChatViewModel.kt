@@ -273,6 +273,8 @@ class ChatViewModel(
 
     fun refreshMcpServer(serverId: String) = mcpRegistry.refresh(serverId)
 
+    fun refreshMcpServersOnPageEntry() = mcpRegistry.refreshOnPageEntry()
+
     override fun onCleared() {
         super.onCleared()
         // The engine and the registry are process-scoped while this ViewModel is not, so every

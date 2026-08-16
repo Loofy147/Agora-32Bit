@@ -832,7 +832,6 @@ fun ChatApp(
                         val totalH = size.height
                         if (totalH > 0f) {
                             val (transparentEnd, fadeEnd) = if (isExpanded) {
-                                // In expanded mode, keep the gradient compact at the top
                                 val h = expandedGradientTopPaddingPx.coerceAtMost(totalH * 0.12f)
                                 val w = gradientWidthPx.coerceAtMost(totalH * 0.24f)
                                 (h / totalH) to ((h + w) / totalH)
@@ -857,6 +856,7 @@ fun ChatApp(
                 color = Color.Transparent
             ) {
                 Column {
+                    if (!isExpanded) Spacer(modifier = Modifier.height(8.dp))
                     if (outerSpacerHeightPx > 0f) {
                         Spacer(modifier = Modifier.height(with(density) { outerSpacerHeightPx.toDp() }))
                     }

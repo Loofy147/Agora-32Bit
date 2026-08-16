@@ -27,9 +27,11 @@ class Phase32DirectDotSourceContractTest {
             .substringBefore("/**")
         assertTrue(assistant.contains("import com.newoether.agora.ui.chat.GenerationActivityDot"))
         assertTrue(assistantActivity.contains("GenerationActivityDot()"))
+        assertTrue(assistantActivity.contains("visibilityTransition.targetState ||"))
         assertTrue(assistantActivity.contains(
-            "visibilityTransition.currentState || visibilityTransition.targetState"
+            "retainExitLayout && visibilityTransition.currentState"
         ))
+        assertTrue(assistant.contains("retainExitLayout = !hasAnswerContent"))
         assertTrue(assistantActivity.contains("alpha = activityOpacity"))
         assertTrue(assistant.contains("import androidx.compose.ui.graphics.CompositingStrategy"))
         assertTrue(assistantActivity.contains(

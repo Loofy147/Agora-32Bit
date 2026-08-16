@@ -211,8 +211,10 @@ failure; only a later explicit user action may resume ordinary queue admission.
 
 Compact may own a capsule renderer, message label/menu, haptic exclusion, and stable presentation.
 Its outer row height/padding and internal icon/text/action slots must remain stable across
-SENDING/THINKING/terminal/error transitions. UI specialization cannot redefine generation or
-context contracts.
+SENDING/THINKING/terminal/error transitions. The capsule Row uses a 14 dp start inset and a tighter
+7 dp end inset so the 32 dp overflow-action touch target remains visually balanced; its 18 dp icon,
+leading spacing, minimum height, menu behavior, and action enablement remain unchanged. UI
+specialization cannot redefine generation or context contracts.
 
 When the Compact detail Bottom Sheet is open and the ordinary durable message is
 SENDING/answering with no real Markdown output, it shows the localized equivalent of
@@ -300,9 +302,14 @@ Thought/Tool/Transcription presentation and before answer Markdown; the answer-t
 after answer content. Their existing visibility predicates are mutually exclusive, so only the
 active slot draws the shared dot.
 
-Pre-output keeps the exact 11 dp dot and the inline activity host retains the last non-hidden mode
-through its unchanged 320 ms exit. Retry keeps the localized label, 8 dp gap, measured caret
-placement, and direct render-layer translation of that same dot. The answer tail keeps its fixed
+Pre-output keeps the exact 11 dp dot. A no-Answer transition to visible
+Thought/Tool/Transcription content or terminal disappearance retains the last non-hidden inline mode
+through its unchanged 320 ms exit. Visible Answer activation is instead an immediate direct-source
+handoff: the pre-output/Retry host releases layout and stops drawing in that frame, and the answer-tail
+dot is the only source from its first frame at the final anchor. The outgoing inline Row must never
+temporarily inflate message height beneath a newly visible Answer. Retry keeps the localized label,
+8 dp gap, measured caret placement, and direct render-layer translation of that same dot. The answer
+tail keeps its fixed
 anchor height and lift and directly owns its established 400 ms entrance and 320 ms exit fade/scale.
 Each direct source owns its own opacity, breathing, size, and lifecycle. Direct activity and tail
 exit paths retain their content through zero alpha with explicit transition state; they do not use
@@ -410,9 +417,10 @@ Ordinary Timeline mode groups each visually consecutive Thought/Tool/Transcripti
 Settings group grammar: 2 dp between surfaces; a single row uses 24 dp corners; the first uses 24 dp
 outer-top and 5 dp adjoining-bottom corners; middle rows use 5 dp corners; the last uses 5 dp
 adjoining-top and 24 dp outer-bottom corners. All four radii animate when a streamed row changes an
-existing row's group position. Each radius reuses the established high-bouncy/medium-low stiffness
-corner spring and is clamped to [5 dp, 24 dp] after animation; Reduced Motion snaps directly to the
-clamped target. The existing one-shot 420 ms row fade/scale entrance is independent and unchanged. Timeline
+existing row's group position. Each radius uses one monotonic 240 ms `FastOutSlowInEasing` tween,
+never a bouncy/overshooting spring, and is clamped to [5 dp, 24 dp] after animation; Reduced Motion
+snaps directly to the clamped target. The existing one-shot 420 ms row fade/scale entrance is
+independent and unchanged. Timeline
 Thought/Tool/Transcription cards and grouped blocks own exactly one appearance modifier on their
 actual overflow-sized Surface; a bounded outer appearance Box and a second 0.90 scale layer are
 forbidden because they clip the deliberate 4 dp overflow. Answer-block appearance ownership remains
