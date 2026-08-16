@@ -35,6 +35,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.newoether.agora.R
@@ -57,75 +58,106 @@ internal fun ToolDetailContent(
     onMediaClick: (List<String>, Int) -> Unit,
 ) {
     val presentation = ToolPresentationResolver.resolve(segment)
+    val contentAlignmentModifier = if (presentation.kind == ToolKind.WEB_SEARCH) {
+        Modifier.padding(horizontal = 8.dp)
+    } else {
+        Modifier
+    }
     val args = presentation.rawArguments
     if (!args.isNullOrBlank() && args != "{}") {
-        ToolSectionLabel(stringResource(R.string.arguments_label))
-        Spacer(Modifier.height(5.dp))
-        JsonOrPlainView(args)
-        Spacer(Modifier.height(18.dp))
+        Column(modifier = contentAlignmentModifier.fillMaxWidth()) {
+            ToolSectionLabel(stringResource(R.string.arguments_label))
+            Spacer(Modifier.height(5.dp))
+            JsonOrPlainView(args)
+            Spacer(Modifier.height(18.dp))
+        }
     }
 
     if (presentation.kind == ToolKind.MCP) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MetaPill(text = "MCP", emphasized = true)
-            presentation.device
-                ?.takeIf(String::isNotBlank)
-                ?.let { MetaPill(it) }
+        Column(modifier = contentAlignmentModifier.fillMaxWidth()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MetaPill(text = "MCP", emphasized = true)
+                presentation.device
+                    ?.takeIf(String::isNotBlank)
+                    ?.let { MetaPill(it) }
+            }
+            Spacer(Modifier.height(18.dp))
         }
-        Spacer(Modifier.height(18.dp))
     }
 
-    ToolSectionLabel(stringResource(R.string.result_label))
-    Spacer(Modifier.height(6.dp))
-    if (segment.toolImages.isNotEmpty()) {
-        ToolImageResults(
-            images = segment.toolImages,
-            onMediaClick = onMediaClick,
-        )
-        Spacer(Modifier.height(12.dp))
+    Column(modifier = contentAlignmentModifier.fillMaxWidth()) {
+        ToolSectionLabel(stringResource(R.string.result_label))
+        Spacer(Modifier.height(6.dp))
+        if (segment.toolImages.isNotEmpty()) {
+            ToolImageResults(
+                images = segment.toolImages,
+                onMediaClick = onMediaClick,
+            )
+            Spacer(Modifier.height(12.dp))
+        }
     }
     if (presentation.kind == ToolKind.SHELL_EXECUTE ||
         presentation.kind == ToolKind.SHELL_JOB_GET
     ) {
-        ShellResult(presentation)
+        Column(modifier = contentAlignmentModifier.fillMaxWidth()) {
+            ShellResult(presentation)
+        }
         return
     }
-    when (presentation.state) {
-        ToolPresentationState.CALLING -> ToolActiveContent(
-            text = toolSummary(presentation),
-            output = presentation.liveOutput,
-        )
-        ToolPresentationState.RUNNING,
-        ToolPresentationState.BACKGROUND_RUNNING -> ToolActiveContent(
-            text = toolSummary(presentation),
-            output = presentation.liveOutput ?: resultOutput(presentation.result),
-        )
-        ToolPresentationState.FAILED -> {
-            ToolErrorContent(
-                presentation.errorMessage ?: stringResource(R.string.tool_call_failed),
+    if (
+        presentation.kind == ToolKind.WEB_SEARCH &&
+        (
+            presentation.state == ToolPresentationState.EMPTY ||
+                presentation.state == ToolPresentationState.COMPLETED
             )
-            if (
-                presentation.kind == ToolKind.MCP &&
-                (
-                    !presentation.rawTextResult.isNullOrBlank() ||
-                        !presentation.rawStructuredResult.isNullOrBlank()
-                    )
-            ) {
-                Spacer(Modifier.height(10.dp))
-                McpResultContent(presentation)
+    ) {
+        ToolCompletedContent(presentation)
+        return
+    }
+    Column(modifier = contentAlignmentModifier.fillMaxWidth()) {
+        when (presentation.state) {
+            ToolPresentationState.CALLING -> ToolActiveContent(
+                text = toolSummary(presentation),
+                output = presentation.liveOutput,
+            )
+            ToolPresentationState.RUNNING,
+            ToolPresentationState.BACKGROUND_RUNNING -> ToolActiveContent(
+                text = toolSummary(presentation),
+                output = presentation.liveOutput ?: resultOutput(presentation.result),
+            )
+            ToolPresentationState.FAILED -> {
+                ToolErrorContent(
+                    presentation.errorMessage ?: stringResource(R.string.tool_call_failed),
+                )
+                if (
+                    presentation.kind == ToolKind.MCP &&
+                    (
+                        !presentation.rawTextResult.isNullOrBlank() ||
+                            !presentation.rawStructuredResult.isNullOrBlank()
+                        )
+                ) {
+                    Spacer(Modifier.height(10.dp))
+                    McpResultContent(presentation)
+                }
+                if (!presentation.liveOutput.isNullOrBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    TerminalOutput(presentation.liveOutput)
+                }
             }
-            if (!presentation.liveOutput.isNullOrBlank()) {
-                Spacer(Modifier.height(8.dp))
-                TerminalOutput(presentation.liveOutput)
-            }
+            ToolPresentationState.STOPPED -> ToolMutedContent(
+                stringResource(R.string.tool_execution_stopped),
+            )
+            ToolPresentationState.EMPTY,
+            ToolPresentationState.COMPLETED -> ToolCompletedContent(presentation)
         }
-        ToolPresentationState.STOPPED -> ToolMutedContent(
-            stringResource(R.string.tool_execution_stopped),
-        )
-        ToolPresentationState.EMPTY,
-        ToolPresentationState.COMPLETED -> ToolCompletedContent(presentation)
     }
 }
+
+internal fun toolDetailHorizontalPadding(segment: MessageSegment): Dp =
+    when (ToolPresentationResolver.resolve(segment).kind) {
+        ToolKind.WEB_SEARCH -> 16.dp
+        else -> 24.dp
+    }
 
 private enum class ToolImagePreviewState {
     LOADING,
@@ -491,7 +523,9 @@ private fun WebSearchResult(
     val results = ((presentation.result as? JsonObject)?.get("results") as? JsonArray)
         .orEmpty()
     if (results.isEmpty()) {
-        ToolMutedContent(toolSummary(presentation))
+        Column(modifier = Modifier.padding(horizontal = 8.dp)) {
+            ToolMutedContent(toolSummary(presentation))
+        }
         return
     }
     Column {

@@ -90,7 +90,7 @@ class GenerationApiPathBuilderTest {
     }
 
     @Test
-    fun `stopped run queued guidance reaches first openai request exactly once`() = runTest {
+    fun `stopped run remains an assistant before queued guidance in first openai request`() = runTest {
         val repository = mockk<ConversationRepository>(relaxed = true)
         val builder = GenerationApiPathBuilder(repository) { emptyList() }
         val oldUser = message("old-user", null, 0, Participant.USER)
@@ -111,7 +111,10 @@ class GenerationApiPathBuilderTest {
             ),
         )
 
-        assertEquals(queuedUser.id, path.messages.last().id)
+        assertEquals(listOf(oldUser.id, stoppedModel.id, queuedUser.id), path.messages.map { it.id })
+        assertEquals(Participant.MODEL, path.messages[1].participant)
+        assertTrue(path.messages[1].text.startsWith("partial answer"))
+        assertTrue(path.messages[1].text.contains("[Generation status: STOPPED]"))
         val projected = projectGenerationInputMessages(
             messages = path.messages,
             includeImages = true,
@@ -123,9 +126,52 @@ class GenerationApiPathBuilderTest {
         )
         val wireText = wire.flatMap { it.content.orEmpty() }.mapNotNull { it.text }.joinToString("\n")
 
+        assertEquals(listOf("user", "assistant", "user"), wire.map { it.role })
+        assertEquals(1, Regex(Regex.escape("partial answer")).findAll(wireText).count())
         assertEquals(1, Regex(Regex.escape("first guidance")).findAll(wireText).count())
         assertEquals(1, Regex(Regex.escape("second guidance")).findAll(wireText).count())
         assertEquals(1, Regex(Regex.escape("[Generation status: STOPPED]")).findAll(wireText).count())
+    }
+
+    @Test
+    fun `failed run sends its concrete raw error once on the same assistant turn`() = runTest {
+        val repository = mockk<ConversationRepository>(relaxed = true)
+        val builder = GenerationApiPathBuilder(repository) { emptyList() }
+        val rawError = """Network error (403): {"balance":0.57,"code":"INSUFFICIENT_BALANCE"}"""
+        val oldUser = message("old-user", null, 0, Participant.USER)
+        val failedModel = message("failed-model", oldUser.id, 1)
+            .copy(
+                text = "",
+                status = MessageStatus.ERROR,
+                runId = "old-run",
+                toolCallJson =
+                    """[{"type":"error","content":"Network error (403): {\"balance\":0.57,\"code\":\"INSUFFICIENT_BALANCE\"}"}]""",
+            )
+        val followUp = message("follow-up", failedModel.id, 0, Participant.USER)
+            .copy(text = "continue", runId = "fresh-run")
+        val placeholder = message("placeholder", followUp.id, 1)
+            .copy(text = "", status = MessageStatus.SENDING, runId = "fresh-run")
+
+        val path = builder.build(
+            GenerationApiPathRequest(
+                parentId = placeholder.parentId,
+                conversationId = "conversation",
+                config = generationConfig(),
+                context = GenerationContext(),
+                loadedMessages = listOf(oldUser, failedModel, followUp, placeholder),
+            ),
+        )
+
+        val failed = path.messages.single { it.id == failedModel.id }
+        assertEquals(Participant.MODEL, failed.participant)
+        assertEquals(MessageStatus.SUCCESS, failed.status)
+        assertEquals(1, Regex(Regex.escape(rawError)).findAll(failed.text).count())
+        val wire = convertToOpenAiMessages(
+            prepareMessages(path.messages, path.providerConfig.maxContextWindow),
+        )
+        assertEquals(listOf("user", "assistant", "user"), wire.map { it.role })
+        val wireText = wire.flatMap { it.content.orEmpty() }.mapNotNull { it.text }.joinToString("\n")
+        assertEquals(1, Regex(Regex.escape(rawError)).findAll(wireText).count())
     }
 
     @Test

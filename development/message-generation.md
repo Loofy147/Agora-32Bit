@@ -290,10 +290,29 @@ host, and TLS failure are matched case-insensitively and localized. Nonblank Pro
 diagnostic detail remains verbatim inside the localized wrapper unless it is plain prose whose first
 lowercase Unicode letter can be title-cased safely; codes, URLs, JSON, and identifiers are not
 rewritten. A narrow render-time compatibility normalizer applies the same known-phrase and safe
-sentence-case rules to already-persisted strings without mutating Room data.
+sentence-case rules to already-persisted strings without mutating Room data. For display only, a
+JSON object may contribute one nonblank human-readable detail in the strict order nested
+`error.message`, top-level `message`, then top-level `reason`; JSON escapes are decoded and
+duplicate envelope fields are omitted. Malformed JSON, non-object JSON, or an object without one of
+those supported string fields remains verbatim. This display extraction never changes persisted or
+Provider-facing text.
+
+A normal durable MODEL row ending in ERROR or STOPPED remains that exact assistant turn in every
+later Provider request. API-only canonicalization preserves its nonblank partial answer first and
+appends one terminal annotation to the same assistant text. ERROR then appends the exact last
+nonblank persisted `error` segment, without localization, JSON extraction, sentence casing,
+truncation, or other rewriting; only legacy error-only rows without an error segment may use their
+stored text as the detail. STOPPED appends its stopped annotation even when no partial answer exists.
+The API projection normalizes only its transient status to prevent duplicate projection; it never
+changes Room. It must not change either terminal row to USER, prepend it to a later user message, or
+drop the concrete error. Synthetic tool/result rows and Compact rows retain their dedicated
+protocol and terminal contracts.
 
 Ordinary assistant messages render no general-purpose status row. Sending, Thinking, answering,
-terminal success/token usage, stopped, and failed labels must not reserve or render that legacy row.
+terminal success/token usage, stopped, and failed labels must not restore that variable-height legacy
+row. Its historical position above all Thinking/tool/answer content instead retains exactly one empty,
+status-independent 8 dp vertical spacer. This is a fixed height, not a minimum-height threshold, and it
+never hosts or alters the current below-Thinking pre-output/Retry activity.
 Generation ERROR and STOPPED render text only: no Surface/background, rounded outline, Info icon,
 icon gap, or inner container padding. Both use the exact Retry label tokens, `ChatType.body` and
 `onSurfaceVariant` at 0.55 alpha, but neither uses Retry's grapheme entrance or active white dot.

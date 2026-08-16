@@ -107,6 +107,54 @@ class GenerationErrorPresentationTest {
     }
 
     @Test
+    fun `persisted network json displays one decoded human message`() {
+        val context = mockk<Context>()
+        val detail = "【账户余额不足】当前可用余额 $0.57\n" +
+            "按量计费需要可用余额 > 0 才能发起请求。\n" +
+            "去充值：https://api.lmuai.com/purchase?recharge=1"
+        val rawJson = "{\"balance\":0.57287809,\"code\":\"INSUFFICIENT_BALANCE\"," +
+            "\"error\":{\"code\":\"INSUFFICIENT_BALANCE\"," +
+            "\"message\":\"【账户余额不足】当前可用余额 $0.57\\n" +
+            "按量计费需要可用余额 \\u003e 0 才能发起请求。\\n" +
+            "去充值：https://api.lmuai.com/purchase?recharge=1\"," +
+            "\"type\":\"billing_error\"}," +
+            "\"message\":\"duplicate envelope message\"," +
+            "\"reason\":\"insufficient balance\"}"
+        every {
+            context.getString(R.string.generation_error_network_http, 403, detail)
+        } returns "网络错误（403）：$detail"
+
+        assertEquals(
+            "网络错误（403）：$detail",
+            normalizePersistedGenerationErrorText(
+                context,
+                "Network error (403): $rawJson",
+            ),
+        )
+    }
+
+    @Test
+    fun `structured error extraction uses supported precedence and safe fallback`() {
+        assertEquals(
+            "nested",
+            extractStructuredGenerationErrorDetail(
+                """{"error":{"message":"nested"},"message":"top","reason":"reason"}""",
+            ),
+        )
+        assertEquals(
+            "top",
+            extractStructuredGenerationErrorDetail("""{"message":"top","reason":"reason"}"""),
+        )
+        assertEquals(
+            "reason",
+            extractStructuredGenerationErrorDetail("""{"reason":"reason"}"""),
+        )
+        assertNull(extractStructuredGenerationErrorDetail("{bad"))
+        assertNull(extractStructuredGenerationErrorDetail("""["message"]"""))
+        assertNull(extractStructuredGenerationErrorDetail("""{"code":"opaque"}"""))
+    }
+
+    @Test
     fun `chat generation consumers use typed localized presentation`() {
         val generation = sourceFile(
             "app/src/main/java/com/newoether/agora/viewmodel/GenerationManager.kt",

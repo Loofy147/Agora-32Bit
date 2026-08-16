@@ -17,6 +17,10 @@ class ExperimentalGenerationUiSourceContractTest {
 
         assertFalse(assistant.contains("AssistantStatusRow("))
         assertFalse(assistant.contains("AssistantStatusKind"))
+        assertTrue(assistant.contains("private val FormerAssistantStatusSpacerHeight = 8.dp"))
+        assertTrue(assistant.contains(
+            "Spacer(modifier = Modifier.height(FormerAssistantStatusSpacerHeight))"
+        ))
         assertTrue(assistant.contains("AssistantInlineActivity("))
         assertTrue(assistant.contains("RetryActivityIndicator("))
         assertTrue(assistant.contains("StoppedGenerationBar("))
@@ -33,10 +37,14 @@ class ExperimentalGenerationUiSourceContractTest {
         assertFalse(assistant.contains("visibilityTransition.AnimatedVisibility("))
         assertTrue(assistant.contains("GenerationActivityDot()"))
         val messageContent = assistant.substringAfter("internal fun AssistantMessageContent(")
+        val fixedSpacerIndex = messageContent.indexOf(
+            "Spacer(modifier = Modifier.height(FormerAssistantStatusSpacerHeight))"
+        )
         val compactIndex = messageContent.indexOf("if (compactVisible)")
         val activityIndex = messageContent.indexOf("AssistantInlineActivity(")
         val answerIndex = messageContent.indexOf("val answerBodyText")
-        assertTrue(compactIndex >= 0)
+        assertTrue(fixedSpacerIndex >= 0)
+        assertTrue(compactIndex > fixedSpacerIndex)
         assertTrue(activityIndex > compactIndex)
         assertTrue(answerIndex > activityIndex)
 

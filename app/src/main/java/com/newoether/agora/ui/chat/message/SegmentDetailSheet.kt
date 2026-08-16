@@ -330,7 +330,6 @@ internal fun SegmentDetailSheet(
 
                                     .verticalScroll(scrollState)
                                     .noOpBringIntoView()
-                                    .padding(horizontal = 24.dp)
                                     .padding(top = if (seg.type == "tool") 6.dp else 4.dp)
                                     .navigationBarsPadding()
                                     .padding(bottom = 32.dp)
@@ -344,15 +343,23 @@ internal fun SegmentDetailSheet(
                                             style = ChatType.detailTitle,
                                             color = MaterialTheme.colorScheme.onSurface,
                                             modifier = Modifier.padding(
+                                                start = 24.dp,
+                                                end = 24.dp,
                                                 top = if (index == 0) 0.dp else 18.dp,
                                                 bottom = 8.dp,
                                             ),
                                         )
                                         if (detailSeg.type == "tool") {
-                                            ToolDetailContent(
-                                                segment = detailSeg,
-                                                onMediaClick = onMediaClick,
-                                            )
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = toolDetailHorizontalPadding(detailSeg)),
+                                            ) {
+                                                ToolDetailContent(
+                                                    segment = detailSeg,
+                                                    onMediaClick = onMediaClick,
+                                                )
+                                            }
                                         } else if (
                                             detailSeg.type == "transcription" &&
                                             detailSeg.content.isBlank()
@@ -362,30 +369,47 @@ internal fun SegmentDetailSheet(
                                                 style = ChatType.body,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                                     .copy(alpha = 0.4f),
+                                                modifier = Modifier.padding(horizontal = 24.dp),
                                             )
                                         } else {
                                             val detailIsStreaming =
                                                 isStreaming && index == selectedSegs.lastIndex
-                                            StreamingDetailMarkdownReveal(
-                                                revealKey = "${message.id}:$detailIndex",
-                                                content = detailSeg.content,
-                                                isStreaming = detailIsStreaming,
-                                                renderContext = markdownRenderContext,
-                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 24.dp),
+                                            ) {
+                                                StreamingDetailMarkdownReveal(
+                                                    revealKey = "${message.id}:$detailIndex",
+                                                    content = detailSeg.content,
+                                                    isStreaming = detailIsStreaming,
+                                                    renderContext = markdownRenderContext,
+                                                )
+                                            }
                                         }
                                         if (index < selectedSegs.lastIndex) {
                                             HorizontalDivider(
-                                                modifier = Modifier.padding(top = 18.dp),
+                                                modifier = Modifier.padding(
+                                                    start = 24.dp,
+                                                    top = 18.dp,
+                                                    end = 24.dp,
+                                                ),
                                                 color = MaterialTheme.colorScheme.outlineVariant
                                                     .copy(alpha = 0.3f),
                                             )
                                         }
                                     }
                                 } else if (seg.type == "tool") {
-                                    ToolDetailContent(
-                                        segment = seg,
-                                        onMediaClick = onMediaClick,
-                                    )
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = toolDetailHorizontalPadding(seg)),
+                                    ) {
+                                        ToolDetailContent(
+                                            segment = seg,
+                                            onMediaClick = onMediaClick,
+                                        )
+                                    }
                                 } else if (
                                     seg.type == "transcription" &&
                                     seg.content.isBlank()
@@ -395,20 +419,41 @@ internal fun SegmentDetailSheet(
                                         style = ChatType.body,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                             .copy(alpha = 0.4f),
+                                        modifier = Modifier.padding(horizontal = 24.dp),
                                     )
                                 } else {
-                                    StreamingDetailMarkdownReveal(
-                                        revealKey = "${message.id}:$selectedLiveIndex",
-                                        content = seg.content,
-                                        isStreaming = isStreaming,
-                                        renderContext = markdownRenderContext,
-                                        emptyStreamingText = emptyStreamingText,
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 24.dp),
+                                    ) {
+                                        StreamingDetailMarkdownReveal(
+                                            revealKey = "${message.id}:$selectedLiveIndex",
+                                            content = seg.content,
+                                            isStreaming = isStreaming,
+                                            renderContext = markdownRenderContext,
+                                            emptyStreamingText = emptyStreamingText,
+                                        )
+                                    }
                                 }
                                 errorText?.takeIf(String::isNotBlank)?.let {
-                                    GenerationErrorBar(it)
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 24.dp),
+                                    ) {
+                                        GenerationErrorBar(it)
+                                    }
                                 }
-                                detailFooter?.invoke()
+                                detailFooter?.let { footer ->
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 24.dp),
+                                    ) {
+                                        footer()
+                                    }
+                                }
                             }
                         }
                         }

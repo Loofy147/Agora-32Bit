@@ -9,6 +9,7 @@ class ToolResultContentSourceContractTest {
     @Test
     fun `Web Search results keep semantic tiers and use rounded full-row link ripples`() {
         val source = source(locateMainSourceRoot(), "ToolResultContent.kt")
+        val segmentDetailSheet = source(locateMainSourceRoot(), "SegmentDetailSheet.kt")
         val webSearch = source
             .substringAfter("private fun WebSearchResult(")
             .substringBefore("private fun IndexedCodeLine(")
@@ -24,6 +25,29 @@ class ToolResultContentSourceContractTest {
         assertTrue(webSearch.contains("val safeUrl = remember(url) { CitationPolicy.safeHttpUrl(url) }"))
         assertTrue(webSearch.contains("enabled = safeUrl != null"))
         assertTrue(webSearch.contains("runCatching { uriHandler.openUri(destination) }"))
+        assertTrue(
+            source.contains("internal fun toolDetailHorizontalPadding(segment: MessageSegment): Dp"),
+        )
+        assertTrue(source.contains("ToolKind.WEB_SEARCH -> 16.dp"))
+        assertTrue(source.contains("else -> 24.dp"))
+        assertTrue(
+            segmentDetailSheet.contains(
+                ".padding(horizontal = toolDetailHorizontalPadding(detailSeg))",
+            ),
+        )
+        assertTrue(
+            segmentDetailSheet.contains(
+                ".padding(horizontal = toolDetailHorizontalPadding(seg))",
+            ),
+        )
+        val toolDetail = source
+            .substringAfter("internal fun ToolDetailContent(")
+            .substringBefore("private enum class ToolImagePreviewState")
+        assertTrue(
+            toolDetail.contains(
+                "val contentAlignmentModifier = if (presentation.kind == ToolKind.WEB_SEARCH)",
+            ),
+        )
 
         val clipPosition = webSearch.indexOf(".clip(resultShape)")
         val clickablePosition = webSearch.indexOf(".clickable(")

@@ -55,6 +55,7 @@ import com.newoether.agora.ui.common.LocalAgoraHaptics
 import com.newoether.agora.ui.theme.ChatType
 
 internal val AssistantMessageHorizontalInset = 8.dp
+private val FormerAssistantStatusSpacerHeight = 8.dp
 
 internal data class TokenUsagePresentation(
     val input: Int?,
@@ -345,6 +346,8 @@ internal fun AssistantMessageContent(
             .then(if (isStreaming) Modifier.nestedScroll(horizontalScrollEater) else Modifier)
     ) {
         Column {
+            Spacer(modifier = Modifier.height(FormerAssistantStatusSpacerHeight))
+
             // GenerationManager already publishes a bounded stream cadence. A second UI debounce
             // delayed every chunk, retained a stale text job through Stop, and then replaced the
             // whole document at terminalization. Feed the latest immutable snapshot directly to

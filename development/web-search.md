@@ -94,10 +94,12 @@ No owner may infer the other capability from a matching company name or legacy s
   Every result whose URL passes the shared HTTP(S) citation-safety policy is one full-row activation
   target. Its Material ripple is bounded and clipped to one 12 dp rounded rectangle, and
   activation opens the safe URL through the Compose URI handler without haptics or a separate Intent
-  path. A missing or unsafe URL stays non-clickable. Content inside that interaction boundary keeps
-  12 dp vertical padding and adds 8 dp horizontal padding so both ripple edges remain visibly outside
-  the text. The rounded boundary must not add a fill or elevation, change the sheet's external margin,
-  or replace the existing separator treatment.
+  path. A missing or unsafe URL stays non-clickable. Only the Web Search result host reduces the
+  conventional sheet-side outer inset from 24 dp to 16 dp, so every card, divider, ripple, and
+  activation target extends 8 dp toward both screen edges. Title, snippet, and URL content stay on
+  the established 24 dp text line through an 8 dp alignment inset inside that expanded host, while
+  each row keeps 12 dp vertical padding. The rounded boundary must not add a fill or elevation,
+  change any other tool-detail inset, or replace the existing separator treatment.
 
 ## 6. Failure and security behavior
 

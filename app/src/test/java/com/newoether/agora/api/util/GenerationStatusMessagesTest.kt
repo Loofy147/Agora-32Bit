@@ -15,10 +15,11 @@ import org.junit.Test
 
 class GenerationStatusMessagesTest {
     @Test
-    fun standaloneError_becomesSanitizedUserStatusEvent() {
+    fun standaloneError_remainsAssistantAndIncludesRawPersistedDetail() {
+        val rawError = """{"balance":0.57,"error":{"message":"raw provider failure"}}"""
         val error = ChatMessage(
             id = "error",
-            text = "HTTP 500",
+            text = "partial answer",
             images = listOf("/private/image.png"),
             thoughts = "private reasoning",
             thoughtTitle = "Thinking",
@@ -29,17 +30,26 @@ class GenerationStatusMessagesTest {
             thoughtTimeMs = 100,
             modelName = "model",
             toolCall = ToolCallData("tool", "{}", "result"),
-            segments = listOf(MessageSegment(type = "answer", content = "answer")),
+            segments = listOf(
+                MessageSegment(type = "answer", content = "partial answer"),
+                MessageSegment(type = "error", content = rawError),
+            ),
             attachmentMeta = AttachmentMeta(),
             retryText = "retry",
         )
 
         val projected = projectGenerationStatusesForApi(listOf(error)).single()
 
-        assertEquals(Participant.USER, projected.participant)
+        assertEquals(Participant.MODEL, projected.participant)
         assertEquals(MessageStatus.SUCCESS, projected.status)
-        assertTrue(projected.text.contains("[Generation status: ERROR]"))
-        assertTrue(projected.text.contains("HTTP 500"))
+        assertEquals(
+            "partial answer\n\n" +
+                "[Generation status: ERROR]\n" +
+                "The previous assistant generation failed before completing.\n" +
+                "Details:\n$rawError",
+            projected.text,
+        )
+        assertEquals(1, Regex(Regex.escape(rawError)).findAll(projected.text).count())
         assertTrue(projected.images.isEmpty())
         assertEquals(null, projected.thoughts)
         assertEquals(null, projected.toolCall)
@@ -49,7 +59,7 @@ class GenerationStatusMessagesTest {
     }
 
     @Test
-    fun stoppedStatus_isPrependedToFollowingUserMessageBeforeContextLimiting() {
+    fun stoppedStatus_staysAsSeparateAssistantBeforeFollowingUserMessage() {
         val stopped = ChatMessage(
             id = "stopped",
             text = "partial answer",
@@ -64,19 +74,40 @@ class GenerationStatusMessagesTest {
 
         val projected = projectGenerationStatusesForApi(listOf(stopped, followUp))
 
-        assertEquals(1, projected.size)
-        assertEquals("follow-up", projected.single().id)
-        assertTrue(projected.single().text.contains("[Generation status: STOPPED]"))
-        assertTrue(projected.single().text.contains("partial answer"))
-        assertTrue(projected.single().text.endsWith("continue"))
+        assertEquals(2, projected.size)
+        assertEquals("stopped", projected[0].id)
+        assertEquals(Participant.MODEL, projected[0].participant)
+        assertEquals(MessageStatus.SUCCESS, projected[0].status)
         assertEquals(
-            listOf("follow-up"),
-            prepareMessages(projected, contextTokenBudget = 1).map { it.id },
+            "partial answer\n\n" +
+                "[Generation status: STOPPED]\n" +
+                "The previous assistant generation was stopped before completing.",
+            projected[0].text,
+        )
+        assertSame(followUp, projected[1])
+    }
+
+    @Test
+    fun emptyStoppedTurn_becomesSubstantiveAssistantText() {
+        val stopped = ChatMessage(
+            id = "stopped",
+            text = "",
+            status = MessageStatus.STOPPED,
+            participant = Participant.MODEL,
+        )
+
+        val projected = projectGenerationStatusesForApi(listOf(stopped)).single()
+
+        assertEquals(Participant.MODEL, projected.participant)
+        assertEquals(
+            "[Generation status: STOPPED]\n" +
+                "The previous assistant generation was stopped before completing.",
+            projected.text,
         )
     }
 
     @Test
-    fun legacyErrorParticipant_isVisibleToModelWithDetails() {
+    fun legacyErrorParticipant_becomesAssistantWithStoredRawDetail() {
         val projected = projectGenerationStatusesForApi(
             listOf(
                 ChatMessage(
@@ -88,9 +119,38 @@ class GenerationStatusMessagesTest {
             )
         ).single()
 
-        assertEquals(Participant.USER, projected.participant)
-        assertTrue(projected.text.contains("[Generation status: ERROR]"))
-        assertTrue(projected.text.contains("legacy failure"))
+        assertEquals(Participant.MODEL, projected.participant)
+        assertEquals(MessageStatus.SUCCESS, projected.status)
+        assertEquals(
+            "[Generation status: ERROR]\n" +
+                "The previous assistant generation failed before completing.\n" +
+                "Details:\nlegacy failure",
+            projected.text,
+        )
+    }
+
+    @Test
+    fun terminalProjection_isIdempotent() {
+        val rawError = """{"error":{"message":"once"}}"""
+        val error = ChatMessage(
+            id = "error",
+            text = "",
+            status = MessageStatus.ERROR,
+            participant = Participant.MODEL,
+            segments = listOf(MessageSegment(type = "error", content = rawError)),
+        )
+
+        val once = projectGenerationStatusesForApi(listOf(error))
+        val twice = projectGenerationStatusesForApi(once)
+
+        assertSame(once, twice)
+        assertEquals(1, Regex(Regex.escape(rawError)).findAll(twice.single().text).count())
+        assertEquals(
+            1,
+            Regex(Regex.escape("[Generation status: ERROR]"))
+                .findAll(twice.single().text)
+                .count(),
+        )
     }
 
     @Test

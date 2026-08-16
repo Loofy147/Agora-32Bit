@@ -272,49 +272,22 @@ internal fun protocolAtomicUnits(messages: List<ChatMessage>): List<List<ChatMes
 }
 
 /**
- * Converts durable terminal generation rows into model-visible status events without presenting
- * client/provider failures as genuine assistant output.
+ * Projects a durable terminal generation row as complete text on that same assistant turn.
  *
- * The database/UI message remains untouched. In the API-only path, ERROR and STOPPED rows become
- * user-role status text with all assistant/tool payload removed. When the next row is a normal user
- * message, the status is prepended to it so context-window truncation cannot retain the follow-up
- * while silently dropping the immediately preceding status.
+ * Room and UI state remain untouched. The API-only copy keeps any partial answer first, appends one
+ * terminal annotation, and includes the exact persisted error-segment detail when present. Clearing
+ * UI/protocol-only payload from the aggregate is safe because ApiPathAssembler emits durable tool
+ * protocol rows separately before this visible model row.
  */
 fun projectGenerationStatusesForApi(messages: List<ChatMessage>): List<ChatMessage> {
     if (messages.none(ChatMessage::isGenerationStatusMessage)) return messages
-
-    val projected = mutableListOf<ChatMessage>()
-    val pendingStatuses = mutableListOf<ChatMessage>()
-
-    fun flushPending() {
-        projected.addAll(pendingStatuses.map(ChatMessage::asGenerationStatusEvent))
-        pendingStatuses.clear()
-    }
-
-    messages.forEach { message ->
-        when {
-            message.isGenerationStatusMessage() -> pendingStatuses += message
-            pendingStatuses.isNotEmpty() &&
-                message.participant == Participant.USER &&
-                !message.isToolProtocolMessage() -> {
-                val statusText = pendingStatuses.joinToString("\n\n") {
-                    it.generationStatusEventText()
-                }
-                projected += message.copy(
-                    text = listOf(statusText, message.text)
-                        .filter(String::isNotBlank)
-                        .joinToString("\n\n")
-                )
-                pendingStatuses.clear()
-            }
-            else -> {
-                flushPending()
-                projected += message
-            }
+    return messages.map { message ->
+        if (message.isGenerationStatusMessage()) {
+            message.asTerminalAssistantMessage()
+        } else {
+            message
         }
     }
-    flushPending()
-    return projected
 }
 
 private fun ChatMessage.isGenerationStatusMessage(): Boolean =
@@ -323,44 +296,63 @@ private fun ChatMessage.isGenerationStatusMessage(): Boolean =
             status == MessageStatus.ERROR ||
             status == MessageStatus.STOPPED)
 
-private fun ChatMessage.asGenerationStatusEvent(): ChatMessage = copy(
-    text = generationStatusEventText(),
-    images = emptyList(),
-    thoughts = null,
-    thoughtTitle = null,
-    tokenCount = 0,
-    tokenUsage = null,
-    status = MessageStatus.SUCCESS,
-    participant = Participant.USER,
-    thoughtTimeMs = null,
-    modelName = null,
-    toolCall = null,
-    segments = null,
-    attachmentMeta = null,
-    retryText = null,
-)
+private fun ChatMessage.asTerminalAssistantMessage(): ChatMessage {
+    val isError = participant == Participant.ERROR || status == MessageStatus.ERROR
+    val persistedError = segments
+        ?.lastOrNull { it.type == "error" && it.content.isNotBlank() }
+        ?.content
+    val hasPersistedAnswer = segments
+        ?.any { it.type == "answer" && it.content.isNotBlank() } == true
+    val legacyErrorDetail = text.takeIf {
+        isError && persistedError == null && !hasPersistedAnswer && it.isNotBlank()
+    }
+    val errorDetail = persistedError ?: legacyErrorDetail
+    val partialAnswer = when {
+        !isError -> text
+        legacyErrorDetail != null -> ""
+        persistedError != null && text.trim() == persistedError.trim() -> ""
+        else -> text
+    }
+    val terminalText = generationStatusEventText(
+        isError = isError,
+        errorDetail = errorDetail,
+    )
+    return copy(
+        text = listOf(partialAnswer, terminalText)
+            .filter(String::isNotBlank)
+            .joinToString("\n\n"),
+        images = emptyList(),
+        thoughts = null,
+        thoughtTitle = null,
+        tokenCount = 0,
+        tokenUsage = null,
+        status = MessageStatus.SUCCESS,
+        participant = Participant.MODEL,
+        thoughtTimeMs = null,
+        modelName = null,
+        toolCall = null,
+        segments = null,
+        attachmentMeta = null,
+        retryText = null,
+    )
+}
 
-private fun ChatMessage.generationStatusEventText(): String {
-    val detail = text.trim()
-    return when {
-        participant == Participant.ERROR || status == MessageStatus.ERROR ->
-            buildString {
-                append("[Generation status: ERROR]\n")
-                append("The previous assistant generation failed before completing.")
-                if (detail.isNotEmpty()) {
-                    append("\nDetails:\n")
-                    append(detail)
-                }
-            }
-        else ->
-            buildString {
-                append("[Generation status: STOPPED]\n")
-                append("The previous assistant generation was stopped before completing.")
-                if (detail.isNotEmpty()) {
-                    append("\nPartial output:\n")
-                    append(detail)
-                }
-            }
+private fun generationStatusEventText(
+    isError: Boolean,
+    errorDetail: String?,
+): String = if (isError) {
+    buildString {
+        append("[Generation status: ERROR]\n")
+        append("The previous assistant generation failed before completing.")
+        errorDetail?.takeIf(String::isNotBlank)?.let { detail ->
+            append("\nDetails:\n")
+            append(detail)
+        }
+    }
+} else {
+    buildString {
+        append("[Generation status: STOPPED]\n")
+        append("The previous assistant generation was stopped before completing.")
     }
 }
 
