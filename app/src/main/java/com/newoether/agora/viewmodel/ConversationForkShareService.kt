@@ -348,27 +348,7 @@ internal fun formatShareText(title: String, messages: List<MessageEntity>): Stri
                     var includedAnswer = false
                     segments.forEach { segment ->
                         when (segment.type) {
-                            "thought" -> segment.content.trim().takeIf { it.isNotBlank() }?.let {
-                                blocks += "## Thinking\n\n$it"
-                            }
-                            "tool" -> {
-                                val name = segment.toolName?.takeIf { it.isNotBlank() } ?: "Tool"
-                                val toolBody = buildString {
-                                    segment.toolArgs?.takeIf { it.isNotBlank() }?.let {
-                                        append("Arguments\n\n```json\n")
-                                        append(it)
-                                        append("\n```")
-                                    }
-                                    segment.toolResult?.takeIf { it.isNotBlank() }?.let {
-                                        if (isNotEmpty()) append("\n\n")
-                                        append("Result\n\n```\n")
-                                        append(it)
-                                        append("\n```")
-                                    }
-                                }
-                                blocks += "## Tool: $name" +
-                                    toolBody.takeIf { it.isNotBlank() }?.let { "\n\n$it" }.orEmpty()
-                            }
+                            "thought", "tool" -> Unit
                             "answer" -> segment.content.trim().takeIf { it.isNotBlank() }?.let {
                                 includedAnswer = true
                                 blocks += "## Assistant\n\n$it"
@@ -384,9 +364,6 @@ internal fun formatShareText(title: String, messages: List<MessageEntity>): Stri
                         }
                     }
                 } else {
-                    message.thoughts?.trim()?.takeIf { it.isNotBlank() }?.let {
-                        blocks += "## Thinking\n\n$it"
-                    }
                     message.text.trim().takeIf { it.isNotBlank() }?.let {
                         blocks += "## Assistant\n\n$it"
                     }

@@ -581,6 +581,20 @@ The following are binding review blockers:
   path until several real features need the exact same rule. Unknown relay behavior fails closed;
   that alone does not justify a capability framework.
 
+### 8.11 Conversation share projection
+
+Every conversation-sharing mode—whole conversation, selected visible messages, and one assistant
+generation—uses one public-content formatter. The exported Markdown must omit every structured
+`thought` segment, every `tool` segment and all of its names, arguments, progress, results, images,
+and protocol metadata, legacy `MessageEntity.thoughts`, and synthetic tool/result protocol rows.
+This is a read-only projection rule: sharing never deletes, rewrites, or weakens durable history,
+Provider context, tool continuation state, or fork graph completeness.
+
+The formatter preserves the selected visible branch and established ordering, completion checks,
+conversation title, user text and attachment summaries, assistant answer and transcription content,
+and error content. Inline text versus Markdown-file transport, share selection, and Android chooser
+behavior remain transport/UI concerns and may not reintroduce private Thinking or tool payloads.
+
 ## 9. Context assembly contract in module terms
 
 `GenerationApiPathBuilder` receives one immutable durable snapshot and a requested parent ID. It

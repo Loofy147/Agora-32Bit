@@ -91,6 +91,13 @@ No owner may infer the other capability from a matching company name or legacy s
   11-12 sp URL/source is tertiary in primary color. Rows use deliberate internal spacing and subtle
   separators rather than equal-weight filled cards. Presentation must preserve result order and the
   existing title, URL, and snippet fallback data without changing search execution or settlement.
+  Every result whose URL passes the shared HTTP(S) citation-safety policy is one full-row activation
+  target. Its Material ripple is bounded and clipped to one 12 dp rounded rectangle, and
+  activation opens the safe URL through the Compose URI handler without haptics or a separate Intent
+  path. A missing or unsafe URL stays non-clickable. Content inside that interaction boundary keeps
+  12 dp vertical padding and adds 8 dp horizontal padding so both ripple edges remain visibly outside
+  the text. The rounded boundary must not add a fill or elevation, change the sheet's external margin,
+  or replace the existing separator treatment.
 
 ## 6. Failure and security behavior
 

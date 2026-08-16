@@ -32,11 +32,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.newoether.agora.R
+import com.newoether.agora.model.CitationPolicy
 import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.ToolImageAttachment
 import com.newoether.agora.ui.theme.ChatType
@@ -484,6 +486,8 @@ private fun FileReadResult(presentation: ToolPresentation) {
 private fun WebSearchResult(
     presentation: ToolPresentation,
 ) {
+    val uriHandler = LocalUriHandler.current
+    val resultShape = RoundedCornerShape(12.dp)
     val results = ((presentation.result as? JsonObject)?.get("results") as? JsonArray)
         .orEmpty()
     if (results.isEmpty()) {
@@ -495,6 +499,7 @@ private fun WebSearchResult(
             val item = value as? JsonObject
             val title = item.string("title") ?: stringResource(R.string.tool_web_result, index + 1)
             val url = item.string("url") ?: item.string("href")
+            val safeUrl = remember(url) { CitationPolicy.safeHttpUrl(url) }
             val snippet = item.string("snippet")
                 ?: item.string("description")
                 ?: item.string("content")
@@ -502,7 +507,16 @@ private fun WebSearchResult(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 12.dp),
+                    .clip(resultShape)
+                    .clickable(
+                        enabled = safeUrl != null,
+                        onClick = {
+                            safeUrl?.let { destination ->
+                                runCatching { uriHandler.openUri(destination) }
+                            }
+                        },
+                    )
+                    .padding(horizontal = 8.dp, vertical = 12.dp),
             ) {
                 Text(
                     text = title,

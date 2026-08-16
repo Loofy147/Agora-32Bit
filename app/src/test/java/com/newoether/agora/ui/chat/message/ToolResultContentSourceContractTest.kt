@@ -7,7 +7,7 @@ import org.junit.Test
 
 class ToolResultContentSourceContractTest {
     @Test
-    fun `Web Search results use distinct semantic tiers and clean separated rows`() {
+    fun `Web Search results keep semantic tiers and use rounded full-row link ripples`() {
         val source = source(locateMainSourceRoot(), "ToolResultContent.kt")
         val webSearch = source
             .substringAfter("private fun WebSearchResult(")
@@ -19,6 +19,20 @@ class ToolResultContentSourceContractTest {
         assertTrue(webSearch.contains("style = ChatType.micro,"))
         assertTrue(webSearch.contains("HorizontalDivider("))
         assertFalse(webSearch.contains(".background("))
+        assertTrue(webSearch.contains("val uriHandler = LocalUriHandler.current"))
+        assertTrue(webSearch.contains("val resultShape = RoundedCornerShape(12.dp)"))
+        assertTrue(webSearch.contains("val safeUrl = remember(url) { CitationPolicy.safeHttpUrl(url) }"))
+        assertTrue(webSearch.contains("enabled = safeUrl != null"))
+        assertTrue(webSearch.contains("runCatching { uriHandler.openUri(destination) }"))
+
+        val clipPosition = webSearch.indexOf(".clip(resultShape)")
+        val clickablePosition = webSearch.indexOf(".clickable(")
+        val paddingPosition = webSearch.indexOf(
+            ".padding(horizontal = 8.dp, vertical = 12.dp)",
+        )
+        assertTrue(clipPosition >= 0)
+        assertTrue(clickablePosition > clipPosition)
+        assertTrue(paddingPosition > clickablePosition)
 
         val titlePosition = webSearch.indexOf("text = title")
         val snippetPosition = webSearch.indexOf("text = snippet")
