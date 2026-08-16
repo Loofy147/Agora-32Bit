@@ -19,9 +19,42 @@ class ApplicationUiSourceContractTest {
         assertTrue(source.contains("dampingRatio = 0.25f"))
         assertTrue(source.contains("targetValue = if (pressed) 24.dp else 32.dp"))
         assertTrue(source.contains("targetValue = if (pressed) 50.dp else 48.dp"))
-        assertTrue(source.contains("targetValue = if (pressed) 1.03f else 1f"))
+        assertTrue(source.contains("targetValue = if (pressed) 1.02f else 1f"))
         assertTrue(source.contains(".height(56.dp)"))
         assertTrue(source.contains(".scale(contentScale)"))
+    }
+
+    @Test
+    fun `PDF page bitmaps are initialized opaque white before both framework render paths`() {
+        val source = sourceFile(
+            "app/src/main/java/com/newoether/agora/util/PdfPageRenderer.kt",
+        )
+
+        assertTrue(source.contains("private const val MAX_PAGES = 5"))
+        assertTrue(source.contains("private const val TARGET_LONG_EDGE = 1536"))
+        assertTrue(source.contains("private fun createPageBitmap(width: Int, height: Int): Bitmap"))
+        assertEquals(1, Regex("Bitmap\\.createBitmap\\(").findAll(source).count())
+        assertTrue(source.contains("eraseColor(Color.WHITE)"))
+        assertEquals(
+            2,
+            Regex("val bitmap = createPageBitmap\\(scaledWidth, scaledHeight\\)")
+                .findAll(source)
+                .count(),
+        )
+        assertEquals(
+            2,
+            Regex(
+                "page\\.render\\(bitmap, null, null, " +
+                    "PdfRenderer\\.Page\\.RENDER_MODE_FOR_DISPLAY\\)",
+            ).findAll(source).count(),
+        )
+        assertEquals(
+            2,
+            Regex("Bitmap\\.CompressFormat\\.JPEG, 80").findAll(source).count(),
+        )
+        assertTrue(source.contains("for (i in selectedPages.sorted())"))
+        assertTrue(source.contains("onProgress?.invoke(i + 1, effectiveTotal)"))
+        assertTrue(source.contains("paths.forEach { runCatching { File(it).delete() } }"))
     }
 
     @Test

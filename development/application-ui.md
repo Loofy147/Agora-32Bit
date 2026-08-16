@@ -28,7 +28,7 @@ Its press response reuses the Documentation FAB spring language with deliberatel
 - reserve one fixed 56 dp outer-height slot so surrounding onboarding content does not jump;
 - animate horizontal inset from 32 dp at rest to 24 dp while pressed, making the full-width action
   exactly 16 dp wider;
-- animate height from 48 dp to 50 dp and content scale from 1f to 1.03f while pressed;
+- animate height from 48 dp to 50 dp and content scale from 1f to 1.02f while pressed;
 - when spatial transitions are disabled, keep 32 dp inset, 48 dp height, and 1f content scale.
 
 ## 3. Settings category copy
@@ -138,7 +138,23 @@ off immediately without a pager-owned delay. The mixed-media pager has no duplic
 second `onClose` owner. Media decoding, pager navigation, gestures, payload routing, shared exit
 transitions, and Reduced Motion remain unchanged.
 
-## 12. Verification
+## 12. PDF page rasterization
+
+PDF page rasterization uses the existing framework `PdfRenderer` owner for both selected pages sent
+as model attachments and all-page full-screen preview generation. Every newly allocated
+`ARGB_8888` page bitmap is initialized to opaque white before
+`PdfRenderer.Page.render` receives it. This produces a deterministic white paper background for
+PDF regions that do not paint an explicit background and prevents JPEG encoding from flattening
+transparent black pixels into a black page that hides correctly rendered black glyphs.
+
+Both consumers share one bitmap-initialization path. The change does not alter page dimensions,
+1536 px long-edge scaling, JPEG quality 80, filename/storage ownership, selected-page filtering and
+ordering, preview page limits, progress callbacks, cancellation cleanup, page-count behavior,
+PDF-authored colors or backgrounds, viewer motion, or attachment/LLM routing. A different PDF engine
+or dependency is not introduced without separate evidence of a rendering defect that remains after
+opaque-white initialization.
+
+## 13. Verification
 
 Focused verification must cover the exact onboarding spring constants, rest/pressed dimensions,
 motion-policy snap, unchanged action semantics, Generation Settings description, locale key/value
@@ -148,7 +164,10 @@ of the Detailed token usage Appearance row and dead chat-side parameter threadin
 Thinking segment -> Auto-Expand Appearance row order with unchanged predicates, the normal-only
 0 dp gradient lead with unchanged 40 dp width and 20 dp expanded behavior, and scoped Settings-arrow
 absence with preserved category/Sandbox/Provider click destinations, Sandbox Switch, and custom
-protocol badge. Full-screen text-preview verification must cover current App-font inheritance in
+protocol badge. PDF rasterization verification must cover one shared opaque-white bitmap initializer
+used by both render paths, initialization before every framework page render, and unchanged
+scaling/JPEG/page-selection/progress/cancellation behavior. Full-screen text-preview verification
+must cover current App-font inheritance in
 both Markdown and ordinary-text paths, exact 1.1 Markdown line-height scaling, explicit Bold H1-H6,
 unchanged Markdown font sizes, and the unchanged 13 sp / 20 sp ordinary-text metrics. It must also
 cover both shared full-screen transition hosts, the exact fade/scale durations and easings, Reduced

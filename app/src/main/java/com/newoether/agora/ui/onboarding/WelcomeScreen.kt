@@ -579,7 +579,7 @@ fun WelcomeScreen(
                     label = "onboardingActionHeight",
                 )
                 val contentScale by animateFloatAsState(
-                    targetValue = if (pressed) 1.03f else 1f,
+                    targetValue = if (pressed) 1.02f else 1f,
                     animationSpec = if (motionPolicy.allowSpatialTransitions) {
                         spring(stiffness = 400f, dampingRatio = 0.25f)
                     } else {

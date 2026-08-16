@@ -2,6 +2,7 @@ package com.newoether.agora.util
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
@@ -34,10 +35,7 @@ object PdfPageRenderer {
                 val scale = TARGET_LONG_EDGE.toFloat() / maxOf(page.width, page.height)
                 val scaledWidth = (page.width * scale).toInt().coerceAtLeast(1)
                 val scaledHeight = (page.height * scale).toInt().coerceAtLeast(1)
-                val bitmap = Bitmap.createBitmap(
-                    scaledWidth, scaledHeight,
-                    Bitmap.Config.ARGB_8888
-                )
+                val bitmap = createPageBitmap(scaledWidth, scaledHeight)
                 page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                 page.close()
 
@@ -76,7 +74,7 @@ object PdfPageRenderer {
                 val scale = TARGET_LONG_EDGE.toFloat() / maxOf(page.width, page.height)
                 val scaledWidth = (page.width * scale).toInt().coerceAtLeast(1)
                 val scaledHeight = (page.height * scale).toInt().coerceAtLeast(1)
-                val bitmap = Bitmap.createBitmap(scaledWidth, scaledHeight, Bitmap.Config.ARGB_8888)
+                val bitmap = createPageBitmap(scaledWidth, scaledHeight)
                 page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                 page.close()
 
@@ -94,6 +92,11 @@ object PdfPageRenderer {
         }
         return paths
     }
+
+    private fun createPageBitmap(width: Int, height: Int): Bitmap =
+        Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).apply {
+            eraseColor(Color.WHITE)
+        }
 
     fun getPageCount(context: Context, uri: Uri): Int {
         return try {
