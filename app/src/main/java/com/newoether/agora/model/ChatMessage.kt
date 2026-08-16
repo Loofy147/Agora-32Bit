@@ -92,6 +92,26 @@ object ThinkingSegmentDisplayModes {
         BOTTOM_SHEET -> BOTTOM_SHEET
         else -> CARD
     }
+
+    fun isAvailableFor(toolCallDisplayMode: String?): Boolean =
+        ToolCallDisplayModes.normalize(toolCallDisplayMode) != ToolCallDisplayModes.TIMELINE
+
+    fun effectiveMode(
+        thinkingSegmentDisplayMode: String?,
+        toolCallDisplayMode: String?,
+    ): String = if (isAvailableFor(toolCallDisplayMode)) {
+        normalize(thinkingSegmentDisplayMode)
+    } else {
+        CARD
+    }
+
+    fun allowsAutoExpand(
+        thinkingSegmentDisplayMode: String?,
+        toolCallDisplayMode: String?,
+    ): Boolean =
+        ToolCallDisplayModes.normalize(toolCallDisplayMode) ==
+            ToolCallDisplayModes.GROUPED_TIMELINE &&
+            normalize(thinkingSegmentDisplayMode) == CARD
 }
 
 object ToolCallDisplayModes {

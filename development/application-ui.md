@@ -48,10 +48,91 @@ icons/images in every menu row, matching the Material default size used by the u
 long-press dropdown. Their 16 dp trigger icons remain unchanged. Menu shape, row geometry, 12 dp
 icon-label gap, labels, badges, switches, ordering, enablement, and click behavior remain unchanged.
 
-## 5. Verification
+## 5. Chat bottom-bar answer fade
+
+In normal, non-expanded composer mode, the existing 40 dp vertical background fade uses zero
+transparent lead inside the retained 44 dp outer composer spacer. It therefore completes 4 dp above
+the actual chat-bottom Surface instead of extending inside it. Its colors, 40 dp width, bottom-bar
+height measurement, list/answer padding, IME/navigation insets, outer-spacer ownership, and scroll
+ownership remain unchanged. Expanded composer mode retains its exact 20 dp compact-at-screen-top
+gradient geometry.
+
+## 6. Localized category and Thinking-segment labels
+
+The default resource and all eleven supported locale directories define localized values for
+`context_title`, `context_desc`, `thinking_segment_display_mode`,
+`thinking_segment_display_mode_desc`, `thinking_segment_display_card`,
+`thinking_segment_display_bottom_sheet`, and `thinking_segments_title`. Localized resources must
+not retain the default English text for those keys, and placeholder sets remain identical.
+
+## 7. Appearance token-detail cleanup
+
+Appearance does not expose the obsolete Detailed token usage toggle. ChatApp, MessageList,
+MessageItem, and AssistantMessageContent do not collect or thread that unused UI value. The existing
+stored preference key and settings import/export compatibility remain readable and writable so the UI
+cleanup creates no migration or archive incompatibility.
+
+## 8. Image-transcription model chooser
+
+The primary image-transcription model chooser lists only currently enabled concrete models. It does
+not inject a synthetic `No model`/null-selection row. A previously persisted null value remains
+compatible: the settings summary may still show its existing no-model fallback, and nullable
+settings persistence/import behavior remains unchanged.
+
+## 9. Appearance Thinking-segment row order
+
+When the Thinking segment display setting is available, Appearance places it immediately below the
+Thought and Tool Blocks display setting and before Auto-Expand Active Group. Reordering must not
+change the existing Grouped/Compact availability rule, the exact Grouped + Card Auto-Expand rule, or
+any stored/effective display-mode behavior.
+
+## 10. Settings destination rows without redundant arrows
+
+Top-level Settings category cards do not render a right-arrow icon; the entire existing card remains
+the navigation target with unchanged grouping, padding, labels, descriptions, colors, and spacing.
+The Terminal page's enabled-only Manage sandbox row likewise omits only its trailing Chevron while
+preserving the row click destination and the separate Sandbox enable Switch. Provider Settings omits
+right arrows from built-in Provider rows, custom Provider rows, and Local Models. Custom Provider rows
+retain their protocol badge but omit the spacer that existed solely between that badge and its arrow.
+No destination, summary, tint, enablement, persistence, or other trailing control changes.
+
+## 11. Full-screen text-file preview typography
+
+The full-screen Markdown-file preview renders its content with the current effective App font from
+`MaterialTheme.typography`; it does not replace that font with a hard-coded mono or system family.
+Markdown body/list/table text, H1-H6, block code, and inline code preserve their current font sizes and
+use exactly 1.1 times their source line height. H1-H6 are explicitly Bold. Link text inherits the
+containing paragraph typography.
+
+The ordinary-text preview also uses the current effective App font while retaining its exact 13 sp
+font size and 20 sp line height. The already-bold filename overlay, close control, selection, scrolling,
+HTML handling, link behavior, Markdown components, content padding, and file-type routing remain
+unchanged.
+
+Every full-screen preview subtype enters and exits through one of two shared top-level transition
+hosts: the media host covers loading, single video, PDF, mixed image/video paging, and single image;
+the text host covers Markdown and ordinary text. With spatial transitions enabled, both hosts use the
+same entrance of a 220 ms fade plus a 300 ms center scale from 0.96f to 1f with
+`FastOutSlowInEasing`, and the same exit of a 180 ms fade plus a 220 ms center scale from 1f to
+0.96f with `FastOutLinearInEasing`. Reduced Motion retains only the corresponding timed fades.
+
+The hosts keep their last payload through exit and release the top-level presentation owner only after
+the transition settles. Viewer-internal overlay/control fades, media decoding, video/PDF/pager/image
+behavior, gestures, close timing, and payload routing remain unchanged.
+
+## 12. Verification
 
 Focused verification must cover the exact onboarding spring constants, rest/pressed dimensions,
-motion-policy snap, unchanged action semantics, Generation Settings description, locale key parity,
-absence of the removed context-window wording, and 24 dp leading-icon parity across both chat-bottom
-dropdowns without resizing their triggers. The project-defined full build gate remains required
-after final code or resource changes.
+motion-policy snap, unchanged action semantics, Generation Settings description, locale key/value
+parity for the Context and Thinking-segment labels, absence of the removed context-window wording,
+24 dp leading-icon parity across both chat-bottom dropdowns without resizing their triggers, absence
+of the Detailed token usage Appearance row and dead chat-side parameter threading, the Tool Blocks ->
+Thinking segment -> Auto-Expand Appearance row order with unchanged predicates, the normal-only
+0 dp gradient lead with unchanged 40 dp width and 20 dp expanded behavior, and scoped Settings-arrow
+absence with preserved category/Sandbox/Provider click destinations, Sandbox Switch, and custom
+protocol badge. Full-screen text-preview verification must cover current App-font inheritance in
+both Markdown and ordinary-text paths, exact 1.1 Markdown line-height scaling, explicit Bold H1-H6,
+unchanged Markdown font sizes, and the unchanged 13 sp / 20 sp ordinary-text metrics. It must also
+cover both shared full-screen transition hosts, the exact fade/scale durations and easings, Reduced
+Motion's fade-only fallback, last-payload retention, and release only after settled exit. The
+project-defined full build gate remains required after final code or resource changes.

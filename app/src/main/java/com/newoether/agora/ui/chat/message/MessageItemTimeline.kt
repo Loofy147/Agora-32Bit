@@ -27,7 +27,6 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 
-import android.os.SystemClock
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.MutatePriority
@@ -94,8 +93,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -160,7 +157,16 @@ import org.intellij.markdown.parser.MarkdownParser
 // Pure code-motion. Entry points used by MessageItem.kt are `internal`; the rest
 // stay file-private. Behavior unchanged.
 
-internal const val THINKING_COLLAPSED_WIDTH_ALLOWANCE_DP = 12
+@Composable
+private fun StartAnchoredHorizontalOverflowHost(
+    content: @Composable BoxScope.() -> Unit,
+) = Box(
+    modifier = Modifier
+        .fillMaxWidth()
+        .wrapContentWidth(Alignment.Start, unbounded = true),
+    contentAlignment = Alignment.TopStart,
+    content = content,
+)
 
 private enum class CompactSegmentIcon {
     LOADING,
@@ -173,72 +179,27 @@ internal fun compactSegmentHasActiveContent(
     segs: List<MessageSegment>,
     message: ChatMessage,
     useLiveStatus: Boolean,
-): Boolean = segs.any { segment ->
-    when (segment.type) {
-        "tool" -> ToolPresentationResolver.resolve(segment).isActive
-        "thought" -> useLiveStatus && message.status == MessageStatus.THINKING
-        "transcription" -> useLiveStatus && message.status == MessageStatus.TRANSCRIBING
-        else -> false
-    }
-}
-
-@Composable
-internal fun segmentDetailTitle(
-    seg: MessageSegment,
-    detailSegments: List<MessageSegment>,
-    detailIndex: Int
-): String {
-    return when (seg.type) {
-        "tool" -> toolDisplayName(seg)
-        "transcription" -> transcriptionLabel(detailSegments, detailIndex)
-        else -> stringResource(R.string.tool_thinking)
-    }
-}
-
-@Composable
-internal fun thoughtDurationTitle(thoughtMs: Long, toolCount: Int): String {
-    val seconds = (thoughtMs / 1000).toInt()
-    return if (toolCount > 0) {
-        if (seconds >= 60) {
-            stringResource(R.string.thought_for_minutes_called_tools, seconds / 60, seconds % 60, toolCount)
-        } else {
-            stringResource(R.string.thought_for_seconds_called_tools, seconds, toolCount)
-        }
-    } else {
-        if (seconds >= 60) {
-            stringResource(R.string.thought_for_minutes, seconds / 60, seconds % 60)
-        } else {
-            stringResource(R.string.thought_for_seconds, seconds)
+    generationActive: Boolean = message.status == MessageStatus.SENDING ||
+        message.status == MessageStatus.THINKING ||
+        message.status == MessageStatus.TOOL_CALLING ||
+        message.status == MessageStatus.TRANSCRIBING,
+): Boolean {
+    if (!generationActive) return false
+    return segs.any { segment ->
+        when (segment.type) {
+            "tool" -> ToolPresentationResolver.resolve(segment).isActive
+            "thought" -> useLiveStatus && message.status == MessageStatus.THINKING
+            "transcription" -> useLiveStatus && message.status == MessageStatus.TRANSCRIBING
+            else -> false
         }
     }
 }
 
-@Composable
-internal fun compactSegmentTitle(
-    segs: List<MessageSegment>,
-    message: ChatMessage,
-    useLiveStatus: Boolean
-): String {
-    val lastSeg = segs.lastOrNull() ?: return ""
-    val isLastTool = lastSeg.type == "tool"
-    val isToolInProgress = isLastTool &&
-        ToolPresentationResolver.resolve(lastSeg).isActive
-    val isThinking = useLiveStatus && message.status == MessageStatus.THINKING
-    val isToolCalling = useLiveStatus && message.status == MessageStatus.TOOL_CALLING
-    val isTranscribing = useLiveStatus && message.status == MessageStatus.TRANSCRIBING
-    val toolCount = segs.count { it.type == "tool" && it.toolResult != null }
-    val thoughtMs = thoughtDurationMs(segs, fallbackMs = message.thoughtTimeMs)
-    return when {
-        isThinking -> message.thoughtTitle ?: stringResource(R.string.thinking_ellipsis)
-        isTranscribing -> message.thoughtTitle ?: stringResource(R.string.transcription_ellipsis)
-        isToolCalling || isToolInProgress -> toolDisplayName(lastSeg)
-        thoughtMs != null && thoughtMs > 0 -> thoughtDurationTitle(thoughtMs, toolCount)
-        toolCount > 0 -> stringResource(R.string.called_n_tools, toolCount)
-        message.thoughtTitle != null -> message.thoughtTitle
-        segs.any { it.type == "transcription" } -> "Image Transcription"
-        else -> stringResource(R.string.thinking_complete)
-    }
-}
+internal fun compactSegmentShowsLoading(
+    hasActiveContent: Boolean,
+    generationActive: Boolean,
+    isCurrentCard: Boolean,
+): Boolean = hasActiveContent || (generationActive && isCurrentCard)
 
 @Composable
 internal fun CompactSegmentBlock(
@@ -247,6 +208,8 @@ internal fun CompactSegmentBlock(
     message: ChatMessage,
     isStreaming: Boolean,
     useLiveStatus: Boolean,
+    generationActive: Boolean,
+    isCurrentCard: Boolean,
     expandedStates: SnapshotStateMap<String, Boolean>,
     expansionKey: String,
     cardAppearanceKey: String = "$expansionKey:card",
@@ -314,36 +277,20 @@ internal fun CompactSegmentBlock(
     val toolCount = segs.count { it.type == "tool" && it.toolResult != null }
     val thoughtMs = thoughtDurationMs(segs, fallbackMs = message.thoughtTimeMs)
     val hasThought = thoughtMs != null && thoughtMs > 0
-    val cardHasActiveContent = compactSegmentHasActiveContent(segs, message, useLiveStatus)
-    val staticCollapsedTitle = compactSegmentTitle(segs, message, useLiveStatus)
-    val thinkingPlaceholder = stringResource(R.string.thinking_ellipsis)
-    val usesDefaultThinkingTitle = message.thoughtTitle.isNullOrBlank() ||
-        message.thoughtTitle == thinkingPlaceholder
-    val liveThoughtMs by produceState(
-        initialValue = thoughtMs ?: 0L,
-        isThinking,
-        thoughtMs,
-    ) {
-        val baselineMs = thoughtMs ?: 0L
-        value = baselineMs
-        if (isThinking) {
-            val baselineRealtimeMs = SystemClock.elapsedRealtime()
-            while (isActive) {
-                value = baselineMs + (SystemClock.elapsedRealtime() - baselineRealtimeMs)
-                delay(1_000L)
-            }
-        }
-    }
-    val collapsedTitle = if (isThinking && usesDefaultThinkingTitle) {
-        stringResource(
-            R.string.thinking_for_seconds_ellipsis,
-            (liveThoughtMs / 1_000L).toInt(),
-        )
-    } else {
-        staticCollapsedTitle
-    }
+    val cardHasActiveContent = compactSegmentHasActiveContent(
+        segs = segs,
+        message = message,
+        useLiveStatus = useLiveStatus,
+        generationActive = generationActive,
+    )
+    val showLoading = compactSegmentShowsLoading(cardHasActiveContent, generationActive, isCurrentCard)
+    val collapsedTitle = compactSegmentDisplayTitle(
+        segs = segs,
+        message = message,
+        useLiveStatus = useLiveStatus,
+    )
     val collapsedIcon = when {
-        cardHasActiveContent -> CompactSegmentIcon.LOADING
+        showLoading -> CompactSegmentIcon.LOADING
         !isThinking && !hasThought && toolCount > 0 -> CompactSegmentIcon.TOOL
         isTranscribing || collapsedTitle == "Image Transcription" -> CompactSegmentIcon.IMAGE
         else -> CompactSegmentIcon.THINKING
@@ -414,9 +361,13 @@ internal fun CompactSegmentBlock(
             ).size.width.toDp()
         }
         val collapsedHeaderWidth =
-            12.dp + 18.dp + 8.dp + titleWidth + 8.dp + 18.dp + 12.dp +
+            12.dp + 18.dp + 8.dp + titleWidth + 4.dp + 18.dp + 12.dp +
                 THINKING_COLLAPSED_WIDTH_ALLOWANCE_DP.dp
-        val availableWidth = if (maxWidth.value.isFinite()) maxWidth else collapsedHeaderWidth
+        val availableWidth = if (maxWidth.value.isFinite()) {
+            maxWidth + (AUXILIARY_CARD_START_EXTENSION_DP * 2).dp
+        } else {
+            collapsedHeaderWidth
+        }
         val collapsedCardWidth = minOf(collapsedHeaderWidth, availableWidth)
         val cardWidth by expansionTransition.animateDp(
             transitionSpec = {
@@ -450,10 +401,13 @@ internal fun CompactSegmentBlock(
             label = "compactSegmentDisclosureRotation",
         )
 
-        Surface(
-            tonalElevation = 2.dp,
-            shape = RoundedCornerShape(18.dp),
-            modifier = Modifier.width(cardWidth)
+        StartAnchoredHorizontalOverflowHost {
+            Surface(
+                tonalElevation = 2.dp,
+                shape = RoundedCornerShape(18.dp),
+            modifier = Modifier
+                .offset(x = (-AUXILIARY_CARD_START_EXTENSION_DP).dp)
+                .width(cardWidth)
                 .padding(
                     top = 8.dp + topPaddingExtra,
                     bottom = mergedBottomPadding + bottomPaddingExtra,
@@ -494,9 +448,9 @@ internal fun CompactSegmentBlock(
                 ) { icon ->
                     when (icon) {
                         CompactSegmentIcon.LOADING -> CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(16.dp),
                             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                            strokeWidth = 4.dp,
+                            strokeWidth = 2.dp,
                         )
                         CompactSegmentIcon.TOOL -> Icon(
                             Icons.Default.Build,
@@ -660,6 +614,7 @@ internal fun CompactSegmentBlock(
                 )
             }
         }
+        }
     }
 }
 
@@ -678,12 +633,30 @@ internal fun retainExpandedLayoutDuringFade(
 internal fun timelineInfoTopPaddingExtra(hasVisibleMessageAbove: Boolean): Dp =
     if (hasVisibleMessageAbove) 8.dp else 0.dp
 
+internal const val SEGMENT_GROUP_GAP_DP = 2
+
+private fun segmentGroupTopPadding(
+    position: SegmentGroupPosition,
+    topPaddingExtra: Dp,
+): Dp = when (position) {
+    SegmentGroupPosition.MIDDLE, SegmentGroupPosition.LAST -> SEGMENT_GROUP_GAP_DP.dp
+    else -> 8.dp + topPaddingExtra
+}
+
+private fun segmentGroupBottomPadding(position: SegmentGroupPosition): Dp =
+    if (position == SegmentGroupPosition.SINGLE || position == SegmentGroupPosition.LAST) {
+        6.dp
+    } else {
+        0.dp
+    }
+
 @Composable
 internal fun TimelineSegmentsContent(
     segments: List<MessageSegment>,
     detailSegments: List<MessageSegment>,
     message: ChatMessage,
     isStreaming: Boolean,
+    generationActive: Boolean,
     groupAdjacentBlocks: Boolean,
     autoExpandActiveGroup: Boolean,
     autoExpansionController: GroupedSegmentAutoExpansionController,
@@ -774,35 +747,31 @@ internal fun TimelineSegmentsContent(
                         )
                         val blockTopPaddingExtra =
                             timelineInfoTopPaddingExtra(previousVisibleWasAnswer)
-                        val blockContent: @Composable () -> Unit = {
-                            CompactSegmentBlock(
-                                segs = blockSegments,
-                                segmentIndices = blockDetailIndices,
-                                message = message,
-                                isStreaming = isStreaming,
-                                useLiveStatus = isStreaming && blockDetailIndices.lastOrNull() == detailSegments.lastIndex,
-                                expandedStates = expandedStates,
-                                expansionKey = expansionKey,
-                                cardAppearanceKey = "$expansionKey:card",
-                                segmentAppearanceRegistry = segmentAppearanceRegistry,
-                                autoExpansionController = autoExpansionController,
-                                autoExpansionEnabled = autoExpandActiveGroup,
-                                autoExpansionActive =
-                                    isStreaming && blockEnd == segments.size,
-                                topPaddingExtra = blockTopPaddingExtra,
-                                bottomPaddingExtra = 0.dp,
-                                onExpansionStarted = onLayoutMutationStarted,
-                                onExpansionSettled = onLayoutMutationSettled,
-                                onSegmentClick = { detailIndex -> onSegmentClick(listOf(detailIndex)) }
-                            )
-                        }
-                        AnimatedTimelineBlockAppearance(
-                            animationKey = expansionKey,
-                            appearanceRegistry = segmentAppearanceRegistry,
+                        CompactSegmentBlock(
+                            segs = blockSegments,
+                            segmentIndices = blockDetailIndices,
+                            message = message,
                             isStreaming = isStreaming,
-                        ) {
-                            blockContent()
-                        }
+                            useLiveStatus =
+                                isStreaming &&
+                                    blockDetailIndices.lastOrNull() == detailSegments.lastIndex,
+                            generationActive = generationActive,
+                            isCurrentCard = blockEnd > lastVisibleSegmentIndex,
+                            expandedStates = expandedStates,
+                            expansionKey = expansionKey,
+                            cardAppearanceKey = "$expansionKey:card",
+                            segmentAppearanceRegistry = segmentAppearanceRegistry,
+                            autoExpansionController = autoExpansionController,
+                            autoExpansionEnabled = autoExpandActiveGroup,
+                            autoExpansionActive = isStreaming && blockEnd == segments.size,
+                            topPaddingExtra = blockTopPaddingExtra,
+                            bottomPaddingExtra = 0.dp,
+                            onExpansionStarted = onLayoutMutationStarted,
+                            onExpansionSettled = onLayoutMutationSettled,
+                            onSegmentClick = { selectedDetailIndex ->
+                                onSegmentClick(listOf(selectedDetailIndex))
+                            },
+                        )
                         previousVisibleWasAnswer = false
                         index = blockEnd
                     } else {
@@ -815,27 +784,20 @@ internal fun TimelineSegmentsContent(
                             currentDetailIndex,
                             seg,
                         )
-                        val cardContent: @Composable () -> Unit = {
-                            TimelineInfoSegmentCard(
-                                seg = seg,
-                                detailSegments = detailSegments,
-                                detailIndex = currentDetailIndex,
-                                isStreamingContent =
-                                    isStreaming && index == lastVisibleSegmentIndex,
-                                animateAppearance = isStreaming,
-                                topPaddingExtra = cardTopPaddingExtra,
-                                cardAnimationKey = "$timelineKey:card",
-                                segmentAppearanceRegistry = segmentAppearanceRegistry,
-                                onClick = { onSegmentClick(listOf(currentDetailIndex)) }
-                            )
-                        }
-                        AnimatedTimelineBlockAppearance(
-                            animationKey = timelineKey,
-                            appearanceRegistry = segmentAppearanceRegistry,
-                            isStreaming = isStreaming,
-                        ) {
-                            cardContent()
-                        }
+                        TimelineInfoSegmentCard(
+                            seg = seg,
+                            detailSegments = detailSegments,
+                            detailIndex = currentDetailIndex,
+                            isStreamingContent =
+                                isStreaming && index == lastVisibleSegmentIndex,
+                            animateAppearance = isStreaming,
+                            topPaddingExtra = cardTopPaddingExtra,
+                            groupPosition = timelineSegmentGroupPosition(segments, index),
+                            extendIntoMessageInsets = true,
+                            cardAnimationKey = "$timelineKey:card",
+                            segmentAppearanceRegistry = segmentAppearanceRegistry,
+                            onClick = { onSegmentClick(listOf(currentDetailIndex)) },
+                        )
                         previousVisibleWasAnswer = false
                         index++
                     }
@@ -856,6 +818,9 @@ internal fun TimelineInfoSegmentCard(
     isStreamingContent: Boolean,
     animateAppearance: Boolean,
     topPaddingExtra: Dp = 0.dp,
+    groupPosition: SegmentGroupPosition = SegmentGroupPosition.SINGLE,
+    neutralPalette: Boolean = false,
+    extendIntoMessageInsets: Boolean = false,
     cardAnimationKey: String,
     segmentAppearanceRegistry: SegmentAppearanceRegistry,
     onClick: () -> Unit
@@ -871,14 +836,36 @@ internal fun TimelineInfoSegmentCard(
         durationMillis = SEGMENT_ENTER_DURATION_MS,
         initialScale = SEGMENT_ENTER_INITIAL_SCALE,
     )
-    Surface(
-        tonalElevation = 2.dp,
-        shape = RoundedCornerShape(18.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp + topPaddingExtra, bottom = 6.dp)
+    val groupShape = rememberAnimatedSegmentGroupShape(groupPosition)
+    val cardColor = if (neutralPalette) {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
+    val iconTint = if (neutralPalette) MaterialTheme.colorScheme.primary
+    else MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val requestedCardWidth = if (extendIntoMessageInsets) {
+            maxWidth + (AUXILIARY_CARD_START_EXTENSION_DP * 2).dp
+        } else {
+            maxWidth
+        }
+        val requestedCardOffset =
+            if (extendIntoMessageInsets) (-AUXILIARY_CARD_START_EXTENSION_DP).dp else 0.dp
+        StartAnchoredHorizontalOverflowHost {
+            Surface(
+                tonalElevation = if (neutralPalette) 1.dp else 2.dp,
+                color = cardColor,
+                shape = groupShape,
+                modifier = Modifier
+                    .offset(x = requestedCardOffset)
+                    .width(requestedCardWidth)
+            .padding(
+                top = segmentGroupTopPadding(groupPosition, topPaddingExtra),
+                bottom = segmentGroupBottomPadding(groupPosition),
+            )
             .then(cardAppearanceModifier)
-            .clip(RoundedCornerShape(18.dp))
+            .clip(groupShape)
             .clickable {
                 onClick()
             }
@@ -886,16 +873,16 @@ internal fun TimelineInfoSegmentCard(
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp)
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp)
         ) {
             val isTool = seg.type == "tool"
             val isTranscription = seg.type == "transcription"
             if (isTool) {
-                Icon(Icons.Default.Build, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+                Icon(Icons.Default.Build, null, modifier = Modifier.size(16.dp), tint = iconTint)
             } else if (isTranscription) {
-                Icon(Icons.Filled.Image, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+                Icon(Icons.Filled.Image, null, modifier = Modifier.size(16.dp), tint = iconTint)
             } else {
-                Icon(androidx.compose.ui.res.painterResource(id = com.newoether.agora.R.drawable.neurology_24), null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+                Icon(androidx.compose.ui.res.painterResource(id = com.newoether.agora.R.drawable.neurology_24), null, modifier = Modifier.size(16.dp), tint = iconTint)
             }
             Spacer(modifier = Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -938,8 +925,10 @@ internal fun TimelineInfoSegmentCard(
                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 null,
                 modifier = Modifier.size(16.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
             )
+            }
+        }
         }
     }
 }

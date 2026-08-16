@@ -22,7 +22,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -31,7 +30,7 @@ import com.newoether.agora.R
 import com.newoether.agora.ui.chat.message.LiteralHtmlMarkdownBlock
 import com.newoether.agora.ui.chat.message.chatLinkTextStyles
 import com.newoether.agora.ui.chat.message.literalHtmlMarkdownAnnotator
-import com.newoether.agora.ui.theme.MonoFamily
+import com.newoether.agora.ui.chat.message.scaledMarkdownTextStyle
 import com.newoether.agora.util.NoAutoScrollSelectionContainer
 import com.mikepenz.markdown.compose.MarkdownElement
 import com.mikepenz.markdown.compose.components.MarkdownComponents
@@ -66,17 +65,23 @@ fun TextFileViewer(
         val t = MaterialTheme.typography
         val linkColor = MaterialTheme.colorScheme.primary
         val linkTextStyles = remember(linkColor) { chatLinkTextStyles(linkColor) }
+        val viewerBodyStyle = scaledMarkdownTextStyle(t.bodyLarge)
         val viewerTypography = markdownTypography(
-            text = t.bodyLarge,
-            h1 = t.headlineMedium,
-            h2 = t.headlineSmall,
-            h3 = t.titleLarge,
-            h4 = t.titleMedium,
-            h5 = t.titleSmall,
-            h6 = t.titleSmall,
-            code = t.bodyMedium.copy(fontFamily = MonoFamily, fontSize = 13.sp),
-            inlineCode = t.bodyMedium.copy(fontFamily = MonoFamily, fontSize = 13.sp),
+            text = viewerBodyStyle,
+            paragraph = viewerBodyStyle,
+            ordered = viewerBodyStyle,
+            bullet = viewerBodyStyle,
+            list = viewerBodyStyle,
+            h1 = scaledMarkdownTextStyle(t.headlineMedium.copy(fontWeight = FontWeight.Bold)),
+            h2 = scaledMarkdownTextStyle(t.headlineSmall.copy(fontWeight = FontWeight.Bold)),
+            h3 = scaledMarkdownTextStyle(t.titleLarge.copy(fontWeight = FontWeight.Bold)),
+            h4 = scaledMarkdownTextStyle(t.titleMedium.copy(fontWeight = FontWeight.Bold)),
+            h5 = scaledMarkdownTextStyle(t.titleSmall.copy(fontWeight = FontWeight.Bold)),
+            h6 = scaledMarkdownTextStyle(t.titleSmall.copy(fontWeight = FontWeight.Bold)),
+            code = scaledMarkdownTextStyle(t.bodyMedium.copy(fontSize = 13.sp)),
+            inlineCode = scaledMarkdownTextStyle(t.bodyMedium.copy(fontSize = 13.sp)),
             textLink = linkTextStyles,
+            table = viewerBodyStyle,
         )
         val viewerPadding = markdownPadding(block = 7.dp)
         val literalHtmlComponents = remember {
@@ -132,9 +137,10 @@ fun TextFileViewer(
                     Text(
                         content,
                         color = MaterialTheme.colorScheme.onSurface,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 13.sp,
-                        lineHeight = 20.sp
+                        style = t.bodyMedium.copy(
+                            fontSize = 13.sp,
+                            lineHeight = 20.sp,
+                        ),
                     )
                                     }
             }

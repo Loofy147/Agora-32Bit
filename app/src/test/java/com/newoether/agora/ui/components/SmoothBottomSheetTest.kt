@@ -34,6 +34,15 @@ class SmoothBottomSheetTest {
     }
 
     @Test
+    fun `caller dismissal requests are observable by the shared shell`() {
+        val state = SmoothBottomSheetState()
+
+        assertEquals(0, state.dismissRequestVersion)
+        state.requestDismiss()
+        assertEquals(1, state.dismissRequestVersion)
+    }
+
+    @Test
     fun `every sheet value owns one established anchor`() {
         assertEquals(0f, SmoothBottomSheetValue.Hidden.fraction, 0f)
         assertEquals(0.45f, SmoothBottomSheetValue.Partial.fraction, 0f)

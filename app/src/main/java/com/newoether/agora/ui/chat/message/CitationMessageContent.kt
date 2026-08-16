@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,12 +26,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -38,7 +38,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -73,11 +72,9 @@ import com.newoether.agora.R
 import com.newoether.agora.model.CitationPolicy
 import com.newoether.agora.model.CitationRecord
 import com.newoether.agora.ui.chat.caseInsensitiveMatchRanges
-import com.newoether.agora.ui.components.DialogWindowEdgeToEdge
-import com.newoether.agora.ui.motion.LocalAgoraMotionPolicy
-import com.newoether.agora.ui.motion.MotionAwareModalBottomSheet as ModalBottomSheet
+import com.newoether.agora.ui.components.SmoothBottomSheet
+import com.newoether.agora.ui.components.rememberSmoothBottomSheetState
 import com.newoether.agora.ui.theme.ChatType
-import kotlinx.coroutines.launch
 import org.intellij.markdown.ast.ASTNode
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import org.intellij.markdown.parser.MarkdownParser
@@ -101,6 +98,8 @@ internal const val CITATION_INLINE_PLACEHOLDER_HEIGHT_SP = 22
 internal const val CITATION_INLINE_SUFFIX_GAP_DP = 4
 internal const val CITATION_INLINE_OUTER_SPACER_DP = 2
 internal const val CITATION_SOURCE_ROW_SHAPE_PERCENT = 50
+internal const val CITATION_SOURCE_BADGE_BACKGROUND_ALPHA = 0.12f
+internal const val CITATION_SOURCE_BADGE_FOREGROUND_ALPHA = 0.8f
 
 internal data class CitationInlineMarker(
     val token: Char,
@@ -758,7 +757,6 @@ internal fun CitationSourcesSummaryCapsule(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun CitationSourcesBottomSheet(
     messageId: String,
@@ -767,45 +765,47 @@ internal fun CitationSourcesBottomSheet(
     onActivate: (CitationRecord) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState()
-    val scope = rememberCoroutineScope()
-    val motionPolicy = LocalAgoraMotionPolicy.current
+    val sheetState = rememberSmoothBottomSheetState()
+    val listState = rememberLazyListState()
+    var pendingActivation by remember { mutableStateOf<CitationRecord?>(null) }
     val sheetSearchSpec = searchSpec?.copy(onMatchPosition = { _, _ -> })
     fun collapseThenActivate(source: CitationRecord) {
-        if (motionPolicy.allowSpatialTransitions) {
-            scope.launch {
-                try {
-                    sheetState.hide()
-                } finally {
-                    onDismiss()
-                    onActivate(source)
-                }
-            }
-        } else {
-            onDismiss()
-            onActivate(source)
-        }
+        pendingActivation = source
+        sheetState.requestDismiss()
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+    SmoothBottomSheet(
+        state = sheetState,
+        onDismissRequest = {
+            val source = pendingActivation
+            pendingActivation = null
+            onDismiss()
+            source?.let(onActivate)
+        },
+        contentAtTop = {
+            listState.firstVisibleItemIndex == 0 &&
+                listState.firstVisibleItemScrollOffset == 0
+        },
+        header = {
+            Text(
+                text = citationSourcesSheetTitle(
+                    sourceCount = citations.size,
+                    sourcesLabel = stringResource(R.string.citation_sources),
+                ),
+                style = ChatType.detailTitle,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 24.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+            )
+        },
     ) {
-        DialogWindowEdgeToEdge()
-        Text(
-            text = citationSourcesSheetTitle(
-                sourceCount = citations.size,
-                sourcesLabel = stringResource(R.string.citation_sources),
-            ),
-            style = ChatType.detailTitle,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        )
         LazyColumn(
+            state = listState,
             modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 560.dp)
+                .fillMaxSize()
                 .navigationBarsPadding()
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -853,11 +853,7 @@ private fun CitationSourceRow(
             activeRange = activeTitleRange,
             matchKeys = titleKeys,
         )
-    val titleColor = if (source.url != null) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
+    val titleColor = MaterialTheme.colorScheme.onSurface
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -905,12 +901,18 @@ private fun CitationBadgeVisual(number: Int) {
         modifier = Modifier
             .size(width = width, height = 20.dp)
             .clip(CircleShape)
-            .background(citationCapsuleBackgroundColor()),
+            .background(
+                MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                    alpha = CITATION_SOURCE_BADGE_BACKGROUND_ALPHA,
+                ),
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = number.toString(),
-            color = citationCapsuleForegroundColor(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                alpha = CITATION_SOURCE_BADGE_FOREGROUND_ALPHA,
+            ),
             style = MaterialTheme.typography.labelSmall,
             fontSize = 10.sp,
             lineHeight = 10.sp,

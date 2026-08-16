@@ -86,19 +86,68 @@ class ExperimentalGenerationUiPresentationTest {
     }
 
     @Test
-    fun `any active segment switches the compact card to loading`() {
+    fun `current tail card stays loading throughout active generation`() {
+        assertTrue(
+            compactSegmentShowsLoading(
+                hasActiveContent = false,
+                generationActive = true,
+                isCurrentCard = true,
+            ),
+        )
+        assertTrue(
+            compactSegmentShowsLoading(
+                hasActiveContent = true,
+                generationActive = false,
+                isCurrentCard = false,
+            ),
+        )
+        assertFalse(
+            compactSegmentShowsLoading(
+                hasActiveContent = false,
+                generationActive = true,
+                isCurrentCard = false,
+            ),
+        )
+        assertFalse(
+            compactSegmentShowsLoading(
+                hasActiveContent = false,
+                generationActive = false,
+                isCurrentCard = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `only active generation lets active segments drive card loading`() {
         val activeTool = MessageSegment(
             type = "tool",
             toolState = ToolExecutionStates.RUNNING,
+        )
+        val backgroundTool = activeTool.copy(
+            toolState = ToolExecutionStates.BACKGROUND_RUNNING,
         )
         val finishedTool = activeTool.copy(toolState = ToolExecutionStates.SUCCEEDED)
         val thought = MessageSegment(type = "thought", content = "reasoning")
         val transcription = MessageSegment(type = "transcription", content = "image text")
 
+        assertFalse(
+            compactSegmentHasActiveContent(
+                segs = listOf(activeTool, backgroundTool),
+                message = message(MessageStatus.SUCCESS),
+                useLiveStatus = true,
+            ),
+        )
         assertTrue(
             compactSegmentHasActiveContent(
-                segs = listOf(activeTool, thought),
-                message = message(MessageStatus.SUCCESS),
+                segs = listOf(activeTool),
+                message = message(MessageStatus.TOOL_CALLING),
+                useLiveStatus = true,
+            ),
+        )
+        assertTrue(
+            compactSegmentHasActiveContent(
+                segs = listOf(backgroundTool),
+                message = message(MessageStatus.TOOL_CALLING),
                 useLiveStatus = false,
             ),
         )

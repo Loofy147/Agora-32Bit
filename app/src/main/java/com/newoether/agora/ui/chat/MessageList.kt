@@ -133,7 +133,7 @@ internal fun MessageList(
     toolCallDisplayMode: String = ToolCallDisplayModes.DEFAULT,
     thinkingSegmentDisplayMode: String = ThinkingSegmentDisplayModes.DEFAULT,
     autoExpandActiveGroup: Boolean = true,
-    detailedTokenUsage: Boolean = false,
+
     parseInlineDollarMath: Boolean = false,
     contextRetainedMessageIds: Set<String> = emptySet(),
     modelAliases: StableModelAliases = StableModelAliases(),
@@ -746,7 +746,7 @@ internal fun MessageList(
             toolCallDisplayMode = toolCallDisplayMode,
             thinkingSegmentDisplayMode = thinkingSegmentDisplayMode,
             autoExpandActiveGroup = autoExpandActiveGroup,
-            detailedTokenUsage = detailedTokenUsage,
+
             parseInlineDollarMath = parseInlineDollarMath,
             groupedSegmentAutoExpansionController =
                 groupedSegmentAutoExpansionController,
@@ -892,11 +892,10 @@ internal fun MessageList(
             userScrollEnabled = userScrollEnabled
         ) {
             items(turns, key = { turn -> stableVisualKey(turn.key) }) { turn ->
+                val isLastTurn = turn.key == lastUserMessage?.id
                 // A turn's key and composition survive when the next USER is appended. Only the
                 // new turn enters; the previous assistant never moves to a different Lazy item.
-                Box(
-                    modifier = Modifier,
-                ) {
+                Box(modifier = Modifier) {
                     // The last turn atomically absorbs bottom space. Earlier turns keep the same
                     // Column call site with a zero minimum, so losing tail status cannot dispose
                     // or recreate any child message.
@@ -904,7 +903,7 @@ internal fun MessageList(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(
-                                min = if (turn.key == lastUserMessage?.id) tailMinHeight else 0.dp,
+                                min = if (isLastTurn) tailMinHeight else 0.dp,
                             ),
                     ) {
                         val lastActiveMessageIndex = turn.messages.indexOfLast { message ->
@@ -914,10 +913,7 @@ internal fun MessageList(
                             key(stableVisualKey(message.id)) {
                                 renderMessage(message)
                             }
-                            if (
-                                turn.key == lastUserMessage?.id &&
-                                index == lastActiveMessageIndex
-                            ) {
+                            if (isLastTurn && index == lastActiveMessageIndex) {
                                 key("agora:streaming-tail:${turn.key}") {
                                     StreamingTailIndicator(
                                         // Text-bottom placement belongs only to the visual dot.

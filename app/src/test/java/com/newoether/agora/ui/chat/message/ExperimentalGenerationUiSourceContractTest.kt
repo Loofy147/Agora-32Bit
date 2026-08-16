@@ -23,8 +23,20 @@ class ExperimentalGenerationUiSourceContractTest {
         assertTrue(assistant.contains("GenerationErrorBar(errorContent.errorText)"))
         assertFalse(assistant.contains("if (mode == AssistantInlineActivityMode.NONE) return"))
         assertTrue(assistant.contains("var retainedMode by remember"))
-        assertTrue(assistant.contains("visible = mode != AssistantInlineActivityMode.NONE"))
-        assertTrue(assistant.contains("exit = fadeOut(tween(320, easing = FastOutSlowInEasing))"))
+        assertTrue(assistant.contains(
+            "visibilityTransition.currentState || visibilityTransition.targetState"
+        ))
+        assertTrue(assistant.contains("alpha = activityOpacity"))
+        assertTrue(assistant.contains("clip = false"))
+        assertFalse(assistant.contains("visibilityTransition.AnimatedVisibility("))
+        assertTrue(assistant.contains("GenerationActivityDot()"))
+        val messageContent = assistant.substringAfter("internal fun AssistantMessageContent(")
+        val compactIndex = messageContent.indexOf("if (compactVisible)")
+        val activityIndex = messageContent.indexOf("AssistantInlineActivity(")
+        val answerIndex = messageContent.indexOf("val answerBodyText")
+        assertTrue(compactIndex >= 0)
+        assertTrue(activityIndex > compactIndex)
+        assertTrue(answerIndex > activityIndex)
 
         assertTrue(terminalBar.contains("internal fun GenerationTerminalText("))
         assertTrue(terminalBar.contains("style = ChatType.body"))
@@ -51,58 +63,212 @@ class ExperimentalGenerationUiSourceContractTest {
         assertTrue(retry.contains("retryCaretPosition("))
         assertTrue(retry.contains("getHorizontalPosition("))
         assertTrue(retry.contains("GenerationActivityDot("))
+        assertTrue(retry.contains("translationX = dotTranslationPx"))
+        assertTrue(retry.contains("translationY = dotVerticalOffsetPx"))
+        assertTrue(retry.contains("clip = false"))
+        assertFalse(retry.contains("InlineActivityDotMarker("))
 
         assertTrue(tail.contains("internal fun GenerationActivityDot("))
         assertTrue(tail.contains("rememberInfiniteTransition("))
-        assertTrue(tail.contains(".size(11.dp)"))
+        assertTrue(tail.contains("internal val GenerationActivityDotSize = 11.dp"))
+        assertTrue(tail.contains(".size(GenerationActivityDotSize)"))
+        assertTrue(tail.contains("alpha = opacity"))
+        assertTrue(tail.contains("scaleX = appearanceScale"))
+        assertTrue(tail.contains("clip = false"))
+        assertFalse(tail.contains("InlineActivityDotSource"))
     }
 
     @Test
     fun `Thinking card uses compact chrome one trailing rotating arrow and synchronized motion`() {
-        val timeline = source(locateMainSourceRoot(), "message/MessageItemTimeline.kt")
+        val root = locateMainSourceRoot()
+        val timeline = source(root, "message/MessageItemTimeline.kt")
+        val assistant = source(root, "message/AssistantMessageContent.kt")
+        val presentation = source(root, "message/ThinkingSegmentPresentation.kt")
 
         assertTrue(timeline.contains("CompactSegmentIcon.LOADING"))
         assertTrue(timeline.contains("compactSegmentHasActiveContent("))
+        assertTrue(timeline.contains("compactSegmentShowsLoading("))
+        assertTrue(timeline.contains("generationActive: Boolean"))
+        assertTrue(timeline.contains("isCurrentCard: Boolean"))
+        assertTrue(timeline.contains("isCurrentCard = blockEnd > lastVisibleSegmentIndex"))
+        assertTrue(assistant.contains("val generationActive ="))
+        assertTrue(assistant.contains("generationActive = generationActive"))
+        assertTrue(assistant.contains("isCurrentCard = !hasAnswerContent"))
         assertTrue(timeline.contains("targetState = collapsedIcon"))
         assertTrue(timeline.contains("CircularProgressIndicator("))
         assertTrue(timeline.contains("BoxWithConstraints("))
+        assertTrue(timeline.contains("private fun StartAnchoredHorizontalOverflowHost("))
+        assertTrue(timeline.contains(
+            ".wrapContentWidth(Alignment.Start, unbounded = true)"
+        ))
+        assertEquals(
+            3,
+            timeline.windowed("StartAnchoredHorizontalOverflowHost".length)
+                .count { it == "StartAnchoredHorizontalOverflowHost" },
+        )
         assertTrue(timeline.contains("rememberTextMeasurer("))
         assertTrue(timeline.contains("label = \"compactSegmentWidth\""))
-        assertTrue(timeline.contains("Modifier.width(cardWidth)"))
+        assertTrue(timeline.contains(".width(cardWidth)"))
         assertTrue(timeline.contains("durationMillis = 400"))
         assertTrue(timeline.contains("easing = LinearOutSlowInEasing"))
-        assertTrue(timeline.contains("THINKING_COLLAPSED_WIDTH_ALLOWANCE_DP = 12"))
+        assertTrue(presentation.contains("THINKING_COLLAPSED_WIDTH_ALLOWANCE_DP = 12"))
+        assertTrue(presentation.contains("AUXILIARY_CARD_START_EXTENSION_DP = 4"))
+        assertTrue(timeline.contains("maxWidth + (AUXILIARY_CARD_START_EXTENSION_DP * 2).dp"))
+        assertFalse(timeline.contains("maxWidth + AUXILIARY_CARD_START_EXTENSION_DP.dp"))
+        assertTrue(timeline.contains(".offset(x = (-AUXILIARY_CARD_START_EXTENSION_DP).dp)"))
         assertTrue(timeline.contains("val contentLayoutWidth ="))
         assertTrue(timeline.contains("wrapContentSize(Alignment.TopStart, unbounded = true)"))
         assertTrue(timeline.contains("requiredWidth(contentLayoutWidth)"))
         assertFalse(timeline.contains("animateContentSize("))
         assertTrue(timeline.contains("RoundedCornerShape(18.dp)"))
         assertTrue(timeline.contains("padding(start = 12.dp, top = 10.dp, bottom = 10.dp)"))
+        assertTrue(timeline.contains(".padding(horizontal = 10.dp, vertical = 8.dp)"))
+        assertTrue(timeline.contains("+ titleWidth + 4.dp + 18.dp + 12.dp +"))
+        assertTrue(timeline.contains("Spacer(modifier = Modifier.width(26.dp))"))
         assertTrue(timeline.contains("align(Alignment.TopEnd)"))
         assertTrue(timeline.contains("padding(top = 10.dp, end = 8.dp)"))
-        assertTrue(timeline.contains("Modifier.size(18.dp)"))
+        val loadingBranch = timeline
+            .substringAfter("CompactSegmentIcon.LOADING -> CircularProgressIndicator(")
+            .substringBefore("CompactSegmentIcon.TOOL -> Icon(")
+        assertTrue(loadingBranch.contains("Modifier.size(16.dp)"))
         assertTrue(timeline.contains("fontSize = 13.sp"))
         assertTrue(timeline.contains("lineHeight = 22.sp"))
         assertTrue(timeline.contains("fontWeight = FontWeight.SemiBold"))
         assertTrue(timeline.contains("Modifier.weight(1f)"))
-        assertTrue(timeline.contains("strokeWidth = 4.dp"))
+        assertTrue(timeline.contains("strokeWidth = 2.dp"))
         assertEquals(1, timeline.windowed("Icons.Default.KeyboardArrowDown".length)
             .count { it == "Icons.Default.KeyboardArrowDown" })
         assertFalse(timeline.contains("Icons.Default.KeyboardArrowRight"))
         assertFalse(timeline.contains("Icons.Default.KeyboardArrowUp"))
         assertTrue(timeline.contains("rotationZ = disclosureRotation"))
-        assertTrue(timeline.contains("thinking_for_seconds_ellipsis"))
+        assertTrue(presentation.contains("thinking_for_seconds_ellipsis"))
     }
 
     @Test
-    fun `Sources summary opens without haptics`() {
-        val assistant = source(locateMainSourceRoot(), "message/AssistantMessageContent.kt")
-        val summaryClick = assistant
-            .substringAfter("CitationSourcesSummaryCapsule(")
-            .substringBefore("modifier = Modifier")
+    fun `Timeline and Thinking sheet rows reuse grouping while keeping their own outer insets`() {
+        val root = locateMainSourceRoot()
+        val timeline = source(root, "message/MessageItemTimeline.kt")
+        val detail = source(root, "message/SegmentDetailSheet.kt")
+        val segments = source(root, "message/MessageItemSegments.kt")
 
+        assertTrue(segments.contains("internal enum class SegmentGroupPosition"))
+        assertTrue(timeline.contains("SEGMENT_GROUP_GAP_DP = 2"))
+        assertTrue(segments.contains("rememberAnimatedSegmentGroupShape("))
+        assertTrue(segments.contains("SEGMENT_GROUP_OUTER_RADIUS_DP = 24"))
+        assertTrue(segments.contains("SEGMENT_GROUP_INNER_RADIUS_DP = 5"))
+        assertTrue(timeline.contains("timelineSegmentGroupPosition(segments, index)"))
+        assertTrue(timeline.contains(
+            "val groupShape = rememberAnimatedSegmentGroupShape(groupPosition)"
+        ))
+        assertTrue(timeline.contains("shape = groupShape"))
+        assertTrue(timeline.contains("extendIntoMessageInsets: Boolean = false"))
+        assertTrue(timeline.contains("extendIntoMessageInsets = true"))
+        assertFalse(timeline.contains(
+            "requiredWidth(maxWidth + (AUXILIARY_CARD_START_EXTENSION_DP * 2).dp)"
+        ))
+        assertTrue(timeline.contains("val requestedCardWidth = if (extendIntoMessageInsets)"))
+        assertTrue(timeline.contains(".width(requestedCardWidth)"))
+        assertTrue(timeline.contains(".offset(x = requestedCardOffset)"))
+        assertTrue(timeline.contains(".offset(x = (-AUXILIARY_CARD_START_EXTENSION_DP).dp)"))
+        assertTrue(detail.contains("segmentGroupPosition("))
+        assertTrue(detail.contains("groupPosition = groupPosition"))
+        assertTrue(detail.contains("neutralPalette = true"))
+        assertFalse(detail.contains("extendIntoMessageInsets = true"))
+    }
+
+    @Test
+    fun `Thinking sheet matches Settings chrome and uses primary card icons`() {
+        val root = locateMainSourceRoot()
+        val timeline = source(root, "message/MessageItemTimeline.kt")
+        val detail = source(root, "message/SegmentDetailSheet.kt")
+        val presentation = source(root, "message/ThinkingSegmentPresentation.kt")
+        val sharedBackButton = File(
+            root,
+            "com/newoether/agora/ui/components/CircularBackButton.kt",
+        ).readText()
+
+        assertTrue(timeline.contains("compactSegmentDisplayTitle("))
+        assertTrue(detail.contains("showSegmentListPage ->"))
+        assertTrue(detail.contains("compactSegmentDisplayTitle("))
+        assertFalse(detail.contains("stringResource(R.string.thinking_segments_title)"))
+        assertTrue(presentation.contains("thinking_for_seconds_ellipsis"))
+        assertTrue(presentation.contains("produceState("))
+        assertTrue(timeline.contains("neutralPalette: Boolean = false"))
+        val palette = timeline
+            .substringAfter("neutralPalette: Boolean = false")
+            .substringBefore("BoxWithConstraints")
+        assertTrue(palette.contains(
+            "MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)"
+        ))
+        assertTrue(palette.contains("MaterialTheme.colorScheme.surface"))
+        assertTrue(palette.contains(
+            "val iconTint = if (neutralPalette) MaterialTheme.colorScheme.primary"
+        ))
+        assertFalse(palette.contains("seg.type == \"tool\""))
+        assertTrue(timeline.contains("if (neutralPalette) 1.dp else 2.dp"))
+        assertTrue(timeline.contains(
+            "tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)"
+        ))
+        val backButton = detail
+            .substringAfter("CircularBackButton(")
+            .substringBefore(")")
+        assertTrue(backButton.contains("containerColor ="))
+        assertFalse(backButton.contains("contentColor ="))
+        assertFalse(backButton.contains("tonalElevation ="))
+        assertTrue(sharedBackButton.contains(
+            "containerColor: Color = MaterialTheme.colorScheme.surface"
+        ))
+        assertTrue(sharedBackButton.contains(
+            "contentColor: Color = MaterialTheme.colorScheme.onSurface"
+        ))
+        assertTrue(sharedBackButton.contains("tonalElevation: Dp = 6.dp"))
+    }
+
+    @Test
+    fun `Sources summary opens without haptics and uses the reduced external left margin`() {
+        val assistant = source(locateMainSourceRoot(), "message/AssistantMessageContent.kt")
+        val summary = assistant.substringAfter("CitationSourcesSummaryCapsule(")
+        val summaryClick = summary.substringBefore("modifier = Modifier")
         assertTrue(summaryClick.contains("showCitationSources = true"))
         assertFalse(summaryClick.contains("haptics."))
+        assertTrue(summary.contains(".offset(x = (-AUXILIARY_CARD_START_EXTENSION_DP).dp)"))
+    }
+
+    @Test
+    fun `Sources sheet reuses smooth shell with neutral numbered badges`() {
+        val citations = source(locateMainSourceRoot(), "message/CitationMessageContent.kt")
+
+        assertTrue(citations.contains("val sheetState = rememberSmoothBottomSheetState()"))
+        assertTrue(citations.contains("val listState = rememberLazyListState()"))
+        assertTrue(citations.contains("SmoothBottomSheet("))
+        assertTrue(citations.contains("sheetState.requestDismiss()"))
+        assertTrue(citations.contains("contentAtTop = {"))
+        assertTrue(citations.contains("listState.firstVisibleItemIndex == 0"))
+        assertTrue(citations.contains("listState.firstVisibleItemScrollOffset == 0"))
+        assertTrue(citations.contains(".fillMaxSize()"))
+        assertFalse(citations.contains("rememberModalBottomSheetState()"))
+        assertFalse(citations.contains("ModalBottomSheet("))
+        assertTrue(citations.contains("onSurfaceVariant.copy("))
+        assertTrue(citations.contains("alpha = CITATION_SOURCE_BADGE_BACKGROUND_ALPHA"))
+        assertTrue(citations.contains("alpha = CITATION_SOURCE_BADGE_FOREGROUND_ALPHA"))
+        val sourceRow = citations
+            .substringAfter("private fun CitationSourceRow(")
+            .substringBefore("private fun CitationBadgeVisual(")
+        assertTrue(sourceRow.contains("val titleColor = MaterialTheme.colorScheme.onSurface"))
+        assertFalse(sourceRow.contains("MaterialTheme.colorScheme.primary"))
+    }
+
+    @Test
+    fun `bottom sheet boxed tool errors use the neutral gray palette`() {
+        val toolResult = source(locateMainSourceRoot(), "message/ToolResultContent.kt")
+        val errorBar = toolResult
+            .substringAfter("private fun ToolErrorContent(")
+            .substringBefore("private fun ToolMutedContent(")
+
+        assertTrue(errorBar.contains("surfaceVariant.copy(alpha = 0.55f)"))
+        assertTrue(errorBar.contains("contentColor = MaterialTheme.colorScheme.onSurfaceVariant"))
+        assertFalse(errorBar.contains("errorContainer"))
+        assertFalse(errorBar.contains("onErrorContainer"))
     }
 
     @Test
@@ -132,6 +298,10 @@ class ExperimentalGenerationUiSourceContractTest {
         assertFalse(user.contains("NoAutoScrollSelectionContainer"))
         assertTrue(user.contains("R.string.copy"))
         assertTrue(user.contains("R.string.edit"))
+        assertTrue(user.contains("val editFocusRequester = remember(message.id)"))
+        assertTrue(user.contains("LaunchedEffect(isEditing, editFocusRequester)"))
+        assertTrue(user.contains("editFocusRequester.requestFocus()"))
+        assertTrue(user.contains(".focusRequester(editFocusRequester)"))
         assertTrue(user.contains("R.string.select_text"))
         assertTrue(user.contains("R.string.info"))
         assertTrue(user.contains("R.string.delete"))

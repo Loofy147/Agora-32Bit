@@ -1,13 +1,23 @@
 package com.newoether.agora.ui.chat.message
 
+import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.newoether.agora.R
+import com.newoether.agora.ui.motion.LocalAgoraMotionPolicy
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageSegment
 
@@ -63,6 +73,114 @@ internal fun MessageSegment.isVisibleAnswerSegment(): Boolean =
 
 internal fun MessageSegment.isInfoSegment(): Boolean =
     (type == "thought" && content.isNotBlank()) || type == "tool" || type == "transcription"
+
+internal enum class SegmentGroupPosition {
+    SINGLE,
+    FIRST,
+    MIDDLE,
+    LAST,
+}
+
+private const val SEGMENT_GROUP_INNER_RADIUS_DP = 5
+private const val SEGMENT_GROUP_OUTER_RADIUS_DP = 24
+
+@Composable
+internal fun rememberAnimatedSegmentGroupShape(
+    position: SegmentGroupPosition,
+): RoundedCornerShape {
+    val motionPolicy = LocalAgoraMotionPolicy.current
+    val innerCorner = SEGMENT_GROUP_INNER_RADIUS_DP.dp
+    val outerCorner = SEGMENT_GROUP_OUTER_RADIUS_DP.dp
+    val targetTopStart =
+        if (position == SegmentGroupPosition.SINGLE || position == SegmentGroupPosition.FIRST) {
+            outerCorner
+        } else {
+            innerCorner
+        }
+    val targetTopEnd = targetTopStart
+    val targetBottomStart =
+        if (position == SegmentGroupPosition.SINGLE || position == SegmentGroupPosition.LAST) {
+            outerCorner
+        } else {
+            innerCorner
+        }
+    val targetBottomEnd = targetBottomStart
+    val animationSpec: AnimationSpec<Dp> =
+        if (motionPolicy.allowSpatialTransitions) {
+            spring(
+                dampingRatio = Spring.DampingRatioHighBouncy,
+                stiffness = Spring.StiffnessMediumLow,
+                visibilityThreshold = 0.01.dp,
+            )
+        } else {
+            snap()
+        }
+    val topStart by animateDpAsState(
+        targetValue = targetTopStart,
+        animationSpec = animationSpec,
+        label = "segmentGroupTopStart",
+    )
+    val topEnd by animateDpAsState(
+        targetValue = targetTopEnd,
+        animationSpec = animationSpec,
+        label = "segmentGroupTopEnd",
+    )
+    val bottomStart by animateDpAsState(
+        targetValue = targetBottomStart,
+        animationSpec = animationSpec,
+        label = "segmentGroupBottomStart",
+    )
+    val bottomEnd by animateDpAsState(
+        targetValue = targetBottomEnd,
+        animationSpec = animationSpec,
+        label = "segmentGroupBottomEnd",
+    )
+    return RoundedCornerShape(
+        topStart = topStart.coerceIn(innerCorner, outerCorner),
+        topEnd = topEnd.coerceIn(innerCorner, outerCorner),
+        bottomStart = bottomStart.coerceIn(innerCorner, outerCorner),
+        bottomEnd = bottomEnd.coerceIn(innerCorner, outerCorner),
+    )
+}
+
+internal fun segmentGroupPosition(
+    hasPrevious: Boolean,
+    hasNext: Boolean,
+): SegmentGroupPosition = when {
+    !hasPrevious && !hasNext -> SegmentGroupPosition.SINGLE
+    !hasPrevious -> SegmentGroupPosition.FIRST
+    hasNext -> SegmentGroupPosition.MIDDLE
+    else -> SegmentGroupPosition.LAST
+}
+
+private fun List<MessageSegment>.hasTimelineInfoNeighbor(
+    index: Int,
+    direction: Int,
+): Boolean {
+    var cursor = index + direction
+    while (cursor in indices) {
+        val candidate = this[cursor]
+        when {
+            candidate.isInfoSegment() -> return true
+            candidate.isVisibleAnswerSegment() -> return false
+        }
+        cursor += direction
+    }
+    return false
+}
+
+internal fun timelineSegmentGroupPosition(
+    segments: List<MessageSegment>,
+    index: Int,
+): SegmentGroupPosition {
+    if (index !in segments.indices || !segments[index].isInfoSegment()) {
+        return SegmentGroupPosition.SINGLE
+    }
+    return segmentGroupPosition(
+        hasPrevious = segments.hasTimelineInfoNeighbor(index, direction = -1),
+        hasNext = segments.hasTimelineInfoNeighbor(index, direction = 1),
+    )
+}
 
 internal fun ChatMessage.hasActiveAnswerSegment(): Boolean {
     val lastVisibleSegment = segments?.lastOrNull { !it.isBlankAnswerSegment() }

@@ -5,6 +5,7 @@ import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -215,6 +216,7 @@ internal fun RetryActivityIndicator(
             modifier = Modifier.graphicsLayer {
                 translationX = dotTranslationPx
                 translationY = dotVerticalOffsetPx
+                clip = false
             },
         )
     }

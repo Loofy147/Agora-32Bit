@@ -50,7 +50,7 @@ fun SettingsAppearancePage(viewModel: ChatViewModel, onBack: () -> Unit) {
     val reduceMotion by viewModel.settings.reduceMotion.collectAsState()
     val parseInlineDollarMath by viewModel.settings.parseInlineDollarMath.collectAsState()
     val hapticsEnabled by viewModel.settings.hapticsEnabled.collectAsState()
-    val detailedTokenUsage by viewModel.settings.detailedTokenUsage.collectAsState()
+
     val toolCallDisplayMode by viewModel.settings.toolCallDisplayMode.collectAsState()
     val thinkingSegmentDisplayMode by viewModel.settings.thinkingSegmentDisplayMode.collectAsState()
     val autoExpandActiveGroup by viewModel.settings.autoExpandActiveGroup.collectAsState()
@@ -258,62 +258,6 @@ fun SettingsAppearancePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                         }
                         add {
                             var expanded by remember { mutableStateOf(false) }
-                            val selectedLabel = if (
-                                normalizedThinkingSegmentDisplayMode ==
-                                    ThinkingSegmentDisplayModes.BOTTOM_SHEET
-                            ) {
-                                stringResource(R.string.thinking_segment_display_bottom_sheet)
-                            } else {
-                                stringResource(R.string.thinking_segment_display_card)
-                            }
-                            SettingsItem(
-                                headlineContent = {
-                                    Text(stringResource(R.string.thinking_segment_display_mode))
-                                },
-                                supportingContent = {
-                                    Text(stringResource(R.string.thinking_segment_display_mode_desc))
-                                },
-                                trailingContent = {
-                                    Box {
-                                        Text(
-                                            selectedLabel,
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = MaterialTheme.colorScheme.primary,
-                                        )
-                                        DropdownMenu(
-                                            expanded = expanded,
-                                            onDismissRequest = { expanded = false },
-                                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                                            tonalElevation = 16.dp,
-                                            shape = RoundedCornerShape(12.dp),
-                                        ) {
-                                            listOf(
-                                                ThinkingSegmentDisplayModes.CARD to
-                                                    stringResource(R.string.thinking_segment_display_card),
-                                                ThinkingSegmentDisplayModes.BOTTOM_SHEET to
-                                                    stringResource(R.string.thinking_segment_display_bottom_sheet),
-                                            ).forEach { (mode, label) ->
-                                                DropdownMenuItem(
-                                                    text = { Text(label) },
-                                                    leadingIcon = {
-                                                        if (normalizedThinkingSegmentDisplayMode == mode) {
-                                                            Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary)
-                                                        }
-                                                    },
-                                                    onClick = {
-                                                        viewModel.settings.setThinkingSegmentDisplayMode(mode)
-                                                        expanded = false
-                                                    },
-                                                )
-                                            }
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.clickable { expanded = true },
-                            )
-                        }
-                        add {
-                            var expanded by remember { mutableStateOf(false) }
                             val selectedLabel = when (normalizedToolCallDisplayMode) {
                                 ToolCallDisplayModes.GROUPED_TIMELINE -> stringResource(R.string.tool_call_display_mode_grouped_timeline)
                                 ToolCallDisplayModes.COMPACT -> stringResource(R.string.tool_call_display_mode_compact)
@@ -371,10 +315,78 @@ fun SettingsAppearancePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             )
                         }
                         if (
-                            normalizedToolCallDisplayMode ==
-                                ToolCallDisplayModes.GROUPED_TIMELINE &&
-                            normalizedThinkingSegmentDisplayMode ==
-                                ThinkingSegmentDisplayModes.CARD
+                            ThinkingSegmentDisplayModes.isAvailableFor(normalizedToolCallDisplayMode)
+                        ) {
+                            add {
+                                var expanded by remember { mutableStateOf(false) }
+                                val selectedLabel = if (
+                                    normalizedThinkingSegmentDisplayMode ==
+                                        ThinkingSegmentDisplayModes.BOTTOM_SHEET
+                                ) {
+                                    stringResource(R.string.thinking_segment_display_bottom_sheet)
+                                } else {
+                                    stringResource(R.string.thinking_segment_display_card)
+                                }
+                                SettingsItem(
+                                    headlineContent = {
+                                        Text(stringResource(R.string.thinking_segment_display_mode))
+                                    },
+                                    supportingContent = {
+                                        Text(stringResource(R.string.thinking_segment_display_mode_desc))
+                                    },
+                                    trailingContent = {
+                                        Box {
+                                            Text(
+                                                selectedLabel,
+                                                style = MaterialTheme.typography.labelLarge,
+                                                color = MaterialTheme.colorScheme.primary,
+                                            )
+                                            DropdownMenu(
+                                                expanded = expanded,
+                                                onDismissRequest = { expanded = false },
+                                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                                tonalElevation = 16.dp,
+                                                shape = RoundedCornerShape(12.dp),
+                                            ) {
+                                                listOf(
+                                                    ThinkingSegmentDisplayModes.CARD to
+                                                        stringResource(R.string.thinking_segment_display_card),
+                                                    ThinkingSegmentDisplayModes.BOTTOM_SHEET to
+                                                        stringResource(R.string.thinking_segment_display_bottom_sheet),
+                                                ).forEach { (mode, label) ->
+                                                    DropdownMenuItem(
+                                                        text = { Text(label) },
+                                                        leadingIcon = {
+                                                            if (
+                                                                normalizedThinkingSegmentDisplayMode ==
+                                                                    mode
+                                                            ) {
+                                                                Icon(
+                                                                    Icons.Default.Check,
+                                                                    null,
+                                                                    tint = MaterialTheme.colorScheme.primary,
+                                                                )
+                                                            }
+                                                        },
+                                                        onClick = {
+                                                            viewModel.settings
+                                                                .setThinkingSegmentDisplayMode(mode)
+                                                            expanded = false
+                                                        },
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.clickable { expanded = true },
+                                )
+                            }
+                        }
+                        if (
+                            ThinkingSegmentDisplayModes.allowsAutoExpand(
+                                normalizedThinkingSegmentDisplayMode,
+                                normalizedToolCallDisplayMode,
+                            )
                         ) {
                             add {
                                 SettingsItem(
@@ -403,29 +415,6 @@ fun SettingsAppearancePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                     },
                                 )
                             }
-                        }
-                        add {
-                            SettingsItem(
-                                headlineContent = {
-                                    Text(stringResource(R.string.detailed_token_usage))
-                                },
-                                supportingContent = {
-                                    Text(stringResource(R.string.detailed_token_usage_desc))
-                                },
-                                trailingContent = {
-                                    Switch(
-                                        checked = detailedTokenUsage,
-                                        onCheckedChange = {
-                                            viewModel.settings.setDetailedTokenUsage(it)
-                                        },
-                                    )
-                                },
-                                modifier = Modifier.clickable {
-                                    viewModel.settings.setDetailedTokenUsage(
-                                        !detailedTokenUsage
-                                    )
-                                },
-                            )
                         }
                         add {
                             SettingsItem(

@@ -5,6 +5,8 @@ import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
+import com.newoether.agora.model.ThinkingSegmentDisplayModes
+import com.newoether.agora.model.ToolCallDisplayModes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -70,6 +72,105 @@ class MessageItemSegmentsTest {
     @Test
     fun timelineInfoBlockUsesNormalSeparationAfterVisibleMessage() {
         assertEquals(8.dp, timelineInfoTopPaddingExtra(true))
+    }
+
+    @Test
+    fun settingsStyleSegmentGroupPositionsCoverSingleFirstMiddleAndLast() {
+        assertEquals(
+            SegmentGroupPosition.SINGLE,
+            segmentGroupPosition(hasPrevious = false, hasNext = false),
+        )
+        assertEquals(
+            SegmentGroupPosition.FIRST,
+            segmentGroupPosition(hasPrevious = false, hasNext = true),
+        )
+        assertEquals(
+            SegmentGroupPosition.MIDDLE,
+            segmentGroupPosition(hasPrevious = true, hasNext = true),
+        )
+        assertEquals(
+            SegmentGroupPosition.LAST,
+            segmentGroupPosition(hasPrevious = true, hasNext = false),
+        )
+    }
+
+    @Test
+    fun timelineSegmentGroupsBreakAtVisibleAnswers() {
+        val segments = listOf(
+            MessageSegment(type = "thought", content = "Thinking"),
+            MessageSegment(type = "tool"),
+            MessageSegment(type = "answer", content = "Answer"),
+            MessageSegment(type = "transcription"),
+        )
+
+        assertEquals(SegmentGroupPosition.FIRST, timelineSegmentGroupPosition(segments, 0))
+        assertEquals(SegmentGroupPosition.LAST, timelineSegmentGroupPosition(segments, 1))
+        assertEquals(SegmentGroupPosition.SINGLE, timelineSegmentGroupPosition(segments, 3))
+    }
+
+    @Test
+    fun timelineSegmentGroupsFollowRenderedOrderAcrossSkippedSegments() {
+        val segments = listOf(
+            MessageSegment(type = "error", content = "Earlier error"),
+            MessageSegment(type = "thought", content = "Thinking"),
+            MessageSegment(type = "answer"),
+            MessageSegment(type = "error", content = "Skipped error"),
+            MessageSegment(type = "tool"),
+            MessageSegment(type = "answer"),
+            MessageSegment(type = "transcription"),
+            MessageSegment(type = "error", content = "Later error"),
+        )
+
+        assertEquals(SegmentGroupPosition.FIRST, timelineSegmentGroupPosition(segments, 1))
+        assertEquals(SegmentGroupPosition.MIDDLE, timelineSegmentGroupPosition(segments, 4))
+        assertEquals(SegmentGroupPosition.LAST, timelineSegmentGroupPosition(segments, 6))
+    }
+
+    @Test
+    fun timelineSegmentGroupInvalidIndicesFailClosed() {
+        val segments = listOf(MessageSegment(type = "tool"))
+
+        assertEquals(SegmentGroupPosition.SINGLE, timelineSegmentGroupPosition(segments, -1))
+        assertEquals(SegmentGroupPosition.SINGLE, timelineSegmentGroupPosition(segments, 1))
+    }
+
+    @Test
+    fun thinkingSegmentDisplayPolicyCoversVisibilityEffectiveModeAndAutoExpansion() {
+        assertFalse(ThinkingSegmentDisplayModes.isAvailableFor(ToolCallDisplayModes.TIMELINE))
+        assertTrue(ThinkingSegmentDisplayModes.isAvailableFor(ToolCallDisplayModes.GROUPED_TIMELINE))
+        assertTrue(ThinkingSegmentDisplayModes.isAvailableFor(ToolCallDisplayModes.COMPACT))
+        assertEquals(
+            ThinkingSegmentDisplayModes.CARD,
+            ThinkingSegmentDisplayModes.effectiveMode(
+                ThinkingSegmentDisplayModes.BOTTOM_SHEET,
+                ToolCallDisplayModes.TIMELINE,
+            ),
+        )
+        assertEquals(
+            ThinkingSegmentDisplayModes.BOTTOM_SHEET,
+            ThinkingSegmentDisplayModes.effectiveMode(
+                ThinkingSegmentDisplayModes.BOTTOM_SHEET,
+                ToolCallDisplayModes.GROUPED_TIMELINE,
+            ),
+        )
+        assertTrue(
+            ThinkingSegmentDisplayModes.allowsAutoExpand(
+                ThinkingSegmentDisplayModes.CARD,
+                ToolCallDisplayModes.GROUPED_TIMELINE,
+            ),
+        )
+        assertFalse(
+            ThinkingSegmentDisplayModes.allowsAutoExpand(
+                ThinkingSegmentDisplayModes.BOTTOM_SHEET,
+                ToolCallDisplayModes.GROUPED_TIMELINE,
+            ),
+        )
+        assertFalse(
+            ThinkingSegmentDisplayModes.allowsAutoExpand(
+                ThinkingSegmentDisplayModes.CARD,
+                ToolCallDisplayModes.COMPACT,
+            ),
+        )
     }
 
     @Test

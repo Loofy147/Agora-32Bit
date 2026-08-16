@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.newoether.agora.R
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageSegment
@@ -209,7 +210,11 @@ internal fun SegmentDetailSheet(
                 val sheetTitle = when {
                     titleOverride != null -> titleOverride
                     showSegmentListPage ->
-                        stringResource(R.string.thinking_segments_title)
+                        compactSegmentDisplayTitle(
+                            segs = selectedEntries.map { it.second },
+                            message = message,
+                            useLiveStatus = true,
+                        )
                     selectedSegs.size > 1 ->
                         compactSegmentTitle(
                             selectedSegs,
@@ -235,6 +240,8 @@ internal fun SegmentDetailSheet(
                     ) {
                         CircularBackButton(
                             onClick = { detailPageIndex = -1 },
+                            containerColor =
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
@@ -279,7 +286,7 @@ internal fun SegmentDetailSheet(
                                     ) {
                                         SearchHighlightedPlainText(
                                             text = directSelectableTextContent,
-                                            style = ChatType.userBody,
+                                            style = ChatType.userBody.copy(fontSize = 14.sp),
                                             color = MaterialTheme.colorScheme.onSurface,
                                             spec = null,
                                         )
@@ -474,16 +481,22 @@ private fun ThinkingSegmentListContent(
     Column(
         modifier = modifier
             .verticalScroll(scrollState)
-            .padding(horizontal = 24.dp, vertical = 8.dp),
+            .padding(horizontal = 20.dp, vertical = 8.dp),
     ) {
         segments.forEachIndexed { index, segment ->
             val liveIndex = segmentIndices.getOrElse(index) { index }
+            val groupPosition = segmentGroupPosition(
+                hasPrevious = index > 0,
+                hasNext = index < segments.lastIndex,
+            )
             TimelineInfoSegmentCard(
                 seg = segment,
                 detailSegments = segments,
                 detailIndex = index,
                 isStreamingContent = isStreaming && index == segments.lastIndex,
                 animateAppearance = false,
+                groupPosition = groupPosition,
+                neutralPalette = true,
                 cardAnimationKey = "${message.id}:sheet-list:$liveIndex",
                 segmentAppearanceRegistry = appearanceRegistry,
                 onClick = { onSegmentSelected(liveIndex) },

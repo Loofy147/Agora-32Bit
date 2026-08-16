@@ -161,7 +161,7 @@ fun ChatApp(
     val toolCallDisplayMode by viewModel.settings.toolCallDisplayMode.collectAsState()
     val thinkingSegmentDisplayMode by viewModel.settings.thinkingSegmentDisplayMode.collectAsState()
     val autoExpandActiveGroup by viewModel.settings.autoExpandActiveGroup.collectAsState()
-    val detailedTokenUsage by viewModel.settings.detailedTokenUsage.collectAsState()
+
     val parseInlineDollarMath by viewModel.settings.parseInlineDollarMath.collectAsState()
     val conversationSettings by viewModel.settings.conversationSettings.collectAsState()
     val pendingSettings by viewModel.pendingConversationSettings.collectAsState()
@@ -572,7 +572,7 @@ fun ChatApp(
                                 toolCallDisplayMode = toolCallDisplayMode,
                                 thinkingSegmentDisplayMode = thinkingSegmentDisplayMode,
                                 autoExpandActiveGroup = autoExpandActiveGroup,
-                                detailedTokenUsage = detailedTokenUsage,
+
                                 parseInlineDollarMath = parseInlineDollarMath,
                                 contextRetainedMessageIds = contextProjection.retainedMessageIds,
                                 modelAliases = StableModelAliases(modelAliases),
@@ -819,8 +819,8 @@ fun ChatApp(
                     }
                 }
             }
-
-            val gradientTopPaddingPx = with(density) { 20.dp.toPx() }
+            val normalGradientTopPaddingPx = with(density) { 0.dp.toPx() }
+            val expandedGradientTopPaddingPx = with(density) { 20.dp.toPx() }
             val gradientWidthPx = with(density) { 40.dp.toPx() }
             val bgColor = MaterialTheme.colorScheme.background
             Surface(
@@ -833,12 +833,12 @@ fun ChatApp(
                         if (totalH > 0f) {
                             val (transparentEnd, fadeEnd) = if (isExpanded) {
                                 // In expanded mode, keep the gradient compact at the top
-                                val h = gradientTopPaddingPx.coerceAtMost(totalH * 0.12f)
+                                val h = expandedGradientTopPaddingPx.coerceAtMost(totalH * 0.12f)
                                 val w = gradientWidthPx.coerceAtMost(totalH * 0.24f)
                                 (h / totalH) to ((h + w) / totalH)
                             } else {
-                                val te = (gradientTopPaddingPx / totalH).coerceIn(0f, 1f)
-                                val fe = ((gradientTopPaddingPx + gradientWidthPx) / totalH).coerceIn(0f, 1f)
+                                val te = (normalGradientTopPaddingPx / totalH).coerceIn(0f, 1f)
+                                val fe = ((normalGradientTopPaddingPx + gradientWidthPx) / totalH).coerceIn(0f, 1f)
                                 te to fe
                             }
                             drawRect(

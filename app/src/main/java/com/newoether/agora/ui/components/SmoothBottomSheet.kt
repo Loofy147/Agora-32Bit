@@ -22,6 +22,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -87,6 +88,12 @@ internal class SmoothBottomSheetState internal constructor() {
     internal val visualFraction = Animatable(SMOOTH_SHEET_HIDDEN_FRACTION)
     internal var snapJob by mutableStateOf<Job?>(null)
     internal var dismissing by mutableStateOf(false)
+    internal var dismissRequestVersion by mutableIntStateOf(0)
+        private set
+
+    internal fun requestDismiss() {
+        dismissRequestVersion += 1
+    }
 }
 
 @Composable
@@ -155,6 +162,10 @@ internal fun SmoothBottomSheet(
         animateTo(SmoothBottomSheetValue.Partial)
         state.snapJob?.join()
         state.rawFraction = SMOOTH_SHEET_PARTIAL_FRACTION
+    }
+
+    LaunchedEffect(state.dismissRequestVersion) {
+        if (state.dismissRequestVersion > 0) dismiss()
     }
 
     LaunchedEffect(state.rawFraction) {

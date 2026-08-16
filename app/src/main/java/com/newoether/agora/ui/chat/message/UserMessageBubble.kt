@@ -22,6 +22,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -79,6 +81,10 @@ internal fun UserMessageBubble(
     val haptics = LocalAgoraHaptics.current
     val allowSpatialTransitions = LocalAgoraMotionPolicy.current.allowSpatialTransitions
     var showMenu by remember { mutableStateOf(false) }
+    val editFocusRequester = remember(message.id) { FocusRequester() }
+    LaunchedEffect(isEditing, editFocusRequester) {
+        if (isEditing) editFocusRequester.requestFocus()
+    }
 
     Column(horizontalAlignment = Alignment.End) {
         Box {
@@ -119,7 +125,9 @@ internal fun UserMessageBubble(
                         TextField(
                             state = editState,
                             scrollState = editScrollState,
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(editFocusRequester),
                             colors = TextFieldDefaults.colors(
                                 focusedContainerColor = Color.Transparent,
                                 unfocusedContainerColor = Color.Transparent

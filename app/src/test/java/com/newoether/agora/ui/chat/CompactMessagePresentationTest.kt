@@ -4,14 +4,12 @@ import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageGenerationBoundaryResolver
 import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
-import com.newoether.agora.model.ThinkingSegmentDisplayModes
 import com.newoether.agora.ui.chat.bottombar.contextUsageAtCapacity
 import com.newoether.agora.ui.chat.bottombar.contextUsageExceedsCompactThreshold
 import com.newoether.agora.ui.chat.message.ContextCompactPillPresentation
 import com.newoether.agora.ui.chat.message.SegmentSheetBackAction
 import com.newoether.agora.ui.chat.message.contextCompactPillPresentation
 import com.newoether.agora.ui.chat.message.segmentSheetBackAction
-import com.newoether.agora.ui.chat.message.usesExplicitDetailBackHandler
 import com.newoether.agora.ui.chat.message.usesVirtualizedSegmentDetail
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -93,13 +91,6 @@ class CompactMessagePresentationTest {
             listOf("user", "assistant", "compact_boundary", "later-assistant"),
             renderedIds,
         )
-    }
-
-    @Test
-    fun explicitDetailBackHandlingIsEnabledOnlyForBottomSheetMode() {
-        assertTrue(usesExplicitDetailBackHandler(ThinkingSegmentDisplayModes.BOTTOM_SHEET))
-        assertFalse(usesExplicitDetailBackHandler(ThinkingSegmentDisplayModes.CARD))
-        assertFalse(usesExplicitDetailBackHandler("unknown"))
     }
 
     @Test

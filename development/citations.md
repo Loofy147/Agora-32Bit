@@ -136,7 +136,9 @@ ordinary Unicode text or standard Markdown links.
   in its stable placeholder width. The primary-label cap is 84 dp and a grouped suffix remains
   separated by 4 dp. The Sources summary capsule has a 36 dp minimum height, 16 dp horizontal padding,
   8 dp vertical padding, one 18 dp Link icon before the dynamic count with an 8 dp gap, and semibold
-  `labelLarge` text. Icon and text share the existing capsule foreground color.
+  `labelLarge` text. Icon and text share the existing capsule foreground color. Its external left
+  edge extends 4 dp into the message list's 8 dp inset, matching the compact Thinking card's 4 dp
+  screen-side margin without changing the capsule's internal padding or right-side geometry.
 - Inline/group, summary, numbered-source containers, and bottom-sheet source rows own a draw-only fade
   from alpha `0f` to `1f` over 320 ms with `LinearEasing`. The fade adds no scale, translation, delayed
   data, hidden click target, remeasurement, or message-height change. Stable message/source/group
@@ -159,17 +161,22 @@ ordinary Unicode text or standard Markdown links.
   immediately above them with an 18 dp Link icon, 8 dp gap, and dynamic text `${sourceCount} Sources`.
 - Activating the summary capsule opens the one shared Sources bottom sheet containing every
   deduplicated source in first-source order and titled exactly `N Sources`, without emitting haptic
-  feedback. Activating a grouped
-  inline capsule opens the same component with only that ordered group and the same exact dynamic
-  title. The title uses `ChatType.detailTitle`, matching the thinking-segment bottom sheet. Activating
-  a single-source inline capsule retains direct safe-URL or non-URL detail behavior. Every sheet
-  source row is an accessible full-row tap target whose ripple is pill-clipped, and selecting it
-  retains safe URL or in-app non-URL detail behavior. Dismissing either sheet changes no message or
-  citation state.
-- Every clickable link rendered in chat content, including ordinary Markdown links and citation URL
-  source titles, uses the theme link/accent color with `TextDecoration.None`. Link labels, targets,
-  safe-activation rules, and ordinary Markdown semantics remain unchanged. Non-URL file/document
-  sources remain normal text and open the in-app detail surface.
+  feedback. Activating a grouped inline capsule opens the same component with only that ordered group
+  and the same exact dynamic title. The Sources component uses the shared `SmoothBottomSheet` shell,
+  supplies its LazyList top state for nested-scroll handoff, and completes the normal shell hide before
+  activating the selected source. The title uses `ChatType.detailTitle`, matching the thinking-segment
+  bottom sheet. Every source-row title, including safe URL sources, uses theme `onSurface` rather
+  than `primary`; secondary file/location metadata remains `onSurfaceVariant`. Each source number
+  uses an `onSurfaceVariant` 12%-alpha neutral gray background and an `onSurfaceVariant` 80%-alpha
+  number. Activating a single-source inline capsule retains direct safe-URL or non-URL detail behavior.
+  Every sheet source row is an accessible full-row tap target
+  whose ripple is pill-clipped, and selecting it retains safe URL or in-app non-URL detail behavior.
+  Dismissing either sheet changes no message or citation state.
+- Every clickable link rendered in chat answer content uses the theme link/accent color with
+  `TextDecoration.None`. Sources-sheet URL titles are the explicit presentation exception: they use
+  `onSurface` like non-URL source titles while retaining the same safe link target and activation.
+  Link labels, targets, safe-activation rules, and ordinary Markdown semantics remain unchanged.
+  Non-URL file/document sources remain normal text and open the in-app detail surface.
 - A safe HTTP(S) source opens through Agora's existing safe-link interaction path. A non-URL
   file/document source opens an in-app detail surface showing available title/file name, location,
   and cited excerpt without inventing a URL.

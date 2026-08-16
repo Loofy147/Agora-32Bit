@@ -1,0 +1,123 @@
+package com.newoether.agora.ui.chat.message
+
+import java.io.File
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class Phase25UiSourceContractTest {
+    @Test
+    fun `direct dot exit retains draw state without clipping or overlay physics`() {
+        val list = chatSource("MessageList.kt")
+        val assistant = source("AssistantMessageContent.kt")
+        val retry = source("RetryActivityIndicator.kt")
+        val tail = chatSource("StreamingTailIndicator.kt")
+        val follower = File(
+            mainSourceRoot(),
+            "com/newoether/agora/ui/chat/message/InlineActivityDotFollower.kt",
+        )
+
+        assertFalse(follower.exists())
+        assertFalse(list.contains("InlineActivityDotFollower"))
+        assertFalse(list.contains("dotOverlayState"))
+        val assistantActivity = assistant
+            .substringAfter("private fun AssistantInlineActivity(")
+            .substringBefore("/**")
+        assertTrue(assistantActivity.contains(
+            "visibilityTransition.currentState || visibilityTransition.targetState"
+        ))
+        assertTrue(assistantActivity.contains("alpha = activityOpacity"))
+        assertTrue(assistantActivity.contains("clip = false"))
+        assertTrue(assistantActivity.contains("GenerationActivityDot()"))
+        assertFalse(assistantActivity.contains(".AnimatedVisibility("))
+        assertTrue(retry.contains("GenerationActivityDot("))
+        assertTrue(retry.contains("clip = false"))
+        val tailIndicator = tail
+            .substringAfter("internal fun StreamingTailIndicator(")
+            .substringBefore("/** One breathing-scale sample")
+        assertTrue(tailIndicator.contains("GenerationActivityDot("))
+        assertTrue(tailIndicator.contains("clip = false"))
+        assertFalse(tailIndicator.contains("AnimatedVisibility("))
+        assertFalse(tailIndicator.contains("animateContentSize"))
+    }
+
+    @Test
+    fun `Timeline info entrances have one card owned unbounded appearance layer`() {
+        val timeline = source("MessageItemTimeline.kt")
+
+        assertEquals(
+            2,
+            timeline.windowed("AnimatedTimelineBlockAppearance(".length)
+                .count { it == "AnimatedTimelineBlockAppearance(" },
+        )
+        assertFalse(timeline.contains("val blockContent: @Composable () -> Unit"))
+        assertFalse(timeline.contains("val cardContent: @Composable () -> Unit"))
+        val infoCard = timeline.substringAfter("internal fun TimelineInfoSegmentCard(")
+        assertTrue(infoCard.contains(".then(cardAppearanceModifier)"))
+        assertTrue(infoCard.indexOf(".then(cardAppearanceModifier)") <
+            infoCard.indexOf(".clip(groupShape)"))
+        assertTrue(timeline.contains("StartAnchoredHorizontalOverflowHost"))
+    }
+
+    @Test
+    fun `Timeline clicks request direct detail independent of stored display preference`() {
+        val item = source("MessageItem.kt")
+        val assistant = source("AssistantMessageContent.kt")
+
+        assertFalse(item.contains("usesExplicitDetailBackHandler("))
+        assertTrue(item.contains("onSegmentSelected = { indices, showListFirst ->"))
+        assertTrue(item.contains("detailUsesExplicitBackHandler = showListFirst"))
+        assertTrue(assistant.contains("onSegmentSelected: (List<Int>, Boolean) -> Unit"))
+        assertTrue(assistant.contains("onSegmentSelected(indices, false)"))
+        assertTrue(assistant.contains(
+            "onSegmentSelected(detailSegments.indices.toList(), true)"
+        ))
+        assertTrue(assistant.contains("onSegmentSelected(listOf(index), false)"))
+    }
+
+    @Test
+    fun `Thinking sheet uses twenty five percent neutral cards gray arrows and local back chrome`() {
+        val timeline = source("MessageItemTimeline.kt")
+        val detail = source("SegmentDetailSheet.kt")
+        val back = componentSource("CircularBackButton.kt")
+
+        assertTrue(timeline.contains(
+            "MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)"
+        ))
+        assertTrue(timeline.contains(
+            "val iconTint = if (neutralPalette) MaterialTheme.colorScheme.primary"
+        ))
+        assertTrue(timeline.contains(
+            "tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)"
+        ))
+        val backCall = detail
+            .substringAfter("CircularBackButton(")
+            .substringBefore("Text(")
+        assertTrue(backCall.contains("containerColor ="))
+        assertTrue(backCall.contains(
+            "MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)"
+        ))
+        assertTrue(back.contains("containerColor: Color = MaterialTheme.colorScheme.surface"))
+    }
+
+    private fun source(name: String): String =
+        File(mainSourceRoot(), "com/newoether/agora/ui/chat/message/$name").readText()
+
+    private fun chatSource(name: String): String =
+        File(mainSourceRoot(), "com/newoether/agora/ui/chat/$name").readText()
+
+    private fun componentSource(name: String): String =
+        File(mainSourceRoot(), "com/newoether/agora/ui/components/$name").readText()
+
+    private fun mainSourceRoot(): File = locate("app/src/main/java")
+
+    private fun locate(relative: String): File {
+        var directory = File(requireNotNull(System.getProperty("user.dir"))).absoluteFile
+        repeat(8) {
+            File(directory, relative).takeIf(File::isDirectory)?.let { return it }
+            directory = directory.parentFile ?: error("Reached filesystem root")
+        }
+        error("Unable to locate $relative")
+    }
+}

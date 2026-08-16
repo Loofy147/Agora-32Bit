@@ -70,10 +70,6 @@ internal fun contextCompactPillPresentation(status: MessageStatus): ContextCompa
         MessageStatus.SUCCESS -> ContextCompactPillPresentation.SUCCESS
     }
 
-internal fun usesExplicitDetailBackHandler(thinkingSegmentDisplayMode: String): Boolean =
-    ThinkingSegmentDisplayModes.normalize(thinkingSegmentDisplayMode) ==
-        ThinkingSegmentDisplayModes.BOTTOM_SHEET
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 internal fun MessageItem(
@@ -97,7 +93,7 @@ internal fun MessageItem(
     toolCallDisplayMode: String = ToolCallDisplayModes.DEFAULT,
     thinkingSegmentDisplayMode: String = ThinkingSegmentDisplayModes.DEFAULT,
     autoExpandActiveGroup: Boolean = true,
-    detailedTokenUsage: Boolean = false,
+
     parseInlineDollarMath: Boolean = false,
     groupedSegmentAutoExpansionController: GroupedSegmentAutoExpansionController =
         remember { GroupedSegmentAutoExpansionController() },
@@ -331,9 +327,11 @@ internal fun MessageItem(
                         toolCallDisplayMode = toolCallDisplayMode,
                         thinkingSegmentDisplayMode = thinkingSegmentDisplayMode,
                         autoExpandActiveGroup = autoExpandActiveGroup &&
-                            ThinkingSegmentDisplayModes.normalize(thinkingSegmentDisplayMode) ==
-                                ThinkingSegmentDisplayModes.CARD,
-                        detailedTokenUsage = detailedTokenUsage,
+                            ThinkingSegmentDisplayModes.allowsAutoExpand(
+                                thinkingSegmentDisplayMode,
+                                toolCallDisplayMode,
+                            ),
+
                         groupedSegmentAutoExpansionController =
                             groupedSegmentAutoExpansionController,
                         thoughtExpandedStates = thoughtExpandedStates,
@@ -348,11 +346,10 @@ internal fun MessageItem(
                         onMediaClick = onMediaClick,
                         onShowInfo = { showInfoDialog = true },
                         onShowDelete = { showDeleteConfirm = true },
-                        onSegmentSelected = { indices ->
+                        onSegmentSelected = { indices, showListFirst ->
                             selectedSegmentIndices = indices
                             selectedSegmentIndex = indices.firstOrNull() ?: -1
-                            detailUsesExplicitBackHandler =
-                                usesExplicitDetailBackHandler(thinkingSegmentDisplayMode)
+                            detailUsesExplicitBackHandler = showListFirst
                             showSegmentDetail = true
                         },
                         onLayoutMutationStarted = onLayoutMutationStarted,

@@ -303,33 +303,6 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             title = { Text(stringResource(R.string.transcription_select_model), fontWeight = FontWeight.Bold) },
             text = {
                 LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                    item(key = "transcription-model-none") {
-                        SettingsItem(
-                            headlineContent = {
-                                Text(
-                                    stringResource(R.string.transcription_no_model),
-                                    fontWeight = if (transcriptionModel == null) {
-                                        FontWeight.Bold
-                                    } else {
-                                        FontWeight.Normal
-                                    },
-                                )
-                            },
-                            leadingContent = {
-                                RadioButton(
-                                    selected = transcriptionModel == null,
-                                    onClick = {
-                                        viewModel.settings.setImageTranscriptionModel(null)
-                                        showModelDialog = false
-                                    },
-                                )
-                            },
-                            modifier = Modifier.clickable {
-                                viewModel.settings.setImageTranscriptionModel(null)
-                                showModelDialog = false
-                            },
-                        )
-                    }
                     items(enabledModelsList, key = { it }) { model ->
                         val dialogParsed = com.newoether.agora.model.ModelId.parse(model)
                         val displayName = modelAliasDisplayName(

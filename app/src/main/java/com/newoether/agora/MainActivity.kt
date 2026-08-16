@@ -1,5 +1,4 @@
 package com.newoether.agora
-
 import android.Manifest
 import android.app.Activity
 import android.content.Context
@@ -73,7 +72,8 @@ import com.newoether.agora.util.CrashReporter
 import com.newoether.agora.viewmodel.ChatViewModel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
-
+private fun fullScreenPreviewEnterTransition(allowSpatialTransitions: Boolean): EnterTransition = fadeIn(tween(durationMillis = 220)) + (if (allowSpatialTransitions) scaleIn(tween(durationMillis = 300, easing = FastOutSlowInEasing), initialScale = 0.96f) else EnterTransition.None)
+private fun fullScreenPreviewExitTransition(allowSpatialTransitions: Boolean): ExitTransition = fadeOut(tween(durationMillis = 180)) + (if (allowSpatialTransitions) scaleOut(tween(durationMillis = 220, easing = FastOutLinearInEasing), targetScale = 0.96f) else ExitTransition.None)
 class MainActivity : ComponentActivity() {
 
     private val notificationConversationId = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
@@ -848,8 +848,8 @@ fun MainNavigation(
             }
             mediaPreviewTransition.AnimatedVisibility(
                 visible = { it },
-                enter = fadeIn(),
-                exit = fadeOut()
+                enter = fullScreenPreviewEnterTransition(motionPolicy.allowSpatialTransitions),
+                exit = fullScreenPreviewExitTransition(motionPolicy.allowSpatialTransitions)
             ) {
                 // Keep the last values for the duration of the exit animation
                 var lastUrls by remember { mutableStateOf<List<String>?>(null) }
@@ -900,8 +900,8 @@ fun MainNavigation(
             }
             textPreviewTransition.AnimatedVisibility(
                 visible = { it },
-                enter = fadeIn(),
-                exit = fadeOut()
+                enter = fullScreenPreviewEnterTransition(motionPolicy.allowSpatialTransitions),
+                exit = fullScreenPreviewExitTransition(motionPolicy.allowSpatialTransitions)
             ) {
                 if (savedContent != null && savedName != null) {
                     com.newoether.agora.ui.chat.TextFileViewer(content = savedContent!!, fileName = savedName!!, onClose = { viewModel.clearPreviews() })

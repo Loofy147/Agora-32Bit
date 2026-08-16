@@ -180,13 +180,6 @@ private fun SandboxSection(viewModel: ChatViewModel, sandboxEnabled: Boolean, on
                     headlineContent = { Text(stringResource(R.string.sandbox_manage)) },
                     supportingContent = { Text(stringResource(R.string.sandbox_manage_desc)) },
                     leadingContent = { Icon(Icons.Default.Settings, null, tint = MaterialTheme.colorScheme.primary) },
-                    trailingContent = {
-                        Icon(
-                            Icons.Default.ChevronRight,
-                            stringResource(R.string.edit),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        )
-                    },
                     modifier = Modifier.clickable { onManage() }
                 )
             }

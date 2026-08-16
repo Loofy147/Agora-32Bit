@@ -1,16 +1,12 @@
 package com.newoether.agora.ui.chat
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
@@ -35,6 +32,7 @@ import com.newoether.agora.ui.motion.LocalAgoraMotionPolicy
 
 internal val StreamingTailAnchorHeight = 24.dp
 internal val StreamingTailVisualLift = 56.dp
+internal val GenerationActivityDotSize = 11.dp
 
 /**
  * Bridge between the list-owned tail state machine and controls outside MessageList.
@@ -202,8 +200,8 @@ internal fun coalescedScrollStep(
 }
 
 /**
- * A fixed-height tail sentinel. Its layout never changes when generation starts or ends; only the
- * circle's render-layer alpha/scale changes, so the parent turn cannot jump at either boundary.
+ * A fixed-height answer-tail anchor. The direct dot owns draw-only alpha/scale inside this stable
+ * layout slot, so its exit cannot clip against a disappearing visibility wrapper or move the turn.
  */
 @Composable
 internal fun StreamingTailIndicator(
@@ -213,6 +211,32 @@ internal fun StreamingTailIndicator(
     val allowSpatialTransitions = LocalAgoraMotionPolicy.current.allowSpatialTransitions
     val density = LocalDensity.current
     val visualLiftPx = with(density) { StreamingTailVisualLift.toPx() }
+    val visibilityTransition = updateTransition(
+        targetState = visible,
+        label = "StreamingTailDotVisibility",
+    )
+    val opacity by visibilityTransition.animateFloat(
+        transitionSpec = {
+            tween(
+                durationMillis = if (targetState) 400 else 320,
+                easing = FastOutSlowInEasing,
+            )
+        },
+        label = "StreamingTailDotOpacity",
+    ) { shown ->
+        if (shown) 1f else 0f
+    }
+    val appearanceScale by visibilityTransition.animateFloat(
+        transitionSpec = {
+            tween(
+                durationMillis = if (targetState) 400 else 320,
+                easing = FastOutSlowInEasing,
+            )
+        },
+        label = "StreamingTailDotAppearanceScale",
+    ) { shown ->
+        if (!allowSpatialTransitions || shown) 1f else 0.55f
+    }
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -220,40 +244,26 @@ internal fun StreamingTailIndicator(
             .padding(start = AssistantMessageHorizontalInset),
         contentAlignment = Alignment.CenterStart,
     ) {
-        AnimatedVisibility(
-            modifier = Modifier.graphicsLayer { translationY = -visualLiftPx },
-            visible = visible,
-            enter = if (allowSpatialTransitions) {
-                fadeIn(tween(400, easing = FastOutSlowInEasing)) +
-                    scaleIn(
-                        initialScale = 0.55f,
-                        animationSpec = tween(400, easing = FastOutSlowInEasing),
-                    )
-            } else {
-                fadeIn(tween(400, easing = FastOutSlowInEasing))
-            },
-            exit = if (allowSpatialTransitions) {
-                fadeOut(tween(320, easing = FastOutSlowInEasing)) +
-                    scaleOut(
-                        targetScale = 0.55f,
-                        animationSpec = tween(320, easing = FastOutSlowInEasing),
-                    )
-            } else {
-                fadeOut(tween(320, easing = FastOutSlowInEasing))
-            },
-        ) {
-            GenerationActivityDot()
+        if (visibilityTransition.currentState || visibilityTransition.targetState) {
+            GenerationActivityDot(
+                modifier = Modifier.graphicsLayer {
+                    compositingStrategy = CompositingStrategy.ModulateAlpha
+                    translationY = -visualLiftPx
+                    alpha = opacity
+                    scaleX = appearanceScale
+                    scaleY = appearanceScale
+                    clip = false
+                },
+            )
         }
     }
 }
 
-/** The one breathing generation dot shared by the answer tail and pre-output activity gap. */
+/** One breathing-scale sample used by every direct generation-dot source. */
 @Composable
-internal fun GenerationActivityDot(
-    modifier: Modifier = Modifier,
-) {
+internal fun rememberGenerationActivityDotBreathingScale(): Float {
     val allowContinuousMotion = LocalAgoraMotionPolicy.current.allowContinuousMotion
-    val breathingScale = if (allowContinuousMotion) {
+    return if (allowContinuousMotion) {
         val breathing = rememberInfiniteTransition(label = "GenerationActivityBreathing")
         val animatedScale by breathing.animateFloat(
             initialValue = 0.55f,
@@ -268,12 +278,21 @@ internal fun GenerationActivityDot(
     } else {
         1f
     }
+}
+
+/** The one breathing generation dot shared by the answer tail and pre-output activity gap. */
+@Composable
+internal fun GenerationActivityDot(
+    modifier: Modifier = Modifier,
+    breathingScale: Float = rememberGenerationActivityDotBreathingScale(),
+) {
     Box(
         modifier = modifier
-            .size(11.dp)
+            .size(GenerationActivityDotSize)
             .graphicsLayer {
                 scaleX = breathingScale
                 scaleY = breathingScale
+                clip = false
             }
             .background(
                 color = MaterialTheme.colorScheme.onBackground,

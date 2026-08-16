@@ -331,6 +331,8 @@ class CitationMessageContentTest {
         assertEquals(4, CITATION_INLINE_SUFFIX_GAP_DP)
         assertEquals(2, CITATION_INLINE_OUTER_SPACER_DP)
         assertEquals(50, CITATION_SOURCE_ROW_SHAPE_PERCENT)
+        assertEquals(0.12f, CITATION_SOURCE_BADGE_BACKGROUND_ALPHA, 0.0f)
+        assertEquals(0.8f, CITATION_SOURCE_BADGE_FOREGROUND_ALPHA, 0.0f)
     }
 
     @Test
