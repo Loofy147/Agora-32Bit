@@ -18,6 +18,11 @@ internal enum class ToolKind {
     MEMORY_EDIT,
     MEMORY_DELETE,
     MEMORY_UPDATE_ACTIVE,
+    SKILL_LIST,
+    SKILL_READ,
+    SKILL_CREATE,
+    SKILL_EDIT,
+    SKILL_DELETE,
     WEB_SEARCH,
     WEB_FETCH,
     CONVERSATION_SEARCH,
@@ -183,6 +188,11 @@ internal object ToolPresentationResolver {
         "edit_memory_file" -> ToolKind.MEMORY_EDIT
         "delete_memory_file" -> ToolKind.MEMORY_DELETE
         "update_active_memory" -> ToolKind.MEMORY_UPDATE_ACTIVE
+        "list_skill_files" -> ToolKind.SKILL_LIST
+        "read_skill_file" -> ToolKind.SKILL_READ
+        "create_skill_file" -> ToolKind.SKILL_CREATE
+        "edit_skill_file" -> ToolKind.SKILL_EDIT
+        "delete_skill_file" -> ToolKind.SKILL_DELETE
         "web_search", "openai_search", "google_search" -> ToolKind.WEB_SEARCH
         "web_fetch" -> ToolKind.WEB_FETCH
         "search_conversations" -> ToolKind.CONVERSATION_SEARCH
@@ -229,7 +239,8 @@ internal object ToolPresentationResolver {
     }
 
     private fun semanticCount(kind: ToolKind, result: JsonObject?): Int? = when (kind) {
-        ToolKind.MEMORY_LIST -> result.arraySize("files")
+        ToolKind.MEMORY_LIST,
+        ToolKind.SKILL_LIST -> result.arraySize("files")
         ToolKind.WEB_SEARCH,
         ToolKind.CONVERSATION_SEARCH -> result.arraySize("results")
         ToolKind.CONVERSATION_LIST -> result.int("total")
@@ -266,7 +277,11 @@ internal object ToolPresentationResolver {
         ToolKind.MEMORY_READ,
         ToolKind.MEMORY_CREATE,
         ToolKind.MEMORY_EDIT,
-        ToolKind.MEMORY_DELETE -> arguments.string("name")
+        ToolKind.MEMORY_DELETE,
+        ToolKind.SKILL_READ,
+        ToolKind.SKILL_CREATE,
+        ToolKind.SKILL_EDIT,
+        ToolKind.SKILL_DELETE -> arguments.string("name")
             ?: arguments.array("names")?.singleOrNull()?.primitiveContent()
         ToolKind.WEB_SEARCH,
         ToolKind.CONVERSATION_SEARCH -> arguments.string("query")

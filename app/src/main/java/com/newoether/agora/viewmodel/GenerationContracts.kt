@@ -40,6 +40,8 @@ data class GenerationContext(
     val conversationId: String? = null,
     val accessSavedMemories: Boolean = true,
     val accessActiveMemory: Boolean = true,
+    val accessSkills: Boolean = true,
+    val skillCatalog: String = "",
     val accessPastConversations: Boolean = true,
     val modelSearchMethod: String = "keyword",
     val activeEmbeddingConfig: com.newoether.agora.data.EmbeddingModelConfig? = null,

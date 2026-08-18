@@ -1175,4 +1175,25 @@
     <string name="generation_error_connection_reset">تمت إعادة تعيين الاتصال.</string>
     <string name="generation_error_unknown_host">تعذر العثور على المضيف.</string>
     <string name="generation_error_tls_failure">فشل الاتصال الآمن.</string>
+    <string name="settings_skills">المهارات</string>
+    <string name="settings_skills_desc">ملفات تعليمات قابلة لإعادة الاستخدام يقرأها النموذج عند الحاجة.</string>
+    <string name="skills_title">المهارات</string>
+    <string name="skills_access">السماح بالوصول إلى المهارات</string>
+    <string name="skills_access_desc">تضمين فهرس المهارات وأدواتها في عمليات التوليد الجديدة.</string>
+    <string name="skills_saved_title">المهارات المحفوظة</string>
+    <string name="skills_empty">لا توجد مهارات بعد</string>
+    <string name="skills_create_hint">أنشئ مهارة أو دع النموذج ينشئ واحدة عبر استدعاء الأداة</string>
+    <string name="skills_add">إضافة مهارة</string>
+    <string name="skills_create">إنشاء</string>
+    <string name="skills_name">اسم الملف</string>
+    <string name="skills_description">الوصف</string>
+    <string name="skills_content">التعليمات</string>
+    <string name="skills_edit">تعديل المهارة</string>
+    <string name="skills_delete_title">حذف المهارة؟</string>
+    <string name="skills_delete_message">هل أنت متأكد أنك تريد حذف \'%1$s\'؟ لا يمكن التراجع عن هذا.</string>
+    <string name="tool_list_skills">عرض المهارات</string>
+    <string name="tool_read_skill">قراءة المهارة</string>
+    <string name="tool_create_skill">إنشاء مهارة</string>
+    <string name="tool_edit_skill">تعديل المهارة</string>
+    <string name="tool_delete_skill">حذف المهارة</string>
 </resources>

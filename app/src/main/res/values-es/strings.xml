@@ -1175,4 +1175,25 @@
     <string name="generation_error_connection_reset">Conexión restablecida.</string>
     <string name="generation_error_unknown_host">No se pudo encontrar el host.</string>
     <string name="generation_error_tls_failure">Falló la conexión segura.</string>
+    <string name="settings_skills">Habilidades</string>
+    <string name="settings_skills_desc">Archivos de instrucciones reutilizables que el modelo puede leer cuando los necesite.</string>
+    <string name="skills_title">Habilidades</string>
+    <string name="skills_access">Permitir acceso a habilidades</string>
+    <string name="skills_access_desc">Incluye el catálogo y las herramientas de habilidades en nuevas generaciones.</string>
+    <string name="skills_saved_title">Habilidades guardadas</string>
+    <string name="skills_empty">Aún no hay habilidades</string>
+    <string name="skills_create_hint">Crea una habilidad o deja que el modelo cree una mediante una llamada a herramienta</string>
+    <string name="skills_add">Añadir habilidad</string>
+    <string name="skills_create">Crear</string>
+    <string name="skills_name">Nombre del archivo</string>
+    <string name="skills_description">Descripción</string>
+    <string name="skills_content">Instrucciones</string>
+    <string name="skills_edit">Editar habilidad</string>
+    <string name="skills_delete_title">¿Eliminar habilidad?</string>
+    <string name="skills_delete_message">¿Seguro que quieres eliminar \'%1$s\'? Esta acción no se puede deshacer.</string>
+    <string name="tool_list_skills">Listar habilidades</string>
+    <string name="tool_read_skill">Leer habilidad</string>
+    <string name="tool_create_skill">Crear habilidad</string>
+    <string name="tool_edit_skill">Editar habilidad</string>
+    <string name="tool_delete_skill">Eliminar habilidad</string>
 </resources>

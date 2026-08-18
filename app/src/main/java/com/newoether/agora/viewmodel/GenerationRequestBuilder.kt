@@ -4,6 +4,7 @@ import android.content.Context
 import com.newoether.agora.R
 import com.newoether.agora.data.ConversationSettings
 import com.newoether.agora.data.MemoryManager
+import com.newoether.agora.data.SkillManager
 import com.newoether.agora.data.PredefinedVariables
 import com.newoether.agora.data.SystemPromptEntry
 import com.newoether.agora.data.providerDisplayName
@@ -30,6 +31,7 @@ class GenerationRequestBuilder(
     private val settings: SettingsRepository,
     private val convRepo: ConversationRepository,
     private val memoryManager: MemoryManager,
+    private val skillManager: SkillManager,
     private val providerRegistry: ProviderRegistry,
     private val ragManager: RagManager,
     private val appContext: Context,
@@ -289,6 +291,12 @@ class GenerationRequestBuilder(
     ): Pair<GenerationConfig, GenerationContext> {
         val imageGenModel = settings.imageGenModel.value
         val transcriptionModel = settings.imageTranscriptionModel.value
+        val accessSkills = settings.accessSkills.value
+        val skillCatalog = if (accessSkills) skillManager.catalog() else ""
+        val effectiveSystemPromptWithSkills = listOfNotNull(
+            resolvedSystemPrompt?.takeIf(String::isNotBlank),
+            skillCatalog.takeIf(String::isNotBlank),
+        ).joinToString("\n\n").ifBlank { null }
         val responsesApiEnabled = isResponsesApiEnabledForProvider(
             providerName = providerName,
             builtInOpenAiEnabled = settings.openAiResponsesApiEnabled.value,
@@ -298,7 +306,7 @@ class GenerationRequestBuilder(
             providerName = providerName,
             modelId = ModelId.parse(providerRegistry.canonicalModelId(modelId)).modelName,
             apiKey = activeKey,
-            effectiveSystemPrompt = resolvedSystemPrompt,
+            effectiveSystemPrompt = effectiveSystemPromptWithSkills,
             maxContextWindow = ContextBudget.normalize(
                 effectiveSettings.contextWindow ?: settings.maxContextWindow.value
             ),
@@ -329,6 +337,8 @@ class GenerationRequestBuilder(
             conversationId = currentId,
             accessSavedMemories = settings.accessSavedMemories.value,
             accessActiveMemory = settings.accessActiveMemory.value,
+            accessSkills = accessSkills,
+            skillCatalog = skillCatalog,
             accessPastConversations = settings.accessPastConversations.value,
             modelSearchMethod = settings.modelSearchMethod.value,
             activeEmbeddingConfig = ragManager.activeEmbeddingModel.value,

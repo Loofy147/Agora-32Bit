@@ -1183,4 +1183,25 @@
     <string name="generation_error_connection_reset">連線已重設。</string>
     <string name="generation_error_unknown_host">找不到主機。</string>
     <string name="generation_error_tls_failure">安全連線失敗。</string>
+    <string name="settings_skills">技能</string>
+    <string name="settings_skills_desc">模型可按需讀取的可重用指令檔案。</string>
+    <string name="skills_title">技能</string>
+    <string name="skills_access">允許存取技能</string>
+    <string name="skills_access_desc">在新的生成中加入技能目錄與技能工具。</string>
+    <string name="skills_saved_title">已儲存的技能</string>
+    <string name="skills_empty">尚無技能</string>
+    <string name="skills_create_hint">建立一個技能或讓模型透過工具呼叫來建立</string>
+    <string name="skills_add">新增技能</string>
+    <string name="skills_create">建立</string>
+    <string name="skills_name">檔案名稱</string>
+    <string name="skills_description">描述</string>
+    <string name="skills_content">指令</string>
+    <string name="skills_edit">編輯技能</string>
+    <string name="skills_delete_title">刪除技能？</string>
+    <string name="skills_delete_message">確定要刪除 \'%1$s\' 嗎？此操作無法復原。</string>
+    <string name="tool_list_skills">列出技能</string>
+    <string name="tool_read_skill">讀取技能</string>
+    <string name="tool_create_skill">建立技能</string>
+    <string name="tool_edit_skill">編輯技能</string>
+    <string name="tool_delete_skill">刪除技能</string>
 </resources>

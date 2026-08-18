@@ -1275,4 +1275,25 @@
     <string name="generation_error_connection_reset">连接已重置。</string>
     <string name="generation_error_unknown_host">找不到主机。</string>
     <string name="generation_error_tls_failure">安全连接失败。</string>
+    <string name="settings_skills">技能</string>
+    <string name="settings_skills_desc">模型可按需读取的可复用指令文件。</string>
+    <string name="skills_title">技能</string>
+    <string name="skills_access">允许访问技能</string>
+    <string name="skills_access_desc">在新的生成中加入技能目录和技能工具。</string>
+    <string name="skills_saved_title">已保存的技能</string>
+    <string name="skills_empty">暂无技能</string>
+    <string name="skills_create_hint">创建一个技能或让模型通过工具调用来创建</string>
+    <string name="skills_add">添加技能</string>
+    <string name="skills_create">创建</string>
+    <string name="skills_name">文件名</string>
+    <string name="skills_description">描述</string>
+    <string name="skills_content">指令</string>
+    <string name="skills_edit">编辑技能</string>
+    <string name="skills_delete_title">删除技能？</string>
+    <string name="skills_delete_message">确定要删除 \'%1$s\' 吗？此操作无法撤销。</string>
+    <string name="tool_list_skills">列出技能</string>
+    <string name="tool_read_skill">读取技能</string>
+    <string name="tool_create_skill">创建技能</string>
+    <string name="tool_edit_skill">编辑技能</string>
+    <string name="tool_delete_skill">删除技能</string>
 </resources>

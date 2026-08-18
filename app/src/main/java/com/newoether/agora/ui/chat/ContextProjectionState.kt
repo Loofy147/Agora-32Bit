@@ -21,6 +21,7 @@ internal fun rememberContextProjectionInvalidationKey(
     val systemPrompts by settings.systemPrompts.collectAsState()
     val accessSavedMemories by settings.accessSavedMemories.collectAsState()
     val accessActiveMemory by settings.accessActiveMemory.collectAsState()
+    val accessSkills by settings.accessSkills.collectAsState()
     val accessPastConversations by settings.accessPastConversations.collectAsState()
     val imageGenEnabled by settings.imageGenEnabled.collectAsState()
     val imageGenModel by settings.imageGenModel.collectAsState()
@@ -29,12 +30,14 @@ internal fun rememberContextProjectionInvalidationKey(
     val sandboxSharedStorageEnabled by settings.sandboxSharedStorageEnabled.collectAsState()
     val mcpServers by viewModel.mcpServerSnapshots.collectAsState()
     val activeMemoryRevision by viewModel.memoryManager.activeMemoryRevision.collectAsState()
+    val skillCatalogRevision by viewModel.skillManager.catalogRevision.collectAsState()
     return requestConfiguration + listOf(
         activePromptId,
         pendingPromptId,
         systemPrompts,
         accessSavedMemories,
         accessActiveMemory,
+        accessSkills,
         accessPastConversations,
         imageGenEnabled,
         imageGenModel,
@@ -43,6 +46,7 @@ internal fun rememberContextProjectionInvalidationKey(
         sandboxSharedStorageEnabled,
         mcpServers,
         activeMemoryRevision,
+        skillCatalogRevision,
     )
 }
 

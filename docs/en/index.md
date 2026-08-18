@@ -32,6 +32,7 @@ Agora is an Android BYOK client for provider-hosted and on-device language model
 - [Conversation Search](search.md)
 - [Embedding / RAG](embedding.md)
 - [Memory & Cache](memory.md)
+- [Skills](skills.md)
 - [Local Models](local-model.md)
 - [PDF Import](pdf-import.md)
 - [Import & Export](import-export.md)

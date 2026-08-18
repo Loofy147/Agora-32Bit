@@ -264,6 +264,7 @@ private val baseSettingsGroups = listOf(
     )),
     SettingsGroupData(titleRes = R.string.settings_group_memory_data, items = listOf(
         SettingsCategory("memory", R.string.settings_memory, R.string.settings_memory_desc, Icons.Default.Description),
+        SettingsCategory("skills", R.string.settings_skills, R.string.settings_skills_desc, Icons.Default.Description),
         SettingsCategory("datacontrol", R.string.settings_data_control, R.string.settings_data_control_desc, Icons.Default.Storage),
     )),
     SettingsGroupData(titleRes = R.string.settings_group_appearance_language, items = listOf(
@@ -343,6 +344,7 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                 "transcription" -> SettingsTranscriptionPage(viewModel, onBack = { selectedCategory = null })
                 "search" -> SettingsSearchPage(viewModel, onBack = { selectedCategory = null })
                 "memory" -> SettingsMemoryPage(viewModel, onBack = { selectedCategory = null })
+                "skills" -> SettingsSkillsPage(viewModel, onBack = { selectedCategory = null })
                 "datacontrol" -> SettingsDataControlPage(viewModel, onBack = { selectedCategory = null })
                 "appearance" -> SettingsAppearancePage(viewModel, onBack = { selectedCategory = null })
                 "developer" -> SettingsDeveloperPage(

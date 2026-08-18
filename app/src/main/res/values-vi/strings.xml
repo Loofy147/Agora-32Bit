@@ -1181,4 +1181,25 @@
     <string name="generation_error_connection_reset">Kết nối đã đặt lại.</string>
     <string name="generation_error_unknown_host">Không tìm thấy máy chủ.</string>
     <string name="generation_error_tls_failure">Kết nối bảo mật thất bại.</string>
+    <string name="settings_skills">Kỹ năng</string>
+    <string name="settings_skills_desc">Các tệp hướng dẫn có thể tái sử dụng mà mô hình đọc khi cần.</string>
+    <string name="skills_title">Kỹ năng</string>
+    <string name="skills_access">Cho phép truy cập kỹ năng</string>
+    <string name="skills_access_desc">Thêm danh mục và công cụ kỹ năng vào các lượt tạo mới.</string>
+    <string name="skills_saved_title">Kỹ năng đã lưu</string>
+    <string name="skills_empty">Chưa có kỹ năng</string>
+    <string name="skills_create_hint">Tạo một kỹ năng hoặc để mô hình tự tạo qua lệnh gọi công cụ</string>
+    <string name="skills_add">Thêm kỹ năng</string>
+    <string name="skills_create">Tạo</string>
+    <string name="skills_name">Tên tệp</string>
+    <string name="skills_description">Mô tả</string>
+    <string name="skills_content">Hướng dẫn</string>
+    <string name="skills_edit">Sửa kỹ năng</string>
+    <string name="skills_delete_title">Xóa kỹ năng?</string>
+    <string name="skills_delete_message">Bạn có chắc muốn xóa \'%1$s\' không? Hành động này không thể hoàn tác.</string>
+    <string name="tool_list_skills">Liệt kê kỹ năng</string>
+    <string name="tool_read_skill">Đọc kỹ năng</string>
+    <string name="tool_create_skill">Tạo kỹ năng</string>
+    <string name="tool_edit_skill">Sửa kỹ năng</string>
+    <string name="tool_delete_skill">Xóa kỹ năng</string>
 </resources>

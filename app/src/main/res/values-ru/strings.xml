@@ -1175,4 +1175,25 @@
     <string name="generation_error_connection_reset">Соединение сброшено.</string>
     <string name="generation_error_unknown_host">Узел не найден.</string>
     <string name="generation_error_tls_failure">Ошибка защищенного соединения.</string>
+    <string name="settings_skills">Навыки</string>
+    <string name="settings_skills_desc">Многоразовые файлы инструкций, которые модель читает по мере необходимости.</string>
+    <string name="skills_title">Навыки</string>
+    <string name="skills_access">Разрешить доступ к навыкам</string>
+    <string name="skills_access_desc">Добавлять каталог и инструменты навыков в новые генерации.</string>
+    <string name="skills_saved_title">Сохранённые навыки</string>
+    <string name="skills_empty">Навыков пока нет</string>
+    <string name="skills_create_hint">Создайте навык или позвольте модели создать его через вызов инструмента</string>
+    <string name="skills_add">Добавить навык</string>
+    <string name="skills_create">Создать</string>
+    <string name="skills_name">Имя файла</string>
+    <string name="skills_description">Описание</string>
+    <string name="skills_content">Инструкции</string>
+    <string name="skills_edit">Изменить навык</string>
+    <string name="skills_delete_title">Удалить навык?</string>
+    <string name="skills_delete_message">Вы уверены, что хотите удалить \'%1$s\'? Это действие нельзя отменить.</string>
+    <string name="tool_list_skills">Показать навыки</string>
+    <string name="tool_read_skill">Прочитать навык</string>
+    <string name="tool_create_skill">Создать навык</string>
+    <string name="tool_edit_skill">Изменить навык</string>
+    <string name="tool_delete_skill">Удалить навык</string>
 </resources>

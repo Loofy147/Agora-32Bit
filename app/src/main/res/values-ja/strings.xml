@@ -1175,4 +1175,25 @@
     <string name="generation_error_connection_reset">接続がリセットされました。</string>
     <string name="generation_error_unknown_host">ホストが見つかりません。</string>
     <string name="generation_error_tls_failure">安全な接続に失敗しました。</string>
+    <string name="settings_skills">スキル</string>
+    <string name="settings_skills_desc">モデルが必要に応じて読み込める再利用可能な指示ファイルです。</string>
+    <string name="skills_title">スキル</string>
+    <string name="skills_access">スキルへのアクセスを許可</string>
+    <string name="skills_access_desc">新しい生成にスキル一覧とスキルツールを含めます。</string>
+    <string name="skills_saved_title">保存済みスキル</string>
+    <string name="skills_empty">スキルはまだありません</string>
+    <string name="skills_create_hint">スキルを作成するか、モデルにツール呼び出しで作成させます</string>
+    <string name="skills_add">スキルを追加</string>
+    <string name="skills_create">作成</string>
+    <string name="skills_name">ファイル名</string>
+    <string name="skills_description">説明</string>
+    <string name="skills_content">指示</string>
+    <string name="skills_edit">スキルを編集</string>
+    <string name="skills_delete_title">スキルを削除しますか？</string>
+    <string name="skills_delete_message">\'%1$s\' を削除しますか？この操作は元に戻せません。</string>
+    <string name="tool_list_skills">スキルを一覧表示</string>
+    <string name="tool_read_skill">スキルを読む</string>
+    <string name="tool_create_skill">スキルを作成</string>
+    <string name="tool_edit_skill">スキルを編集</string>
+    <string name="tool_delete_skill">スキルを削除</string>
 </resources>

@@ -74,6 +74,7 @@ internal object PortableSettingsArchive {
         put("accessPastConversations", JsonPrimitive(sm.accessPastConversations.first()))
         put("accessSavedMemories", JsonPrimitive(sm.accessSavedMemories.first()))
         put("accessActiveMemory", JsonPrimitive(sm.accessActiveMemory.first()))
+        put("accessSkills", JsonPrimitive(sm.accessSkills.first()))
         put("ragSearchEnabled", JsonPrimitive(sm.ragSearchEnabled.first()))
         put("modelSearchMethod", JsonPrimitive(sm.modelSearchMethod.first()))
         put("manualSearchMethod", JsonPrimitive(sm.manualSearchMethod.first()))
@@ -268,6 +269,7 @@ internal object PortableSettingsArchive {
         obj.boolean("accessPastConversations")?.let { sm.saveAccessPastConversations(it) }
         obj.boolean("accessSavedMemories")?.let { sm.saveAccessSavedMemories(it) }
         obj.boolean("accessActiveMemory")?.let { sm.saveAccessActiveMemory(it) }
+        obj.boolean("accessSkills")?.let { sm.saveAccessSkills(it) }
         obj.boolean("ragSearchEnabled")?.let { sm.saveRagSearchEnabled(it) }
         obj.string("modelSearchMethod")?.let { sm.saveModelSearchMethod(it) }
         obj.string("manualSearchMethod")?.let { sm.saveManualSearchMethod(it) }

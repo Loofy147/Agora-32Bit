@@ -32,7 +32,8 @@ class DataExporter(
     private val context: Context,
     private val chatDao: ChatDao,
     private val settingsManager: SettingsManager,
-    private val memoryManager: MemoryManager
+    private val memoryManager: MemoryManager,
+    private val skillManager: SkillManager,
 ) {
     companion object {
         /** Bounds entity/string expansion while exporting databases with large chat histories. */
@@ -581,6 +582,17 @@ class DataExporter(
                 if (metaJson != "{}") {
                     zip.putNextEntry(ZipEntry("memories/memory_db/memory_meta.json"))
                     zip.write(metaJson.toByteArray())
+                    zip.closeEntry()
+                }
+                for (file in skillManager.listFiles()) {
+                    zip.putNextEntry(ZipEntry("memories/skill_db/${file.name}"))
+                    zip.write(skillManager.readFile(file.name).toByteArray())
+                    zip.closeEntry()
+                }
+                val skillMetaJson = skillManager.getMetaJson()
+                if (skillMetaJson != "{}") {
+                    zip.putNextEntry(ZipEntry("memories/skill_db/skill_meta.json"))
+                    zip.write(skillMetaJson.toByteArray())
                     zip.closeEntry()
                 }
                 step()

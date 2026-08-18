@@ -77,7 +77,8 @@ class DataImporter(
     private val database: ChatDatabase,
     private val chatDao: ChatDao,
     private val settingsManager: SettingsManager,
-    private val memoryManager: MemoryManager
+    private val memoryManager: MemoryManager,
+    private val skillManager: SkillManager,
 ) {
     enum class ImportStrategy { MERGE, REPLACE, SKIP }
 
@@ -410,11 +411,13 @@ class DataImporter(
                         val memNames = opened.names().filter { it.startsWith("memories/") }
                         if (memDecision == ImportStrategy.REPLACE) {
                             memoryManager.listFiles().forEach { memoryManager.deleteFile(it.name) }
+                            skillManager.listFiles().forEach { skillManager.deleteFile(it.name) }
                             if (memoryManager.getActiveMemory().isNotEmpty()) {
                                 memoryManager.updateActiveMemory("", "replace")
                             }
                         }
                         val existingNames = memoryManager.listFiles().map { it.name }.toSet()
+                        val existingSkillNames = skillManager.listFiles().map { it.name }.toSet()
                         for (path in memNames) {
                             val text = opened.bytes(path)?.decodeToString() ?: continue
                             when {
@@ -434,6 +437,28 @@ class DataImporter(
                                     ) {
                                         memoryManager.saveMetaJson(text)
                                     }
+                                }
+                                path == "memories/skill_db/skill_meta.json" -> {
+                                    if (
+                                        memDecision == ImportStrategy.REPLACE ||
+                                        skillManager.getMetaJson() == "{}"
+                                    ) {
+                                        skillManager.saveMetaJson(text)
+                                    }
+                                }
+                                path.startsWith("memories/skill_db/") -> {
+                                    val name = path.removePrefix("memories/skill_db/")
+                                    if (
+                                        memDecision == ImportStrategy.REPLACE ||
+                                        name !in existingSkillNames
+                                    ) {
+                                        try {
+                                            skillManager.createFile(name, text)
+                                        } catch (_: Exception) {
+                                            skillManager.editFile(name, content = text)
+                                        }
+                                    }
+                                    memoriesImported++
                                 }
                                 path.startsWith("memories/memory_db/") -> {
                                     val name = path.removePrefix("memories/memory_db/")

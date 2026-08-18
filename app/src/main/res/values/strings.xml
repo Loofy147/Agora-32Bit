@@ -1177,4 +1177,25 @@
     <string name="generation_error_connection_reset">Connection reset.</string>
     <string name="generation_error_unknown_host">The host could not be found.</string>
     <string name="generation_error_tls_failure">The secure connection failed.</string>
+    <string name="settings_skills">Skills</string>
+    <string name="settings_skills_desc">Saved instruction files available to the model</string>
+    <string name="skills_title">Skills</string>
+    <string name="skills_access">Access Saved Skills</string>
+    <string name="skills_access_desc">Allow the model to read, create, and edit skill files</string>
+    <string name="skills_saved_title">Saved Skills</string>
+    <string name="skills_empty">No Skills yet</string>
+    <string name="skills_create_hint">Create a Skill or let the model create one via tool calling</string>
+    <string name="skills_add">Add Skill</string>
+    <string name="skills_create">Create</string>
+    <string name="skills_name">File name</string>
+    <string name="skills_description">Description</string>
+    <string name="skills_content">Instructions</string>
+    <string name="skills_edit">Edit Skill</string>
+    <string name="skills_delete_title">Delete Skill?</string>
+    <string name="skills_delete_message">Are you sure you want to delete \'%1$s\'? This cannot be undone.</string>
+    <string name="tool_list_skills">List skills</string>
+    <string name="tool_read_skill">Read skill</string>
+    <string name="tool_create_skill">Create skill</string>
+    <string name="tool_edit_skill">Edit skill</string>
+    <string name="tool_delete_skill">Delete skill</string>
 </resources>

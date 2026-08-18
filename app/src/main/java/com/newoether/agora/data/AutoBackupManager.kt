@@ -32,7 +32,8 @@ class AutoBackupManager(
     private val context: Context,
     private val settingsManager: SettingsManager,
     private val chatDao: ChatDao,
-    private val memoryManager: MemoryManager
+    private val memoryManager: MemoryManager,
+    private val skillManager: SkillManager,
 ) {
     companion object {
         /** Cross-instance Mutex — ensures Worker and ChatViewModel instances don't race. */
@@ -109,7 +110,7 @@ class AutoBackupManager(
             // shows an explicit warning when that box is checked).
             val includeApiKeys = DataExporter.ExportCategory.API_KEYS in categories
 
-            val exporter = DataExporter(context, chatDao, settingsManager, memoryManager)
+            val exporter = DataExporter(context, chatDao, settingsManager, memoryManager, skillManager)
             exporter.export(
                 uri = Uri.fromFile(tmpFile),
                 categories = categories,

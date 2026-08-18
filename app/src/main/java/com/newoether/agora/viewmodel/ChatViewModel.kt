@@ -18,6 +18,7 @@ import com.newoether.agora.data.ConversationSettings
 import com.newoether.agora.data.DataExporter
 import com.newoether.agora.data.DataImporter
 import com.newoether.agora.data.MemoryManager
+import com.newoether.agora.data.SkillManager
 import com.newoether.agora.data.PredefinedVariables
 import com.newoether.agora.data.forDisplay
 import com.newoether.agora.data.replaceCustomProviderIdsForDisplay
@@ -61,6 +62,7 @@ class ChatViewModel(
     private val chatDao: com.newoether.agora.data.local.ChatDao,
     private val settingsManager: com.newoether.agora.data.SettingsManager,
     val memoryManager: MemoryManager,
+    val skillManager: SkillManager,
     private val appContext: Context,
     private val sandboxFactory: SandboxManagerFactory? = null,
     // All injected via AppContainer/ChatViewModelFactory — the single construction site.
@@ -95,6 +97,7 @@ class ChatViewModel(
     val dataControl = DataControlController(
         conversations = conversationRepository,
         memory = memoryManager,
+        skills = skillManager,
         settings = settingsRepository,
         backupManager = autoBackupManager,
         backupSchedule = AndroidAutoBackupSchedulePort(application),
@@ -158,6 +161,7 @@ class ChatViewModel(
         chatDao = chatDao,
         settingsManager = settingsManager,
         memoryManager = memoryManager,
+        skillManager = skillManager,
         scope = viewModelScope,
         emitSnackbar = { _snackbarMessage.emit(it) },
         onDataChanged = dataControl::refreshCounts,
@@ -245,6 +249,7 @@ class ChatViewModel(
             app = application,
             conversations = convRepo,
             memoryManager = memoryManager,
+            skillManager = skillManager,
             context = appContext,
             sandboxFactory = sandboxFactory,
             additionalToolProviders = listOf(automationToolProvider, mcpToolProvider),
@@ -382,8 +387,8 @@ class ChatViewModel(
 
     // ── Auto Backup ───────────────────────────────────────────
 
-    val conversations: StateFlow<List<ChatConversation>> = convRepo.getAllConversations()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val conversations: StateFlow<List<ChatConversation>?> = convRepo.getAllConversations()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val currentConversationId: StateFlow<String?> get() = selectionController.currentConversationId
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val currentConversation: StateFlow<ChatConversation?> = currentConversationId
@@ -646,6 +651,7 @@ class ChatViewModel(
         settings = settings,
         convRepo = convRepo,
         memoryManager = memoryManager,
+        skillManager = skillManager,
         providerRegistry = providerRegistry,
         ragManager = ragManager,
         appContext = appContext,

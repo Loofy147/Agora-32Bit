@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import com.newoether.agora.api.local.LocalProvider
 import com.newoether.agora.data.MemoryManager
+import com.newoether.agora.data.SkillManager
 import com.newoether.agora.data.repository.ConversationRepository
 import com.newoether.agora.data.repository.SettingsRepository
 import com.newoether.agora.model.ChatMessage
@@ -71,6 +72,7 @@ class TaskExecutionEngine(
     private val convRepo: ConversationRepository,
     private val settings: SettingsRepository,
     private val memoryManager: MemoryManager,
+    private val skillManager: SkillManager,
     private val providerRegistry: ProviderRegistry,
     localProvider: LocalProvider,
     sandboxFactory: SandboxManagerFactory?,
@@ -318,6 +320,7 @@ class TaskExecutionEngine(
         app = application,
         conversations = convRepo,
         memoryManager = memoryManager,
+        skillManager = skillManager,
         context = appContext,
         sandboxFactory = sandboxFactory,
         additionalToolProviders = listOf(mcpToolProvider),
@@ -443,6 +446,7 @@ class TaskExecutionEngine(
                 settings = settings,
                 convRepo = convRepo,
                 memoryManager = memoryManager,
+                skillManager = skillManager,
                 providerRegistry = providerRegistry,
                 ragManager = ragManager,
                 appContext = appContext,

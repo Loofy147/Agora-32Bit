@@ -1175,4 +1175,25 @@
     <string name="generation_error_connection_reset">Verbindung zurückgesetzt.</string>
     <string name="generation_error_unknown_host">Host konnte nicht gefunden werden.</string>
     <string name="generation_error_tls_failure">Sichere Verbindung fehlgeschlagen.</string>
+    <string name="settings_skills">Skills</string>
+    <string name="settings_skills_desc">Wiederverwendbare Anweisungsdateien, die das Modell bei Bedarf lesen kann.</string>
+    <string name="skills_title">Skills</string>
+    <string name="skills_access">Skill-Zugriff erlauben</string>
+    <string name="skills_access_desc">Skill-Katalog und Skill-Werkzeuge in neue Generierungen aufnehmen.</string>
+    <string name="skills_saved_title">Gespeicherte Skills</string>
+    <string name="skills_empty">Noch keine Skills</string>
+    <string name="skills_create_hint">Erstelle einen Skill oder lasse das Modell einen per Werkzeugaufruf erstellen</string>
+    <string name="skills_add">Skill hinzufügen</string>
+    <string name="skills_create">Erstellen</string>
+    <string name="skills_name">Dateiname</string>
+    <string name="skills_description">Beschreibung</string>
+    <string name="skills_content">Anweisungen</string>
+    <string name="skills_edit">Skill bearbeiten</string>
+    <string name="skills_delete_title">Skill löschen?</string>
+    <string name="skills_delete_message">Möchtest du \'%1$s\' wirklich löschen? Dies kann nicht rückgängig gemacht werden.</string>
+    <string name="tool_list_skills">Skills auflisten</string>
+    <string name="tool_read_skill">Skill lesen</string>
+    <string name="tool_create_skill">Skill erstellen</string>
+    <string name="tool_edit_skill">Skill bearbeiten</string>
+    <string name="tool_delete_skill">Skill löschen</string>
 </resources>

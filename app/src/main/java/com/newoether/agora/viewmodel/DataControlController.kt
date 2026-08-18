@@ -3,6 +3,7 @@ package com.newoether.agora.viewmodel
 import android.app.Application
 import com.newoether.agora.data.AutoBackupManager
 import com.newoether.agora.data.MemoryManager
+import com.newoether.agora.data.SkillManager
 import com.newoether.agora.data.repository.ConversationRepository
 import com.newoether.agora.data.repository.SettingsRepository
 import com.newoether.agora.service.AutoBackupWorker
@@ -31,6 +32,7 @@ internal class AndroidAutoBackupSchedulePort(
 class DataControlController internal constructor(
     private val conversations: ConversationRepository,
     private val memory: MemoryManager,
+    private val skills: SkillManager,
     private val settings: SettingsRepository,
     private val backupManager: AutoBackupManager,
     private val backupSchedule: AutoBackupSchedulePort,
@@ -69,6 +71,7 @@ class DataControlController internal constructor(
         scope.launch(ioDispatcher) {
             _conversationCount.value = conversations.getAllConversationsList().size
             _memoryCount.value = memory.listFiles().size +
+                skills.listFiles().size +
                 (if (memory.getActiveMemory().isNotEmpty()) 1 else 0)
             _systemPromptCount.value = settings.getSystemPrompts().size
         }

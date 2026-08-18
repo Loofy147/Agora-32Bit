@@ -1175,4 +1175,25 @@
     <string name="generation_error_connection_reset">연결이 재설정되었습니다.</string>
     <string name="generation_error_unknown_host">호스트를 찾을 수 없습니다.</string>
     <string name="generation_error_tls_failure">보안 연결에 실패했습니다.</string>
+    <string name="settings_skills">스킬</string>
+    <string name="settings_skills_desc">모델이 필요할 때 읽을 수 있는 재사용 가능한 지침 파일입니다.</string>
+    <string name="skills_title">스킬</string>
+    <string name="skills_access">스킬 접근 허용</string>
+    <string name="skills_access_desc">새 생성에 스킬 목록과 스킬 도구를 포함합니다.</string>
+    <string name="skills_saved_title">저장된 스킬</string>
+    <string name="skills_empty">아직 스킬이 없습니다</string>
+    <string name="skills_create_hint">스킬을 만들거나 모델이 도구 호출로 만들도록 하세요</string>
+    <string name="skills_add">스킬 추가</string>
+    <string name="skills_create">만들기</string>
+    <string name="skills_name">파일 이름</string>
+    <string name="skills_description">설명</string>
+    <string name="skills_content">지침</string>
+    <string name="skills_edit">스킬 편집</string>
+    <string name="skills_delete_title">스킬을 삭제할까요?</string>
+    <string name="skills_delete_message">\'%1$s\'을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</string>
+    <string name="tool_list_skills">스킬 목록 보기</string>
+    <string name="tool_read_skill">스킬 읽기</string>
+    <string name="tool_create_skill">스킬 만들기</string>
+    <string name="tool_edit_skill">스킬 편집</string>
+    <string name="tool_delete_skill">스킬 삭제</string>
 </resources>

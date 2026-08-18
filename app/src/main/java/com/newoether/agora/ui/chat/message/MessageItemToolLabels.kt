@@ -67,6 +67,11 @@ private fun toolBaseDisplayName(
     ToolKind.MEMORY_EDIT -> stringResource(R.string.tool_edit_memory)
     ToolKind.MEMORY_DELETE -> stringResource(R.string.tool_delete_memory)
     ToolKind.MEMORY_UPDATE_ACTIVE -> stringResource(R.string.tool_update_active_memory)
+    ToolKind.SKILL_LIST -> stringResource(R.string.tool_list_skills)
+    ToolKind.SKILL_READ -> stringResource(R.string.tool_read_skill)
+    ToolKind.SKILL_CREATE -> stringResource(R.string.tool_create_skill)
+    ToolKind.SKILL_EDIT -> stringResource(R.string.tool_edit_skill)
+    ToolKind.SKILL_DELETE -> stringResource(R.string.tool_delete_skill)
     ToolKind.WEB_SEARCH -> when (toolName) {
         "openai_search" -> stringResource(R.string.openai_search)
         "google_search" -> stringResource(R.string.google_search)
@@ -171,6 +176,11 @@ private fun runningSummary(
         R.string.tool_progress_removing,
     )
     ToolKind.MEMORY_UPDATE_ACTIVE -> stringResource(R.string.tool_updating_active)
+    ToolKind.SKILL_LIST -> stringResource(R.string.tool_list_skills)
+    ToolKind.SKILL_READ -> stringResource(R.string.tool_read_skill)
+    ToolKind.SKILL_CREATE -> stringResource(R.string.tool_create_skill)
+    ToolKind.SKILL_EDIT -> stringResource(R.string.tool_edit_skill)
+    ToolKind.SKILL_DELETE -> stringResource(R.string.tool_delete_skill)
     ToolKind.WEB_SEARCH -> optionalSubjectSummary(
         subject,
         R.string.tool_searching_web,
@@ -357,6 +367,11 @@ private fun completedSummary(
         R.string.tool_lookup_count,
         presentation.count ?: 0,
     )
+    ToolKind.SKILL_LIST -> stringResource(R.string.tool_list_skills)
+    ToolKind.SKILL_READ -> stringResource(R.string.tool_read_skill)
+    ToolKind.SKILL_CREATE -> stringResource(R.string.tool_create_skill)
+    ToolKind.SKILL_EDIT -> stringResource(R.string.tool_edit_skill)
+    ToolKind.SKILL_DELETE -> stringResource(R.string.tool_delete_skill)
     ToolKind.MEMORY_READ -> optionalSubjectSummary(
         subject,
         R.string.tool_read_memory_name,

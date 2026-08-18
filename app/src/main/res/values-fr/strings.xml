@@ -1175,4 +1175,25 @@
     <string name="generation_error_connection_reset">Connexion réinitialisée.</string>
     <string name="generation_error_unknown_host">Hôte introuvable.</string>
     <string name="generation_error_tls_failure">Échec de la connexion sécurisée.</string>
+    <string name="settings_skills">Compétences</string>
+    <string name="settings_skills_desc">Fichiers d’instructions réutilisables que le modèle peut lire à la demande.</string>
+    <string name="skills_title">Compétences</string>
+    <string name="skills_access">Autoriser l’accès aux compétences</string>
+    <string name="skills_access_desc">Inclut le catalogue et les outils de compétences dans les nouvelles générations.</string>
+    <string name="skills_saved_title">Compétences enregistrées</string>
+    <string name="skills_empty">Aucune compétence</string>
+    <string name="skills_create_hint">Créez une compétence ou laissez le modèle en créer une via un appel d’outil</string>
+    <string name="skills_add">Ajouter une compétence</string>
+    <string name="skills_create">Créer</string>
+    <string name="skills_name">Nom du fichier</string>
+    <string name="skills_description">Description</string>
+    <string name="skills_content">Instructions</string>
+    <string name="skills_edit">Modifier la compétence</string>
+    <string name="skills_delete_title">Supprimer la compétence ?</string>
+    <string name="skills_delete_message">Voulez-vous vraiment supprimer \'%1$s\' ? Cette action est irréversible.</string>
+    <string name="tool_list_skills">Lister les compétences</string>
+    <string name="tool_read_skill">Lire la compétence</string>
+    <string name="tool_create_skill">Créer une compétence</string>
+    <string name="tool_edit_skill">Modifier la compétence</string>
+    <string name="tool_delete_skill">Supprimer la compétence</string>
 </resources>
