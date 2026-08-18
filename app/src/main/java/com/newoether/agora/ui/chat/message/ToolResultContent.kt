@@ -487,8 +487,11 @@ private fun FileReadResult(presentation: ToolPresentation) {
     val path = result.string("path") ?: presentation.subject
     val lines = result.int("lines")
     if (path != null || lines != null) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            path?.let { MetaPill(it) }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            path?.let { MetaPill(it, modifier = Modifier.weight(1f, fill = false)) }
             lines?.let { MetaPill(stringResource(R.string.tool_line_count, it)) }
         }
         Spacer(Modifier.height(8.dp))
@@ -622,6 +625,7 @@ private fun TerminalOutput(output: String) {
 private fun MetaPill(
     text: String,
     emphasized: Boolean = false,
+    modifier: Modifier = Modifier,
 ) {
     val containerColor = if (emphasized) {
         MaterialTheme.colorScheme.primaryContainer
@@ -636,6 +640,7 @@ private fun MetaPill(
     Surface(
         shape = CircleShape,
         color = containerColor,
+        modifier = modifier,
     ) {
         Text(
             text = text,
