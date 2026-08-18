@@ -17,6 +17,9 @@ import com.newoether.agora.util.Constants
 import com.newoether.agora.util.DebugLog
 import com.newoether.agora.util.SnackbarEvent
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -67,18 +70,55 @@ class RagManager(
     private val cacheJobs = ConcurrentHashMap<String, Job>()
     private val _cacheCounts = MutableStateFlow<Map<String, Pair<Int, Int>>>(emptyMap())
     val cacheCounts: StateFlow<Map<String, Pair<Int, Int>>> = _cacheCounts.asStateFlow()
+    @Volatile
+    private var cacheCountRefreshJob: Job? = null
 
-    fun loadCacheCounts() {
-        scope.launch(Dispatchers.IO) { refreshCacheCounts() }
+    init {
+        loadCacheCounts()
     }
 
-    private suspend fun refreshCacheCounts() {
-        val total = conversations.getIndexableMessageCount()
-        val counts = settings.embeddingModels.value.associate { model ->
-            val cached = conversations.getEmbeddingCountByModel(model.id).coerceAtMost(total)
-            model.id to (cached to total)
+    @Synchronized
+    fun loadCacheCounts() {
+        if (cacheCountRefreshJob?.isActive == true) return
+        lateinit var refreshJob: Job
+        refreshJob = scope.launch(
+            context = Dispatchers.IO,
+            start = CoroutineStart.LAZY,
+        ) {
+            try {
+                refreshCacheCounts()
+            } finally {
+                clearCacheCountRefreshJob(refreshJob)
+            }
         }
-        _cacheCounts.value = counts
+        cacheCountRefreshJob = refreshJob
+        refreshJob.start()
+    }
+
+    @Synchronized
+    private fun clearCacheCountRefreshJob(completedJob: Job) {
+        if (cacheCountRefreshJob === completedJob) {
+            cacheCountRefreshJob = null
+        }
+    }
+
+    private suspend fun refreshCacheCounts() = coroutineScope {
+        val models = settings.embeddingModels.value
+        val modelIds = models.map(EmbeddingModelConfig::id)
+        val totalDeferred = async { conversations.getIndexableMessageCount() }
+        val countsDeferred = async {
+            if (modelIds.isEmpty()) {
+                emptyMap()
+            } else {
+                conversations.getEmbeddingCountsByModels(modelIds)
+                    .associate { it.modelId to it.count }
+            }
+        }
+        val total = totalDeferred.await()
+        val cachedByModel = countsDeferred.await()
+        _cacheCounts.value = models.associate { model ->
+            model.id to ((cachedByModel[model.id] ?: 0).coerceAtMost(total) to total)
+        }
     }
 
     // ── Embedding-model CRUD ──────────────────────────────────────

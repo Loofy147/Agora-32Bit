@@ -19,6 +19,7 @@ internal class SemanticSearchService(
         val context = GenerationContext(
             accessSavedMemories = settings.accessSavedMemories.value,
             accessActiveMemory = settings.accessActiveMemory.value,
+            accessSkills = false,
             accessPastConversations = settings.accessPastConversations.value,
             modelSearchMethod = settings.modelSearchMethod.value,
             activeEmbeddingConfig = activeEmbeddingConfig(),

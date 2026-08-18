@@ -1,6 +1,7 @@
 package com.newoether.agora.data.local
 
 import androidx.room.*
+import com.newoether.agora.model.ChatConversation
 import com.newoether.agora.model.ConversationCommand
 import com.newoether.agora.model.ConversationRuntimeReducer
 import com.newoether.agora.model.MessageSegment
@@ -27,11 +28,16 @@ private fun decodeSelectionMap(raw: String?): MutableMap<String?, String> =
 private fun encodeSelectionMap(selections: Map<String?, String>): String =
     Json.encodeToString(selections.mapKeys { it.key ?: "null" })
 
+data class EmbeddingModelCount(
+    val modelId: String,
+    val count: Int,
+)
+
 @Dao
 interface ChatDao : ChatAutomationDao, ChatContextCompactDao {
     // Task executions always remain in their owning Task's History.
-    @Query("SELECT * FROM conversations WHERE taskId IS NULL ORDER BY lastUpdated DESC")
-    fun getAllConversations(): Flow<List<ChatEntity>>
+    @Query("SELECT id, title, systemPromptId, modelId, taskId, origin, graduated, hasUnreadGeneration FROM conversations WHERE taskId IS NULL ORDER BY lastUpdated DESC")
+    fun getAllConversations(): Flow<List<ChatConversation>>
 
     @Query("SELECT * FROM conversations WHERE taskId = :taskId ORDER BY lastUpdated DESC")
     fun getExecutionsForTask(taskId: String): Flow<List<ChatEntity>>
@@ -689,6 +695,24 @@ interface ChatDao : ChatAutomationDao, ChatContextCompactDao {
 
     @Query("SELECT COUNT(*) FROM embeddings e INNER JOIN messages m ON e.messageId = m.id INNER JOIN conversations c ON m.conversationId = c.id WHERE e.modelId = :modelId AND c.taskId IS NULL AND m.participant IN ('USER', 'MODEL') AND m.text != '' AND m.id NOT LIKE 'tool_%' AND m.id NOT LIKE 'result_%' AND m.id NOT LIKE 'compact_%'")
     suspend fun getEmbeddingCountByModel(modelId: String): Int
+
+    @Query(
+        """
+        SELECT e.modelId AS modelId, COUNT(*) AS count
+        FROM embeddings e
+        INNER JOIN messages m ON e.messageId = m.id
+        INNER JOIN conversations c ON m.conversationId = c.id
+        WHERE e.modelId IN (:modelIds)
+          AND c.taskId IS NULL
+          AND m.participant IN ('USER', 'MODEL')
+          AND m.text != ''
+          AND m.id NOT LIKE 'tool_%'
+          AND m.id NOT LIKE 'result_%'
+          AND m.id NOT LIKE 'compact_%'
+        GROUP BY e.modelId
+        """
+    )
+    suspend fun getEmbeddingCountsByModels(modelIds: List<String>): List<EmbeddingModelCount>
 
     @Query("SELECT COUNT(*) FROM messages m INNER JOIN conversations c ON m.conversationId = c.id WHERE c.taskId IS NULL AND m.participant IN ('USER', 'MODEL') AND m.text != '' AND m.id NOT LIKE 'tool_%' AND m.id NOT LIKE 'result_%' AND m.id NOT LIKE 'compact_%'")
     suspend fun getIndexableMessageCount(): Int

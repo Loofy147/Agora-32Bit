@@ -125,7 +125,10 @@ data class LoopEntity(
 
 @Entity(
     tableName = "embeddings",
-    indices = [Index(value = ["messageId", "modelId"], unique = true)]
+    indices = [
+        Index(value = ["messageId", "modelId"], unique = true),
+        Index(value = ["modelId"]),
+    ]
 )
 data class EmbeddingEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
