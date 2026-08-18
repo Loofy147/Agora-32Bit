@@ -52,12 +52,12 @@ class ApplicationUiSourceContractTest {
     }
 
     @Test
-    fun `Skills entry uses document icon and Memory-equivalent English casing`() {
+    fun `Skills entry uses Extension icon and Memory-equivalent English casing`() {
         val settings = sourceFile("app/src/main/java/com/newoether/agora/ui/settings/SettingsScreen.kt")
         val page = sourceFile("app/src/main/java/com/newoether/agora/ui/settings/SettingsSkillsPage.kt")
         val strings = sourceFile("app/src/main/res/values/strings.xml")
 
-        assertTrue(settings.contains("R.string.settings_skills, R.string.settings_skills_desc, Icons.Default.Description"))
+        assertTrue(settings.contains("R.string.settings_skills, R.string.settings_skills_desc, Icons.Default.Extension"))
         assertFalse(page.contains("AutoAwesome"))
         assertTrue(page.contains("Icons.Default.Description"))
         mapOf(
