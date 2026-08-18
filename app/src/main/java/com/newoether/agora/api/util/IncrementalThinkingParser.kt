@@ -8,8 +8,14 @@ package com.newoether.agora.api.util
  * Every possible chunk boundary is supported by retaining only a suffix that may still become a
  * marker or Markdown delimiter on the next feed.
  */
-internal class IncrementalThinkingParser {
-    private data class Marker(val start: String, val ends: List<String>)
+internal class IncrementalThinkingParser(
+    private val startInThinking: Boolean = false,
+) {
+    private data class Marker(
+        val start: String,
+        val ends: List<String>,
+        val implicit: Boolean = false,
+    )
 
     private sealed interface CodeState {
         data object None : CodeState
@@ -38,13 +44,23 @@ internal class IncrementalThinkingParser {
         Marker("<|channel>thought\n", listOf("<channel|>")),
         Marker("<|channel>analysis\n", listOf("<channel|>")),
     )
+    private val implicitMarker = Marker(
+        start = "",
+        ends = implicitThinkingCloseMarkers,
+        implicit = true,
+    )
     private val markerStack = ArrayDeque<Marker>()
+    private var implicitBoundaryClosed = false
     private var codeState: CodeState = CodeState.None
     private var pending = ""
     private var linePrefix = true
     private var lineIndent = 0
     private var indentedCodeLine = false
     private var lastThinkingEnabled = true
+
+    init {
+        seedImplicitMarker()
+    }
 
     val inThinking: Boolean get() = markerStack.isNotEmpty()
     val pendingContent: String get() = pending
@@ -82,6 +98,8 @@ internal class IncrementalThinkingParser {
 
     fun reset() {
         markerStack.clear()
+        implicitBoundaryClosed = false
+        seedImplicitMarker()
         codeState = CodeState.None
         pending = ""
         linePrefix = true
@@ -133,7 +151,8 @@ internal class IncrementalThinkingParser {
                     if (closeMatch.partial && !final) break
                     if (closeMatch.length != null) {
                         emitThought()
-                        markerStack.removeLast()
+                        val closedMarker = markerStack.removeLast()
+                        if (closedMarker.implicit) implicitBoundaryClosed = true
                         index += closeMatch.length
                         resetMarkdownStateAtSegmentBoundary()
                         switchDestination()
@@ -142,12 +161,12 @@ internal class IncrementalThinkingParser {
                     val nested = findStartMatch(remainder)
                     if (nested.partial && !final) break
                     nested.marker?.let { marker ->
-                        markerStack.addLast(marker)
+                        if (!closing.implicit) markerStack.addLast(marker)
                         index += marker.start.length
                         resetMarkdownStateAtSegmentBoundary()
                         continue
                     }
-                } else {
+                } else if (!implicitBoundaryClosed) {
                     val start = findStartMatch(remainder)
                     if (start.partial && !final) break
                     start.marker?.let { marker ->
@@ -185,6 +204,10 @@ internal class IncrementalThinkingParser {
             pending.forEach(::updateLineState)
             pending = ""
         }
+    }
+
+    private fun seedImplicitMarker() {
+        if (startInThinking) markerStack.addLast(implicitMarker)
     }
 
     private enum class Match { NONE, PARTIAL, FULL }

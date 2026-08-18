@@ -207,6 +207,33 @@ class ProviderPassRunnerTest {
         }
     }
 
+    @Test
+    fun `provider pass normalizes answer stranded behind implicit thought close`() = runTest {
+        val error = GenerationError.OutputTruncated("provider", "max_tokens")
+        val forwarded = mutableListOf<StreamEvent>()
+
+        val outcome = runner(
+            listOf(
+                StreamEvent.ThoughtChunk(
+                    thought = "Let me answer.</thinking>没有理他。",
+                    title = "Thinking",
+                    signature = "signature",
+                ),
+                StreamEvent.Error(error),
+            )
+        ).run(IDENTITY, messages(), CONFIG, forwarded::add)
+
+        assertEquals(ProviderPassOutcome.Truncated(IDENTITY, error), outcome)
+        assertEquals(
+            listOf(
+                StreamEvent.ThoughtChunk("Let me answer.", "Thinking", "signature"),
+                StreamEvent.TextChunk("没有理他。"),
+                StreamEvent.Error(error),
+            ),
+            forwarded,
+        )
+    }
+
     private fun runner(events: List<StreamEvent>) = ProviderPassRunnerHarness(
         ProviderPassRunner(),
         fakeProvider(flowOf(*events.toTypedArray())),

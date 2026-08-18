@@ -99,15 +99,40 @@ class UiMessageProjectionTest {
         id: String,
         text: String,
         toolCallJson: String?,
+        thoughts: String? = null,
     ) = MessageEntity(
         id = id,
         conversationId = "conversation",
         parentId = "user",
         text = text,
         images = listOf("image"),
+        thoughts = thoughts,
         participant = Participant.MODEL,
         timestamp = 1L,
         toolCallJson = toolCallJson,
         runId = "run",
     )
+    @Test
+    fun persistedImplicitThinkingCloseIsRecoveredForUi() {
+        val segments = listOf(
+            MessageSegment(type = "thought", content = "reason</thinking>answer"),
+            MessageSegment(type = "error", content = "truncated"),
+        )
+        val entity = messageEntity(
+            id = "assistant",
+            text = "",
+            thoughts = "reason</thinking>answer",
+            toolCallJson = Json.encodeToString(segments),
+        )
+
+        val projected = entity.toUiChatMessage { value -> "formatted:$value" }
+
+        assertEquals("formatted:answer", projected.text)
+        assertEquals("reason", projected.thoughts)
+        assertEquals(
+            listOf("thought", "answer", "error"),
+            projected.segments?.map { it.type },
+        )
+    }
+
 }

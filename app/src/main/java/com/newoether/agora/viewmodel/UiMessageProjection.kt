@@ -39,12 +39,18 @@ internal fun MessageEntity.toUiChatMessage(
             }.getOrNull()
         }
     }
+    val recovered = recoverPersistedThinkingBoundary(
+        participant = participant,
+        text = text,
+        thoughts = thoughts,
+        segments = decodedSegments,
+    )
     return ChatMessage(
         id = id,
         parentId = parentId,
-        text = if (isSynthetic) "" else formatText(text),
+        text = if (isSynthetic) "" else formatText(recovered.text),
         images = if (isSynthetic) emptyList() else images,
-        thoughts = if (isSynthetic) null else thoughts,
+        thoughts = if (isSynthetic) null else recovered.thoughts,
         thoughtTitle = if (isSynthetic) null else thoughtTitle,
         tokenCount = if (isSynthetic) 0 else tokenCount,
         tokenUsage = if (isSynthetic) {
@@ -64,8 +70,8 @@ internal fun MessageEntity.toUiChatMessage(
         timestamp = timestamp,
         thoughtTimeMs = if (isSynthetic) null else thoughtTimeMs,
         modelName = modelName,
-        segments = decodedSegments
-            ?: thoughts
+        segments = recovered.segments
+            ?: recovered.thoughts
                 ?.takeIf { thought -> !isSynthetic && thought.isNotBlank() }
                 ?.let { thought ->
                     listOf(
@@ -75,7 +81,7 @@ internal fun MessageEntity.toUiChatMessage(
                         )
                     )
                 },
-        toolCall = decodedSegments
+        toolCall = recovered.segments
             ?.lastOrNull { segment -> segment.type == "tool" }
             ?.let { segment ->
                 ToolCallData(

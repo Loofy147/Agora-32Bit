@@ -40,6 +40,30 @@ class GenerationToolBatchEffectExecutorTest {
     }
 
     @Test
+    fun `late thought signature updates the completed thought without adding a segment`() {
+        val overlay = GenerationToolOverlay(
+            presentation = object : GenerationToolPresentationSource {
+                override fun presentationMetadata(name: String) = null
+            },
+            providerName = "provider",
+        )
+        overlay.append(MessageSegment(type = "thought", content = "reason"))
+        overlay.append(MessageSegment(type = "answer", content = "answer"))
+
+        assertTrue(
+            overlay.updateLastThoughtMetadata(
+                signature = "signature",
+                signatureProvider = "provider",
+            )
+        )
+
+        val snapshot = overlay.snapshot()
+        assertEquals(listOf("answer", "thought", "answer"), snapshot.map { it.type })
+        assertEquals("signature", snapshot[1].signature)
+        assertEquals("provider", snapshot[1].signatureProvider)
+    }
+
+    @Test
     fun `overlay uniquely owns stream indices metadata and terminal presentation`() {
         val overlay = GenerationToolOverlay(
             presentation = object : GenerationToolPresentationSource {

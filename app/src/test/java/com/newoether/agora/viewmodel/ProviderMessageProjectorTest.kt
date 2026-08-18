@@ -1,6 +1,8 @@
 package com.newoether.agora.viewmodel
 
 import com.newoether.agora.data.local.MessageEntity
+import com.newoether.agora.model.AttachmentItem
+import com.newoether.agora.model.AttachmentMeta
 import com.newoether.agora.model.CitationRecord
 import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.MessageStatus
@@ -10,9 +12,54 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProviderMessageProjectorTest {
+    @Test
+    fun `stored transcription removes only its source image and keeps fresh tool images`() {
+        val source = MessageEntity(
+            id = "user",
+            conversationId = "conversation",
+            text = "describe",
+            images = listOf("/private/source.png"),
+            attachmentMeta = Json.encodeToString(
+                AttachmentMeta(
+                    items = listOf(
+                        AttachmentItem(
+                            type = "image",
+                            imageIndex = 0,
+                            transcription = "stored visual description",
+                        ),
+                    ),
+                ),
+            ),
+            status = MessageStatus.SUCCESS,
+            participant = Participant.USER,
+            timestamp = 1L,
+            runId = "run",
+        )
+        val toolResult = MessageEntity(
+            id = "result_view_image",
+            conversationId = "conversation",
+            text = """{"ok":true}""",
+            images = listOf("/private/tool-result.png"),
+            status = MessageStatus.SUCCESS,
+            participant = Participant.USER,
+            timestamp = 2L,
+            runId = "run",
+        )
+
+        val projected = projectProviderMessages(
+            entities = listOf(source, toolResult),
+            includeStoredTranscriptions = true,
+        )
+
+        assertEquals(emptyList<String>(), projected.first().images)
+        assertEquals(listOf("/private/tool-result.png"), projected.last().images)
+        assertTrue(projected.first().text.contains("stored visual description"))
+    }
+
     @Test
     fun `provider history excludes citation metadata without changing the answer`() {
         val retained = MessageSegment(type = "answer", content = "answer")
@@ -44,4 +91,35 @@ class ProviderMessageProjectorTest {
         assertEquals(listOf(retained), projected.segments)
         assertNull(projected.toolCall)
     }
+    @Test
+    fun `provider history receives answer recovered from malformed thought segment`() {
+        val segments = listOf(
+            MessageSegment(type = "thought", content = "reason</thinking>answer"),
+            MessageSegment(type = "error", content = "truncated"),
+        )
+        val entity = MessageEntity(
+            id = "model",
+            conversationId = "conversation",
+            text = "",
+            thoughts = "reason</thinking>answer",
+            status = MessageStatus.ERROR,
+            participant = Participant.MODEL,
+            timestamp = 1L,
+            toolCallJson = Json.encodeToString(segments),
+            runId = "run",
+        )
+
+        val projected = projectProviderMessages(
+            entities = listOf(entity),
+            includeStoredTranscriptions = false,
+        ).single()
+
+        assertEquals("answer", projected.text)
+        assertEquals("reason", projected.thoughts)
+        assertEquals(
+            listOf("thought", "answer", "error"),
+            projected.segments?.map { it.type },
+        )
+    }
+
 }

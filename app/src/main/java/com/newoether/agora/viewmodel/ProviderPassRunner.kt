@@ -65,44 +65,50 @@ internal class ProviderPassRunner(
         val openToolStreams = linkedSetOf<String>()
         var providerError: GenerationError? = null
         var sawEmptyToolBatch = false
+        val thoughtBoundaryNormalizer = ProviderThoughtBoundaryNormalizer()
+
+        suspend fun acceptEvent(event: StreamEvent) {
+            when (event) {
+                is StreamEvent.ToolCallUpdate -> openToolStreams += event.streamKey
+                is StreamEvent.ToolCallRequest -> {
+                    completedCalls += event
+                    openToolStreams -= event.streamKey
+                }
+                is StreamEvent.ToolCallsRequest -> {
+                    if (event.calls.isEmpty()) sawEmptyToolBatch = true
+                    event.calls.forEach { call ->
+                        completedCalls += call
+                        openToolStreams -= call.streamKey
+                    }
+                }
+                is StreamEvent.Error -> if (providerError == null) {
+                    providerError = event.error
+                }
+                is StreamEvent.TextChunk,
+                is StreamEvent.CitationUpdate,
+                is StreamEvent.ThoughtChunk,
+                is StreamEvent.HostedToolCallUpdate,
+                is StreamEvent.UsageUpdate,
+                is StreamEvent.Retrying,
+                -> Unit
+            }
+            try {
+                onEvent(event)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                throw EventConsumerException(error)
+            }
+            if (event is StreamEvent.Error) {
+                throw ProviderPassClosedException()
+            }
+        }
 
         try {
             provider.generateResponse(messages, config).collect { event ->
-                when (event) {
-                    is StreamEvent.ToolCallUpdate -> openToolStreams += event.streamKey
-                    is StreamEvent.ToolCallRequest -> {
-                        completedCalls += event
-                        openToolStreams -= event.streamKey
-                    }
-                    is StreamEvent.ToolCallsRequest -> {
-                        if (event.calls.isEmpty()) sawEmptyToolBatch = true
-                        event.calls.forEach { call ->
-                            completedCalls += call
-                            openToolStreams -= call.streamKey
-                        }
-                    }
-                    is StreamEvent.Error -> if (providerError == null) {
-                        providerError = event.error
-                    }
-                    is StreamEvent.TextChunk,
-                    is StreamEvent.CitationUpdate,
-                    is StreamEvent.ThoughtChunk,
-                    is StreamEvent.HostedToolCallUpdate,
-                    is StreamEvent.UsageUpdate,
-                    is StreamEvent.Retrying,
-                    -> Unit
-                }
-                try {
-                    onEvent(event)
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (error: Exception) {
-                    throw EventConsumerException(error)
-                }
-                if (event is StreamEvent.Error) {
-                    throw ProviderPassClosedException()
-                }
+                thoughtBoundaryNormalizer.emit(event, ::acceptEvent)
             }
+            thoughtBoundaryNormalizer.finish(::acceptEvent)
         } catch (cancelled: CancellationException) {
             return ProviderPassOutcome.Cancelled(identity)
         } catch (consumerFailure: EventConsumerException) {
@@ -112,6 +118,13 @@ internal class ProviderPassRunner(
         } catch (providerFailure: Exception) {
             providerError?.let { error ->
                 return errorOutcome(identity, error)
+            }
+            try {
+                thoughtBoundaryNormalizer.finish(::acceptEvent)
+            } catch (cancelled: CancellationException) {
+                return ProviderPassOutcome.Cancelled(identity)
+            } catch (consumerFailure: EventConsumerException) {
+                throw consumerFailure.original
             }
             val error = GenerationError.Unknown(providerFailure)
             onEvent(StreamEvent.Error(error))

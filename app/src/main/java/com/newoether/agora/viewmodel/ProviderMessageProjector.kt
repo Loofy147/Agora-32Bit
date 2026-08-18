@@ -25,7 +25,13 @@ internal fun projectProviderMessages(
         val decodedSegments = entity.toolCallJson?.let { json ->
             runCatching { Json.decodeFromString<List<MessageSegment>>(json) }.getOrNull()
         }
-        val providerSegments = decodedSegments?.filterNot { it.type == "citation" }
+        val recovered = recoverPersistedThinkingBoundary(
+            participant = entity.participant,
+            text = entity.text,
+            thoughts = entity.thoughts,
+            segments = decodedSegments,
+        )
+        val providerSegments = recovered.segments?.filterNot { it.type == "citation" }
         val segments = if (
             providerSegments != null && entity.id.startsWith(Constants.TOOL_MSG_PREFIX)
         ) {
@@ -69,9 +75,9 @@ internal fun projectProviderMessages(
         ChatMessage(
             id = entity.id,
             parentId = entity.parentId,
-            text = entity.text + attachmentText,
+            text = recovered.text + attachmentText,
             images = if (hasTranscription) emptyList() else entity.images,
-            thoughts = entity.thoughts,
+            thoughts = recovered.thoughts,
             thoughtTitle = entity.thoughtTitle,
             tokenCount = entity.tokenCount,
             tokenUsage = TokenUsage.fromPersisted(

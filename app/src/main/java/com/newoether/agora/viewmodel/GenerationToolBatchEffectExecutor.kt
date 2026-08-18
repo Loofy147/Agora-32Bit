@@ -62,6 +62,21 @@ internal class GenerationToolOverlay(
         }
     }
 
+    fun updateLastThoughtMetadata(
+        signature: String?,
+        signatureProvider: String?,
+    ): Boolean {
+        val index = segments.indexOfLast { segment -> segment.type == "thought" }
+        if (index < 0) return false
+        if (signature != null) {
+            segments[index] = segments[index].copy(
+                signature = signature,
+                signatureProvider = signatureProvider,
+            )
+        }
+        return true
+    }
+
     fun upsertCitation(raw: CitationRecord): Boolean {
         val citation = CitationPolicy.normalize(raw) ?: return false
         val index = citations.indexOfFirst { it.sourceId == citation.sourceId }
