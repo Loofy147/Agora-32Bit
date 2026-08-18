@@ -8,8 +8,10 @@ import com.newoether.agora.model.Participant
 import com.newoether.agora.viewmodel.GenerationContext
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
@@ -85,5 +87,29 @@ class RagToolProviderIsolationTest {
 
         assertTrue(result.getValue("results").jsonArray.isEmpty())
         verify(exactly = 0) { conversations.getMessagesForConversation(any()) }
+    }
+
+    @Test
+    fun searchConversations_emitsCountField() = runTest {
+        val match = MessageEntity(
+            id = "message-1",
+            conversationId = "conv",
+            text = "hello target",
+            status = MessageStatus.SUCCESS,
+            participant = Participant.MODEL,
+            timestamp = 123L,
+            runId = "run-1",
+            runSequence = 0,
+        )
+        coEvery { conversations.searchMessages("target", any()) } returns listOf(match)
+        coEvery { conversations.getSearchableConversation("conv") } returns ChatEntity(id = "conv", title = "Conv", lastUpdated = 123L)
+        every { conversations.getMessagesForConversation("conv") } returns flowOf(listOf(match))
+
+        val result = Json.parseToJsonElement(
+            provider.execute("search_conversations", """{"query":"target"}""", context)
+        ).jsonObject
+
+        assertEquals(1, result.getValue("count").jsonPrimitive.content.toInt())
+        assertEquals(1, result.getValue("results").jsonArray.size)
     }
 }

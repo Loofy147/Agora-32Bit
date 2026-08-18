@@ -121,7 +121,9 @@ object SearchResultFormatter {
             "## $title\n$previews"
         }
 
-        val total = results.sumOf { (it.jsonObject["messages"]?.jsonArray?.size ?: 0) }
+        val total = results.sumOf { element ->
+            (element.jsonObject["match_count"] as? JsonPrimitive)?.content?.toIntOrNull() ?: 0
+        }
         return context.getString(R.string.search_found_matches, total, query) + "\n\n$body"
     }
 

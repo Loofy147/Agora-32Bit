@@ -114,4 +114,12 @@ class SearchResultFormatterTest {
         assertTrue(result.contains("dev1"))
         assertTrue(result.contains("Test server"))
     }
+
+    @Test
+    fun format_conversationSearch_countsMatchesNotMessages() {
+        val json = """{"type":"search_conversations","query":"q","count":1,"results":[{"title":"T","match_count":2,"messages":[{"participant":"USER","text":"a"},{"participant":"MODEL","text":"b"},{"participant":"MODEL","text":"c"}]}]}"""
+        val result = SearchResultFormatter.format(json, context)
+        assertTrue(result.contains("Found 2 matches"))
+        assertTrue(result.contains("## T"))
+    }
 }

@@ -226,6 +226,7 @@ class RagToolProvider(
             buildJsonObject {
                 put("type", "search_conversations")
                 put("query", query)
+                put("count", resultArray.size)
                 put("results", resultArray)
             }.toString()
         } catch (e: Exception) {
