@@ -963,12 +963,8 @@ private fun StreamingThoughtPreviewText(
     val color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
     val flat = remember(content) { content.replace('\n', ' ') }
     val annotated = remember(flat) { AnnotatedString(flat) }
-    var hasStreamed by remember { mutableStateOf(streaming) }
-    SideEffect {
-        if (streaming) hasStreamed = true
-    }
-    val preview = remember(annotated, hasStreamed) {
-        if (hasStreamed) thoughtPreviewTail(annotated) else annotated
+    val preview = remember(annotated, streaming) {
+        if (streaming) thoughtPreviewTail(annotated) else annotated
     }
     StableStreamingText(
         text = preview.text,
