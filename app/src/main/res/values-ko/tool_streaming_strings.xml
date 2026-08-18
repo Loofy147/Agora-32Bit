@@ -39,6 +39,8 @@
     <string name="tool_web_fetch_done_default">웹페이지를 가져왔습니다</string>
     <string name="tool_read_conversation_done_default">대화를 읽었습니다</string>
     <string name="tool_shell_job_read_default">셸 작업을 읽었습니다</string>
+    <string name="tool_waiting_shell_job_default">셸 작업 대기 중…</string>
+    <string name="tool_waited_shell_job_default">셸 작업 대기 완료</string>
     <string name="tool_shell_job_stopped_default">셸 작업을 중지했습니다</string>
     <string name="tool_read_file_done_default">파일을 읽었습니다</string>
     <string name="tool_wrote_file_default">파일을 썼습니다</string>

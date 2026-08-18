@@ -473,7 +473,7 @@ class ToolPresentationResolverTest {
             ),
         )
 
-        assertEquals(ToolKind.SHELL_JOB_GET, running.kind)
+        assertEquals(ToolKind.SHELL_JOB_WAIT, running.kind)
         assertEquals(ToolPresentationState.RUNNING, running.state)
         assertEquals("streaming output", shellOutputText(running))
 
@@ -486,7 +486,7 @@ class ToolPresentationResolverTest {
             ),
         )
 
-        assertEquals(ToolKind.SHELL_JOB_GET, terminal.kind)
+        assertEquals(ToolKind.SHELL_JOB_WAIT, terminal.kind)
         assertEquals(ToolPresentationState.COMPLETED, terminal.state)
         assertEquals("done", shellOutputText(terminal))
         assertEquals("job-9", terminal.jobId)

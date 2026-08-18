@@ -39,6 +39,8 @@
     <string name="tool_web_fetch_done_default">Веб-страница получена</string>
     <string name="tool_read_conversation_done_default">Разговор прочитан</string>
     <string name="tool_shell_job_read_default">Задание оболочки прочитано</string>
+    <string name="tool_waiting_shell_job_default">Ожидание задачи оболочки…</string>
+    <string name="tool_waited_shell_job_default">Ожидание задачи оболочки завершено</string>
     <string name="tool_shell_job_stopped_default">Задание оболочки остановлено</string>
     <string name="tool_read_file_done_default">Файл прочитан</string>
     <string name="tool_wrote_file_default">Файл записан</string>

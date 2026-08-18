@@ -23,6 +23,8 @@
     <string name="tool_web_fetch_done_default">Fetched web page</string>
     <string name="tool_read_conversation_done_default">Read conversation</string>
     <string name="tool_shell_job_read_default">Read shell job</string>
+    <string name="tool_waiting_shell_job_default">Waiting for shell job…</string>
+    <string name="tool_waited_shell_job_default">Waited for shell job</string>
     <string name="tool_shell_job_stopped_default">Stopped shell job</string>
     <string name="tool_read_file_done_default">Read file</string>
     <string name="tool_wrote_file_default">Wrote file</string>

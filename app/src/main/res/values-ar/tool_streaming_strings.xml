@@ -39,6 +39,8 @@
     <string name="tool_web_fetch_done_default">تم جلب صفحة الويب</string>
     <string name="tool_read_conversation_done_default">تمت قراءة المحادثة</string>
     <string name="tool_shell_job_read_default">تمت قراءة مهمة الصدفة</string>
+    <string name="tool_waiting_shell_job_default">جارٍ انتظار مهمة الصدفة…</string>
+    <string name="tool_waited_shell_job_default">تم انتظار مهمة الصدفة</string>
     <string name="tool_shell_job_stopped_default">تم إيقاف مهمة الصدفة</string>
     <string name="tool_read_file_done_default">تمت قراءة الملف</string>
     <string name="tool_wrote_file_default">تمت كتابة الملف</string>

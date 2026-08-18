@@ -39,6 +39,8 @@
     <string name="tool_web_fetch_done_default">ウェブページを取得しました</string>
     <string name="tool_read_conversation_done_default">会話を読み取りました</string>
     <string name="tool_shell_job_read_default">シェルジョブを読み取りました</string>
+    <string name="tool_waiting_shell_job_default">シェルジョブを待機中…</string>
+    <string name="tool_waited_shell_job_default">シェルジョブの待機が完了しました</string>
     <string name="tool_shell_job_stopped_default">シェルジョブを停止しました</string>
     <string name="tool_read_file_done_default">ファイルを読み取りました</string>
     <string name="tool_wrote_file_default">ファイルに書き込みました</string>

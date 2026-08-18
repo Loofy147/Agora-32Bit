@@ -39,6 +39,8 @@
     <string name="tool_web_fetch_done_default">已擷取網頁</string>
     <string name="tool_read_conversation_done_default">已讀取對話</string>
     <string name="tool_shell_job_read_default">已讀取 Shell 工作</string>
+    <string name="tool_waiting_shell_job_default">正在等待 Shell 工作…</string>
+    <string name="tool_waited_shell_job_default">已等待 Shell 工作</string>
     <string name="tool_shell_job_stopped_default">已停止 Shell 工作</string>
     <string name="tool_read_file_done_default">已讀取檔案</string>
     <string name="tool_wrote_file_default">已寫入檔案</string>

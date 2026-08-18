@@ -32,6 +32,7 @@ internal enum class ToolKind {
     SHELL_EXECUTE,
     SHELL_JOB_LIST,
     SHELL_JOB_GET,
+    SHELL_JOB_WAIT,
     SHELL_JOB_STOP,
     FILE_READ,
     FILE_WRITE,
@@ -178,7 +179,7 @@ internal object ToolPresentationResolver {
         envelope: JsonObject?,
     ): JsonObject? {
         if (envelope == null) return null
-        if (kind != ToolKind.SHELL_EXECUTE && kind != ToolKind.SHELL_JOB_GET) return envelope
+        if (kind != ToolKind.SHELL_EXECUTE && kind != ToolKind.SHELL_JOB_GET && kind != ToolKind.SHELL_JOB_WAIT) return envelope
         return envelope["result"] as? JsonObject ?: envelope
     }
 
@@ -203,7 +204,7 @@ internal object ToolPresentationResolver {
         "execute_shell_command" -> ToolKind.SHELL_EXECUTE
         "list_shell_jobs" -> ToolKind.SHELL_JOB_LIST
         "get_shell_job" -> ToolKind.SHELL_JOB_GET
-        "wait_for_job" -> ToolKind.SHELL_JOB_GET
+        "wait_for_job" -> ToolKind.SHELL_JOB_WAIT
         "stop_shell_job" -> ToolKind.SHELL_JOB_STOP
         "file_read" -> ToolKind.FILE_READ
         "file_write" -> ToolKind.FILE_WRITE
@@ -310,6 +311,7 @@ internal object ToolPresentationResolver {
         ToolKind.SHELL_EXECUTE -> arguments.string("command")
             ?: result.string("command")
         ToolKind.SHELL_JOB_GET,
+        ToolKind.SHELL_JOB_WAIT,
         ToolKind.SHELL_JOB_STOP -> arguments.string("job_id")
             ?: result.string("job_id")
         ToolKind.FILE_READ,

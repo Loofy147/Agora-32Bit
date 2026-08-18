@@ -97,7 +97,8 @@ internal fun ToolDetailContent(
         }
     }
     if (presentation.kind == ToolKind.SHELL_EXECUTE ||
-        presentation.kind == ToolKind.SHELL_JOB_GET
+        presentation.kind == ToolKind.SHELL_JOB_GET ||
+        presentation.kind == ToolKind.SHELL_JOB_WAIT
     ) {
         Column(modifier = contentAlignmentModifier.fillMaxWidth()) {
             ShellResult(presentation)

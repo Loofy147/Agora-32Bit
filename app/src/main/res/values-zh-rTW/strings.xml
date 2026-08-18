@@ -653,11 +653,14 @@
     <string name="tool_unknown_device">未知裝置</string>
     <string name="tool_no_output">(No output)</string>
     <string name="tool_background_job_running">背景工作 %1$s 正在執行</string>
-    <string name="tool_shell_jobs">Shell 工作</string>
-    <string name="tool_shell_job">Shell 工作</string>
+    <string name="tool_shell_jobs">列出 Shell 工作</string>
+    <string name="tool_shell_job">取得 Shell 工作</string>
+    <string name="tool_wait_for_job">等待 Shell 工作</string>
     <string name="tool_stop_shell_job">停止 Shell 工作</string>
     <string name="tool_listing_shell_jobs">正在列出 Shell 工作…</string>
     <string name="tool_reading_shell_job">正在讀取 Shell 工作 %1$s…</string>
+    <string name="tool_waiting_shell_job">正在等待 Shell 工作 %1$s…</string>
+    <string name="tool_waited_shell_job">已等待 Shell 工作 %1$s</string>
     <string name="tool_stopping_shell_job">正在停止 Shell 工作 %1$s…</string>
     <string name="tool_no_shell_jobs">沒有 Shell 工作</string>
     <string name="tool_shell_job_count">列出了 %1$d 個 Shell 工作</string>

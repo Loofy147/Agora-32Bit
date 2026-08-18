@@ -85,6 +85,7 @@ private fun toolBaseDisplayName(
     ToolKind.SHELL_EXECUTE -> stringResource(R.string.tool_execute_shell)
     ToolKind.SHELL_JOB_LIST -> stringResource(R.string.tool_shell_jobs)
     ToolKind.SHELL_JOB_GET -> stringResource(R.string.tool_shell_job)
+    ToolKind.SHELL_JOB_WAIT -> stringResource(R.string.tool_wait_for_job)
     ToolKind.SHELL_JOB_STOP -> stringResource(R.string.tool_stop_shell_job)
     ToolKind.FILE_READ -> stringResource(R.string.tool_file_read)
     ToolKind.FILE_WRITE -> stringResource(R.string.tool_file_write)
@@ -209,6 +210,11 @@ private fun runningSummary(
         R.string.tool_progress_executing,
     )
     ToolKind.SHELL_JOB_LIST -> stringResource(R.string.tool_listing_shell_jobs)
+    ToolKind.SHELL_JOB_WAIT -> optionalSubjectSummary(
+        subject,
+        R.string.tool_waiting_shell_job,
+        R.string.tool_waiting_shell_job_default,
+    )
     ToolKind.SHELL_JOB_GET -> optionalSubjectSummary(
         subject,
         R.string.tool_reading_shell_job,
@@ -432,6 +438,11 @@ private fun completedSummary(
     ToolKind.SHELL_JOB_LIST -> stringResource(
         R.string.tool_shell_job_count,
         presentation.count ?: 0,
+    )
+    ToolKind.SHELL_JOB_WAIT -> optionalSubjectSummary(
+        presentation.jobId ?: subject,
+        R.string.tool_waited_shell_job,
+        R.string.tool_waited_shell_job_default,
     )
     ToolKind.SHELL_JOB_GET -> optionalSubjectSummary(
         presentation.jobId ?: subject,

@@ -39,6 +39,8 @@
     <string name="tool_web_fetch_done_default">Página da web obtida</string>
     <string name="tool_read_conversation_done_default">Conversa lida</string>
     <string name="tool_shell_job_read_default">Tarefa de shell lida</string>
+    <string name="tool_waiting_shell_job_default">Aguardando a tarefa do shell…</string>
+    <string name="tool_waited_shell_job_default">Tarefa do shell aguardada</string>
     <string name="tool_shell_job_stopped_default">Tarefa de shell parada</string>
     <string name="tool_read_file_done_default">Arquivo lido</string>
     <string name="tool_wrote_file_default">Arquivo gravado</string>

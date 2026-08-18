@@ -42,6 +42,7 @@ internal object StreamingToolArgumentHintResolver {
             ToolKind.CONVERSATION_READ -> root.scalar("conversation_id")
             ToolKind.SHELL_EXECUTE -> root.scalar("command")
             ToolKind.SHELL_JOB_GET,
+            ToolKind.SHELL_JOB_WAIT,
             ToolKind.SHELL_JOB_STOP -> root.scalar("job_id")
             ToolKind.FILE_READ,
             ToolKind.FILE_WRITE,

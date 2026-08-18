@@ -39,6 +39,8 @@
     <string name="tool_web_fetch_done_default">Webseite abgerufen</string>
     <string name="tool_read_conversation_done_default">Konversation gelesen</string>
     <string name="tool_shell_job_read_default">Shell-Auftrag gelesen</string>
+    <string name="tool_waiting_shell_job_default">Warten auf Shell-Auftrag…</string>
+    <string name="tool_waited_shell_job_default">Auf Shell-Auftrag gewartet</string>
     <string name="tool_shell_job_stopped_default">Shell-Auftrag gestoppt</string>
     <string name="tool_read_file_done_default">Datei gelesen</string>
     <string name="tool_wrote_file_default">Datei geschrieben</string>
