@@ -523,7 +523,7 @@ class AnthropicProvider(
                         termination.toError(name)?.let { emit(StreamEvent.Error(it)) }
                     }
                 } else {
-                    val errorRaw = handle.errorBody ?: "Unknown error"
+                    val errorRaw = handle.errorBody.orEmpty()
                     val responseBytes = errorRaw.toByteArray(Charsets.UTF_8).size
                     DebugLog.e(
                         "AgoraAPI",
@@ -543,17 +543,7 @@ class AnthropicProvider(
                         delay(retryDelayMs)
                     } else {
                         done = true
-                        val genError = try {
-                            val errorJson = json.decodeFromString<AnthropicStreamEvent>(errorRaw)
-                            val error = requireNotNull(errorJson.error)
-                            GenerationError.Api(
-                                code = handle.code.toString(),
-                                type = error.type,
-                                message = error.message?.takeIf { it.isNotBlank() } ?: errorRaw,
-                            )
-                        } catch (_: Exception) {
-                            GenerationError.Network(statusCode = handle.code, message = errorRaw)
-                        }
+                        val genError = providerHttpError(handle.code, errorRaw)
                         emit(StreamEvent.Error(genError))
                     }
                 }

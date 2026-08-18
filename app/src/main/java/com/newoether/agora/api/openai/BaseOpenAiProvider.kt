@@ -261,7 +261,7 @@ abstract class BaseOpenAiProvider : LlmProvider {
                                 finished = true
                             }
                         } else {
-                            val errorRaw = handle.errorBody ?: "Unknown error"
+                            val errorRaw = handle.errorBody.orEmpty()
                             val hasV1Fallback = endpointIndex + 1 < endpointUrls.size
                             if (hasV1Fallback) {
                                 DebugLog.w(
@@ -753,15 +753,11 @@ abstract class BaseOpenAiProvider : LlmProvider {
         } else {
             ""
         }
-        return try {
-            val errorJson = json.decodeFromString<OpenAiErrorResponse>(errorRaw)
-            GenerationError.Api(
-                code = errorJson.error.code ?: statusCode.toString(),
-                type = errorJson.error.type,
-                message = errorJson.error.message + endpointHint
-            )
-        } catch (_: Exception) {
-            GenerationError.Network(statusCode = statusCode, message = errorRaw + endpointHint)
+        val error = providerHttpError(statusCode, errorRaw)
+        return if (endpointHint.isEmpty()) {
+            error
+        } else {
+            error.copy(message = error.message + endpointHint)
         }
     }
 

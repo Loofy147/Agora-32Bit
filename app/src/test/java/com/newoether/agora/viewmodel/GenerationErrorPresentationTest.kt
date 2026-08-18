@@ -134,6 +134,22 @@ class GenerationErrorPresentationTest {
     }
 
     @Test
+    fun `persisted network wrapper extracts primitive error value`() {
+        val context = mockk<Context>()
+        every {
+            context.getString(R.string.generation_error_network_http, 400, "Invalid JSON")
+        } returns "Network error (400): Invalid JSON"
+
+        assertEquals(
+            "Network error (400): Invalid JSON",
+            normalizePersistedGenerationErrorText(
+                context,
+                """Network error (400): {"error":"Invalid JSON"}""",
+            ),
+        )
+    }
+
+    @Test
     fun `structured error extraction uses supported precedence and safe fallback`() {
         assertEquals(
             "nested",
@@ -144,6 +160,22 @@ class GenerationErrorPresentationTest {
         assertEquals(
             "top",
             extractStructuredGenerationErrorDetail("""{"message":"top","reason":"reason"}"""),
+        )
+        assertEquals(
+            "Invalid JSON",
+            extractStructuredGenerationErrorDetail("""{"error":"Invalid JSON"}"""),
+        )
+        assertEquals(
+            "detail",
+            extractStructuredGenerationErrorDetail("""{"detail":"detail"}"""),
+        )
+        assertEquals(
+            "description",
+            extractStructuredGenerationErrorDetail("""{"error_description":"description"}"""),
+        )
+        assertEquals(
+            "root message",
+            extractStructuredGenerationErrorDetail(""""root message""""),
         )
         assertEquals(
             "reason",

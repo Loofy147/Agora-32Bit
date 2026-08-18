@@ -4,10 +4,8 @@ import android.content.Context
 import androidx.annotation.StringRes
 import com.newoether.agora.R
 import com.newoether.agora.api.GenerationError
+import com.newoether.agora.api.extractStructuredProviderHttpErrorMessage
 import java.util.Locale
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 
 private val persistedNetworkErrorRegex =
     Regex("""^Network error \((-?\d+)\):\s*(.+)$""", RegexOption.IGNORE_CASE)
@@ -234,21 +232,8 @@ internal fun normalizePersistedGenerationErrorText(
     }
 }
 
-internal fun extractStructuredGenerationErrorDetail(detail: String): String? {
-    val root = runCatching {
-        Json.parseToJsonElement(detail.trim()) as? JsonObject
-    }.getOrNull() ?: return null
-
-    fun JsonObject.nonBlankString(key: String): String? =
-        (this[key] as? JsonPrimitive)
-            ?.takeIf(JsonPrimitive::isString)
-            ?.content
-            ?.takeIf(String::isNotBlank)
-
-    return (root["error"] as? JsonObject)?.nonBlankString("message")
-        ?: root.nonBlankString("message")
-        ?: root.nonBlankString("reason")
-}
+internal fun extractStructuredGenerationErrorDetail(detail: String): String? =
+    extractStructuredProviderHttpErrorMessage(detail)
 
 private fun normalizeGenerationErrorDetailForDisplay(detail: String): String =
     normalizeGenerationErrorDetail(

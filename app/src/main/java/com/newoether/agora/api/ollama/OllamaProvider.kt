@@ -422,7 +422,7 @@ class OllamaProvider : LlmProvider {
                             completed = true
                         }
                     } else {
-                        val errorRaw = handle.errorBody ?: "Unknown error"
+                        val errorRaw = handle.errorBody.orEmpty()
                         val responseBytes = errorRaw.toByteArray(Charsets.UTF_8).size
                         DebugLog.e(
                             "AgoraAPI",
@@ -439,12 +439,7 @@ class OllamaProvider : LlmProvider {
                             emit(StreamEvent.Retrying(attempt, ProviderRetryPolicy.MAX_RETRIES))
                             delay(ProviderRetryPolicy.delayMillis(attempt))
                         } else {
-                            val genError = try {
-                                val errorJson = json.decodeFromString<OpenAiErrorResponse>(errorRaw)
-                                GenerationError.Api(code = errorJson.error.code ?: handle.code.toString(), type = errorJson.error.type, message = errorJson.error.message)
-                            } catch (_: Exception) {
-                                GenerationError.Network(statusCode = handle.code, message = errorRaw)
-                            }
+                            val genError = providerHttpError(handle.code, errorRaw)
                             emit(StreamEvent.Error(genError))
                             completed = true
                         }

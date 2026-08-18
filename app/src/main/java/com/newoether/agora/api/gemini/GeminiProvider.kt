@@ -847,7 +847,7 @@ class GeminiProvider(
                             done = true
                         }
                     } else {
-                        val errorRaw = handle.errorBody ?: "Unknown error (Code: ${handle.code})"
+                        val errorRaw = handle.errorBody.orEmpty()
                         val responseBytes = errorRaw.toByteArray(Charsets.UTF_8).size
                         DebugLog.e(
                             "AgoraAPI",
@@ -862,16 +862,7 @@ class GeminiProvider(
                             emit(StreamEvent.Retrying(attempt, ProviderRetryPolicy.MAX_RETRIES))
                             delay(ProviderRetryPolicy.delayMillis(attempt))
                         } else {
-                            val genError = try {
-                                val errorJson = json.decodeFromString<ApiErrorResponse>(errorRaw)
-                                GenerationError.Api(
-                                    code = (errorJson.error.code ?: handle.code).toString(),
-                                    type = errorJson.error.status,
-                                    message = errorJson.error.message ?: "No error message provided",
-                                )
-                            } catch (_: Exception) {
-                                GenerationError.Network(handle.code, errorRaw)
-                            }
+                            val genError = providerHttpError(handle.code, errorRaw)
                             emit(StreamEvent.Error(genError))
                             done = true
                         }
