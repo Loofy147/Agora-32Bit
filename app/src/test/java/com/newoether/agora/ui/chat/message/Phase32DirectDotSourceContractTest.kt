@@ -33,14 +33,14 @@ class Phase32DirectDotSourceContractTest {
         ))
         assertTrue(assistant.contains("retainExitLayout = !hasAnswerContent"))
         assertTrue(assistantActivity.contains("alpha = activityOpacity"))
+        assertTrue(assistant.contains("AssistantInlineActivityHeight * activityLayoutProgress"))
         assertTrue(assistant.contains("import androidx.compose.ui.graphics.CompositingStrategy"))
         assertTrue(assistantActivity.contains(
             "compositingStrategy = CompositingStrategy.ModulateAlpha"
         ))
         assertFalse(assistantActivity.contains("CompositingStrategy.Offscreen"))
         assertTrue(assistantActivity.contains("clip = false"))
-        assertFalse(assistantActivity.contains(".AnimatedVisibility("))
-        assertFalse(assistant.contains("InlineActivityDotMarker"))
+                assertFalse(assistant.contains("InlineActivityDotMarker"))
         assertFalse(assistant.contains("InlineActivityDotSource"))
 
         assertTrue(retry.contains("GenerationActivityDot("))

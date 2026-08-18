@@ -99,6 +99,63 @@ internal fun ChatDeleteConfirmDialog(
     )
 }
 
+internal data class ForkConversationRequest(val messageId: String?)
+
+@Composable
+internal fun ChatForkConfirmationHost(
+    request: ForkConversationRequest?,
+    viewModel: ChatViewModel,
+    onDismiss: () -> Unit,
+) {
+    val activeRequest = request ?: return
+    ChatForkConfirmDialog(
+        fromMessage = activeRequest.messageId != null,
+        onConfirm = {
+            onDismiss()
+            if (activeRequest.messageId == null) {
+                viewModel.forkConversationFrom()
+            } else {
+                viewModel.forkConversationFrom(activeRequest.messageId)
+            }
+        },
+        onDismiss = onDismiss,
+    )
+}
+
+@Composable
+internal fun ChatForkConfirmDialog(
+    fromMessage: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(
+                    if (fromMessage) {
+                        R.string.conversation_fork_from_here
+                    } else {
+                        R.string.conversation_fork
+                    },
+                ),
+                fontWeight = FontWeight.Bold,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.ok))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    )
+}
+
 /** Per-conversation system-prompt selector dialog. */
 @Composable
 internal fun ChatSystemPromptDialog(
@@ -111,7 +168,7 @@ internal fun ChatSystemPromptDialog(
     val systemPrompts by viewModel.settings.systemPrompts.collectAsState()
     val activeSystemPromptId by viewModel.settings.activeSystemPromptId.collectAsState()
 
-    val currentConversation = conversations.find { it.id == currentConversationId }
+    val currentConversation = conversations.orEmpty().find { it.id == currentConversationId }
     val pendingPrompt by viewModel.pendingSystemPromptId.collectAsState()
     var selectedPromptId by remember(currentConversationId, pendingPrompt, currentConversation?.systemPromptId) {
         mutableStateOf(if (isNewChatMode) pendingPrompt else currentConversation?.systemPromptId)

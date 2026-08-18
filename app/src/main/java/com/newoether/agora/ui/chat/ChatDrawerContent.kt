@@ -133,7 +133,9 @@ internal fun ChatDrawerContent(
     val windowHeightPx = LocalWindowInfo.current.containerSize.height.toFloat()
     val drawerWidthPx = with(density) { drawerWidth.toPx() }
 
-    val conversations by viewModel.conversations.collectAsState()
+    val conversationList by viewModel.conversations.collectAsState()
+    val conversations = conversationList.orEmpty()
+    val isConversationListLoading = conversationList == null
     val currentConversationId by viewModel.currentConversationId.collectAsState()
     val isSwitching by viewModel.isSwitching.collectAsState()
     val generatingConversationIds by viewModel.generatingConversationIds.collectAsState()
@@ -197,7 +199,11 @@ internal fun ChatDrawerContent(
 
             val search = rememberDrawerSearchState(viewModel)
 
-            DrawerSearchBar(query = search.query, onQueryChange = { search.query = it })
+            DrawerSearchBar(
+                query = search.query,
+                onQueryChange = { search.query = it },
+                searching = search.isSearching,
+            )
             Spacer(modifier = Modifier.height(12.dp))
 
             if (!search.isActive) {
@@ -260,7 +266,8 @@ internal fun ChatDrawerContent(
                 }
             }
 
-            LazyColumn(state = drawerListState, modifier = Modifier.weight(1f).verticalEdgeFade(edgeFadeDp = 40f, topWeight = stw, bottomWeight = sbw)) {
+            Box(modifier = Modifier.weight(1f)) {
+                LazyColumn(state = drawerListState, modifier = Modifier.fillMaxSize().verticalEdgeFade(edgeFadeDp = 40f, topWeight = stw, bottomWeight = sbw)) {
                 if (search.isActive) {
                     val grouped = search.results.groupBy { it.first.conversationId }
                     val titleMap = conversations.associate { it.id to it.title }
@@ -435,6 +442,23 @@ internal fun ChatDrawerContent(
             }
             }
 
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = isConversationListLoading,
+                    modifier = Modifier.fillMaxSize(),
+                    enter = fadeIn(tween(180)),
+                    exit = fadeOut(tween(180)),
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(12.dp))
 
             FilledTonalButton(

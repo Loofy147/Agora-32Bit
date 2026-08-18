@@ -65,8 +65,9 @@ No owner may infer the other capability from a matching company name or legacy s
   existing OpenAI-compatible Responses request includes the native `web_search` tool. Do not create
   another transport, tool Provider, or request adapter.
 - If the official service, model, or relay rejects the tool or request, persist its bounded ordinary
-  generation error and display the existing red error bar. Do not silently fall back to generic Web
-  Search or Chat Completions, auto-disable the setting, or use a Snackbar-only error path.
+  generation error and display the shared neutral text-only generation terminal presentation. Do not
+  silently fall back to generic Web Search or Chat Completions, auto-disable the setting, or use a
+  Snackbar-only error path.
 - Every OpenAI Responses `web_search_call` output item must appear in the ordinary message
   timeline as one `OpenAI Search` tool block.
 - Gemini candidate `groundingMetadata` must become one completed durable `google_search` hosted-tool
@@ -100,6 +101,9 @@ No owner may infer the other capability from a matching company name or legacy s
   the established 24 dp text line through an 8 dp alignment inset inside that expanded host, while
   each row keeps 12 dp vertical padding. The rounded boundary must not add a fill or elevation,
   change any other tool-detail inset, or replace the existing separator treatment.
+- A visible Web Search Tool Segment specializes only EMPTY/COMPLETED result content. FAILED and
+  STOPPED remain on the shared Thinking Tool terminal path and use the same neutral gray body text as
+  ordinary message terminal content, with no error/stopped bar, card background, or rounded container.
 
 ## 6. Failure and security behavior
 
@@ -121,8 +125,8 @@ Changes touching this subsystem must verify:
 4. official and custom OpenAI-compatible Providers show OpenAI Search whenever Responses is enabled,
    without a model capability lookup or extra relay declaration;
 5. an enabled search serializes the native `web_search` tool in the actual Responses request;
-6. Provider rejection persists bounded error text and renders the ordinary error bar without silent
-   fallback, auto-disablement, or a Snackbar-only path;
+6. Provider rejection persists bounded error text and renders the shared neutral text-only message
+   terminal presentation without silent fallback, auto-disablement, or a Snackbar-only path;
 7. `web_search_call` added/done lifecycle renders one terminal `OpenAI Search` display-only block
    without local execution;
 8. Gemini grounding metadata renders one `Google Search` display-only block with normalized sources

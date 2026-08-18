@@ -107,7 +107,7 @@ internal fun chatLinkTextStyles(color: Color): TextLinkStyles {
         style = style,
         focusedStyle = style,
         hoveredStyle = style,
-        pressedStyle = style,
+        pressedStyle = style.copy(color = color.copy(alpha = 0.72f)),
     )
 }
 
@@ -624,20 +624,21 @@ private fun SearchHighlightedMarkdownText(
         fadeTargetOffset != null &&
             fadeTargetOffset > textNode.startOffset &&
             fadeTargetOffset <= textNode.endOffset
-    val fadeColor = style.color
-        .takeUnless { it == Color.Unspecified }
-        ?: LocalContentColor.current
     if (spec == null) {
-        val renderedText = rememberStreamingGlyphFade(
-            content = base,
-            color = fadeColor,
+        var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+        val fadeState = rememberStreamingGlyphFadeDrawState(
+            content = base.text,
             enabled = fadeThisNode,
         )
         MarkdownText(
-            content = renderedText,
+            content = base,
             node = model.node,
-            modifier = modifier,
+            modifier = modifier.stableStreamingGlyphFade(
+                fadeState = fadeState,
+                layoutResult = { layoutResult },
+            ),
             style = style,
+            onTextLayout = { result, _ -> layoutResult = result },
             sourceContent = model.content,
         )
         return
@@ -673,9 +674,8 @@ private fun SearchHighlightedMarkdownText(
             activeHighlightColor = activeHighlightColor,
         )
     }
-    val renderedText = rememberStreamingGlyphFade(
-        content = highlighted.first,
-        color = fadeColor,
+    val fadeState = rememberStreamingGlyphFadeDrawState(
+        content = highlighted.first.text,
         enabled = fadeThisNode,
     )
     var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
@@ -687,9 +687,14 @@ private fun SearchHighlightedMarkdownText(
         coordinates = coordinates,
     )
     MarkdownText(
-        content = renderedText,
+        content = highlighted.first,
         node = model.node,
-        modifier = modifier.onGloballyPositioned { coordinates = it },
+        modifier = modifier
+            .onGloballyPositioned { coordinates = it }
+            .stableStreamingGlyphFade(
+                fadeState = fadeState,
+                layoutResult = { layoutResult },
+            ),
         style = style,
         onTextLayout = { result, _ -> layoutResult = result },
         sourceContent = model.content,
@@ -823,12 +828,8 @@ private fun SearchHighlightedMarkdownCodeText(
             ).first
         }
     }
-    val fadeColor = style.color
-        .takeUnless { it == Color.Unspecified }
-        ?: LocalContentColor.current
-    val renderedText = rememberStreamingGlyphFade(
-        content = highlighted,
-        color = fadeColor,
+    val fadeState = rememberStreamingGlyphFadeDrawState(
+        content = highlighted.text,
         enabled = fadeEnabled,
     )
     var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
@@ -871,12 +872,16 @@ private fun SearchHighlightedMarkdownCodeText(
         code = code,
     ) {
         MarkdownBasicText(
-            text = renderedText,
+            text = highlighted,
             style = style,
             modifier = Modifier
                 .horizontalScroll(horizontalScrollState)
                 .padding(LocalMarkdownPadding.current.codeBlock)
-                .onGloballyPositioned { coordinates = it },
+                .onGloballyPositioned { coordinates = it }
+                .stableStreamingGlyphFade(
+                    fadeState = fadeState,
+                    layoutResult = { layoutResult },
+                ),
             onTextLayout = { layoutResult = it },
         )
     }

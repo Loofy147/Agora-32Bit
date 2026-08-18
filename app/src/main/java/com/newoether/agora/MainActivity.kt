@@ -58,7 +58,7 @@ import com.newoether.agora.data.SettingsManager
 import com.newoether.agora.service.AgoraForegroundService
 import com.newoether.agora.service.AppForegroundTracker
 import com.newoether.agora.ui.chat.ChatApp
-import com.newoether.agora.ui.chat.FullScreenMediaViewer
+import com.newoether.agora.ui.chat.FullScreenMediaPreviewDialog
 import com.newoether.agora.ui.chat.message.ChatMarkdownCodeBlock
 import com.newoether.agora.ui.onboarding.WelcomeScreen
 import com.newoether.agora.ui.motion.LocalAgoraMotionPolicy
@@ -832,52 +832,28 @@ fun MainNavigation(
                 )
             }
 
-            // Full screen image preview
-            val mediaPreviewTransition = updateTransition(
-                targetState = fullScreenMediaUrls != null,
-                label = "mediaPreview",
-            )
-            LaunchedEffect(mediaPreviewTransition) {
-                snapshotFlow {
-                    mediaPreviewTransition.currentState to mediaPreviewTransition.isRunning
-                }.collect { (currentState, isRunning) ->
-                    if (!currentState && !isRunning) {
-                        topLevelPresentation.release(TopLevelPresentation.MEDIA_PREVIEW)
-                    }
-                }
-            }
-            mediaPreviewTransition.AnimatedVisibility(
-                visible = { it },
+            // A dedicated dialog gives the media viewer its own window above source sheets.
+            FullScreenMediaPreviewDialog(
+                currentUrls = fullScreenMediaUrls,
+                currentIndex = fullScreenMediaIndex,
+                currentPdfPages = savedPdfPages,
+                currentPdfSelectedPages = pdfViewerSelection,
+                currentPdfSelectionEnabled = pdfPreviewFromDialog,
+                currentPdfTogglePage = onTogglePdfSelection,
                 enter = fullScreenPreviewEnterTransition(motionPolicy.allowSpatialTransitions),
-                exit = fullScreenPreviewExitTransition(motionPolicy.allowSpatialTransitions)
-            ) {
-                // Keep the last values for the duration of the exit animation
-                var lastUrls by remember { mutableStateOf<List<String>?>(null) }
-                var lastIndex by remember { mutableIntStateOf(0) }
-                var lastPdfPages by remember { mutableStateOf<List<String>>(emptyList()) }
-                var lastPdfTogglePage by remember { mutableStateOf<((Int) -> Unit)?>(null) }
-                LaunchedEffect(fullScreenMediaUrls) {
-                    if (fullScreenMediaUrls != null) {
-                        lastUrls = fullScreenMediaUrls
-                        lastIndex = fullScreenMediaIndex
-                        lastPdfPages = savedPdfPages
-                        lastPdfTogglePage = if (pdfPreviewFromDialog) onTogglePdfSelection else null
-                    }
-                }
-
-                val urls = lastUrls ?: return@AnimatedVisibility
-                FullScreenMediaViewer(
-                    urls = urls,
-                    initialIndex = lastIndex,
-                    pdfPages = lastPdfPages,
-                    pdfSelectedPages = if (lastPdfPages.isNotEmpty() && pdfPreviewFromDialog) pdfViewerSelection else null,
-                    onTogglePdfPage = lastPdfTogglePage,
-                    onClose = { viewModel.clearPreviews(); fullScreenMediaUrls = null; pdfPreviewFromDialog = false },
-                    onNavigate = { idx -> fullScreenMediaIndex = idx },
-                    onMessage = { viewModel.emitSnackbar(it) },
-                    hapticsEnabled = hapticsEnabled
-                )
-            }
+                exit = fullScreenPreviewExitTransition(motionPolicy.allowSpatialTransitions),
+                onHidden = {
+                    topLevelPresentation.release(TopLevelPresentation.MEDIA_PREVIEW)
+                },
+                onClose = {
+                    viewModel.clearPreviews()
+                    fullScreenMediaUrls = null
+                    pdfPreviewFromDialog = false
+                },
+                onNavigate = { idx -> fullScreenMediaIndex = idx },
+                onMessage = { viewModel.emitSnackbar(it) },
+                hapticsEnabled = hapticsEnabled,
+            )
 
             // Text file viewer
             val fileContent by viewModel.previewFileContent.collectAsState()

@@ -42,6 +42,28 @@ class ToolMessagesTest {
     }
 
     @Test
+    fun toolImageSurvivesTheCompleteProviderPreparationPipeline() {
+        val prepared = prepareMessages(
+            messages = projectToolResultImagesToUserMessage(
+                messages = listOf(
+                    normal("user", Participant.USER),
+                    tool("tool_round", "call-image"),
+                    result("result_image", "call-image").copy(
+                        images = listOf("/private/tool-result.png"),
+                    ),
+                ),
+                includeImages = true,
+            ),
+            contextTokenBudget = 16_384,
+        )
+
+        val visualTurn = prepared.single {
+            it.images == listOf("/private/tool-result.png")
+        }
+        assertEquals(Participant.USER, visualTurn.participant)
+    }
+
+    @Test
     fun unsupportedModelGetsExplicitToolImageNoticeWithoutBinaryInput() {
         val projected = projectToolResultImagesToUserMessage(
             messages = listOf(

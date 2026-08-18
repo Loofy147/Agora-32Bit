@@ -109,7 +109,7 @@ fun FullScreenMediaViewer(
     if (isSingleVideo == null) {
         BackHandler(onBack = onClose)
         Box(
-            modifier = Modifier.fillMaxSize().background(Color.Black),
+            modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
         ) {
             CircularProgressIndicator(color = Color.White)
@@ -120,7 +120,7 @@ fun FullScreenMediaViewer(
     if (isSingleVideo == true && urls.size == 1) {
         var showOverlay by remember { mutableStateOf(true) }
         var closing by remember { mutableStateOf(false) }
-        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        Box(modifier = Modifier.fillMaxSize()) {
             VideoPlayer(uri = url, onClose = onClose, closing = closing)
             AnimatedVisibility(
                 visible = showOverlay,
@@ -176,7 +176,7 @@ private fun PdfPager(
     }
     BackHandler { onClose() }
     Box(
-        modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.9f))
+        modifier = Modifier.fillMaxSize()
     ) {
         HorizontalPager(
             state = pagerState,
@@ -283,7 +283,7 @@ private fun MediaPager(
     LaunchedEffect(pagerState.currentPage) { onNavigate(pagerState.currentPage) }
     BackHandler { requestClose() }
     Box(
-        modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.9f))
+        modifier = Modifier.fillMaxSize()
     ) {
         HorizontalPager(
             state = pagerState,
@@ -371,7 +371,7 @@ private fun SingleImage(
     var showOverlay by remember { mutableStateOf(true) }
     var showActions by remember { mutableStateOf(false) }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.9f))) {
+    Box(modifier = Modifier.fillMaxSize()) {
         ZoomableImageItem(
             url = url,
             onTap = { showOverlay = !showOverlay },

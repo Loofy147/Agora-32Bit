@@ -8,14 +8,11 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.rememberScrollState
@@ -72,7 +69,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -557,36 +553,6 @@ fun WelcomeScreen(
                 }
 
                 // Continue / Get Started
-                val continueInteractionSource = remember { MutableInteractionSource() }
-                val isContinuePressed by continueInteractionSource.collectIsPressedAsState()
-                val pressed = isContinuePressed && motionPolicy.allowSpatialTransitions
-                val horizontalInset by animateDpAsState(
-                    targetValue = if (pressed) 24.dp else 32.dp,
-                    animationSpec = if (motionPolicy.allowSpatialTransitions) {
-                        spring(stiffness = 400f, dampingRatio = 0.25f)
-                    } else {
-                        snap()
-                    },
-                    label = "onboardingActionInset",
-                )
-                val actionHeight by animateDpAsState(
-                    targetValue = if (pressed) 50.dp else 48.dp,
-                    animationSpec = if (motionPolicy.allowSpatialTransitions) {
-                        spring(stiffness = 400f, dampingRatio = 0.25f)
-                    } else {
-                        snap()
-                    },
-                    label = "onboardingActionHeight",
-                )
-                val contentScale by animateFloatAsState(
-                    targetValue = if (pressed) 1.02f else 1f,
-                    animationSpec = if (motionPolicy.allowSpatialTransitions) {
-                        spring(stiffness = 400f, dampingRatio = 0.25f)
-                    } else {
-                        snap()
-                    },
-                    label = "onboardingActionContentScale",
-                )
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -624,16 +590,14 @@ fun WelcomeScreen(
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = horizontalInset)
-                                .height(actionHeight),
-                            interactionSource = continueInteractionSource,
+                                .padding(horizontal = 32.dp)
+                                .height(48.dp),
                             shape = RoundedCornerShape(50),
                             enabled = showContent,
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                         ) {
                             Text(
                                 if (last) stringResource(R.string.onboarding_get_started) else stringResource(R.string.onboarding_continue),
-                                modifier = Modifier.scale(contentScale),
                             )
                         }
                     }

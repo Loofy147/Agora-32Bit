@@ -5,6 +5,7 @@ import com.newoether.agora.R
 import com.newoether.agora.data.ConversationSettings
 import com.newoether.agora.data.CustomProviderConfig
 import com.newoether.agora.data.MemoryManager
+import com.newoether.agora.data.SkillManager
 import com.newoether.agora.data.repository.ConversationRepository
 import com.newoether.agora.data.repository.SettingsRepository
 import io.mockk.every
@@ -49,6 +50,7 @@ class GenerationRequestBuilderProviderDisplayTest {
             settings = settings,
             convRepo = mockk<ConversationRepository>(),
             memoryManager = mockk<MemoryManager>(),
+            skillManager = mockk<SkillManager>(),
             providerRegistry = mockk<ProviderRegistry>(),
             ragManager = mockk<RagManager>(),
             appContext = mockk<Context>(),
@@ -87,6 +89,7 @@ class GenerationRequestBuilderProviderDisplayTest {
             settings = settings,
             convRepo = mockk<ConversationRepository>(),
             memoryManager = mockk<MemoryManager>(),
+            skillManager = mockk<SkillManager>(),
             providerRegistry = providerRegistry,
             ragManager = mockk<RagManager>(),
             appContext = appContext,

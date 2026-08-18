@@ -168,7 +168,7 @@ internal fun MessageList(
     val groupedSegmentAutoExpansionController = remember(conversationId) {
         GroupedSegmentAutoExpansionController()
     }
-    var editingMessageId by remember { mutableStateOf<String?>(null) }
+    var editingMessageId by remember(conversationId) { mutableStateOf<String?>(null) }
     var pendingEditMessageId by remember { mutableStateOf<String?>(null) }
     var pendingEditVisualReplacement by remember(conversationId) {
         mutableStateOf<PendingEditVisualReplacement?>(null)
@@ -278,6 +278,61 @@ internal fun MessageList(
     }
     val turnCache = remember { MessageListTurnCache() }
     val turns = remember(presentationMessages) { turnCache.update(presentationMessages) }
+
+    LaunchedEffect(
+        conversationId,
+        editingMessageId,
+        turns,
+        motionPolicy.allowProgrammaticScrollMotion,
+    ) {
+        val messageId = editingMessageId ?: return@LaunchedEffect
+        val turnIndex = messageListTurnIndex(turns, messageId)
+        if (turnIndex < 0) {
+            editingMessageId = null
+            return@LaunchedEffect
+        }
+
+        withFrameNanos { }
+        cancelMutationAnchoring()
+        val topInsetPx = with(density) { 140.dp.toPx() }
+        if (!motionPolicy.allowProgrammaticScrollMotion) {
+            state.scrollToItem(
+                index = turnIndex,
+                scrollOffset = -topInsetPx.roundToInt(),
+            )
+            return@LaunchedEffect
+        }
+
+        val fallbackHeightPx = with(density) { 160.dp.toPx() }
+        val estimatedTurnHeights = FloatArray(turns.size) { index ->
+            estimateMessageListTurnHeightPx(
+                turn = turns[index],
+                messageHeights = messageHeights,
+                fallbackHeightPx = fallbackHeightPx,
+            )
+        }
+        val heightPrefix = FloatArray(turns.size + 1)
+        for (index in estimatedTurnHeights.indices) {
+            heightPrefix[index + 1] = heightPrefix[index] + estimatedTurnHeights[index]
+        }
+        state.smoothSeekToItem(
+            targetIndex = { turnIndex },
+            targetErrorPx = { visibleTarget -> visibleTarget.offset - topInsetPx },
+            estimatedErrorPx = {
+                val firstVisible = state.layoutInfo.visibleItemsInfo
+                    .minByOrNull { item -> item.index }
+                    ?: return@smoothSeekToItem null
+                val firstIndex = firstVisible.index.coerceIn(0, turns.size)
+                firstVisible.offset +
+                    heightPrefix[turnIndex] -
+                    heightPrefix[firstIndex] -
+                    topInsetPx
+            },
+            exactTargetReady = { true },
+            minimumStepPx = with(density) { 2.dp.toPx() },
+        )
+    }
+
     val lastUserMessage =
         messages.list.lastOrNull(MessageGenerationBoundaryResolver::isRealUser)
     val resolvedEditReplacement = remember(messages, pendingEditVisualReplacement) {

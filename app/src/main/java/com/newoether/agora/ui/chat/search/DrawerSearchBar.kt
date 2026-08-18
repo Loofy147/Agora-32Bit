@@ -1,5 +1,9 @@
 package com.newoether.agora.ui.chat.search
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.surfaceColorAtElevation
+import com.newoether.agora.ui.motion.MotionAwareCircularProgressIndicator as CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,7 +37,11 @@ import com.newoether.agora.ui.theme.ChatType
 
 /** The pill-shaped search input at the top of the conversation drawer. */
 @Composable
-internal fun DrawerSearchBar(query: String, onQueryChange: (String) -> Unit) {
+internal fun DrawerSearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    searching: Boolean = false,
+) {
     Surface(modifier = Modifier.fillMaxWidth().height(44.dp), shape = CircleShape, color = MaterialTheme.colorScheme.surfaceColorAtElevation(8.dp), tonalElevation = 8.dp) {
         Row(modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.Search, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
@@ -41,7 +50,34 @@ internal fun DrawerSearchBar(query: String, onQueryChange: (String) -> Unit) {
                 if (query.isEmpty()) Text(stringResource(R.string.search_hint), style = ChatType.drawerSearch, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 BasicTextField(value = query, onValueChange = onQueryChange, modifier = Modifier.fillMaxWidth(), singleLine = true, cursorBrush = SolidColor(MaterialTheme.colorScheme.primary), textStyle = ChatType.drawerSearch.copy(color = MaterialTheme.colorScheme.onSurface))
             }
-            if (query.isNotEmpty()) IconButton(onClick = { onQueryChange("") }, modifier = Modifier.size(28.dp)) { Icon(Icons.Default.Close, stringResource(R.string.clear_search), modifier = Modifier.size(18.dp)) }
+            Box(modifier = Modifier.size(28.dp), contentAlignment = Alignment.Center) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = searching,
+                    enter = fadeIn(tween(180)),
+                    exit = fadeOut(tween(180)),
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                    )
+                }
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = query.isNotEmpty() && !searching,
+                    enter = fadeIn(tween(180)),
+                    exit = fadeOut(tween(180)),
+                ) {
+                    IconButton(
+                        onClick = { onQueryChange("") },
+                        modifier = Modifier.size(28.dp),
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            stringResource(R.string.clear_search),
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+            }
         }
     }
 }

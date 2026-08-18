@@ -144,8 +144,9 @@ internal fun ToolDetailContent(
                     TerminalOutput(presentation.liveOutput)
                 }
             }
-            ToolPresentationState.STOPPED -> ToolMutedContent(
-                stringResource(R.string.tool_execution_stopped),
+            ToolPresentationState.STOPPED -> GenerationTerminalText(
+                text = stringResource(R.string.tool_execution_stopped),
+                fillWidth = true,
             )
             ToolPresentationState.EMPTY,
             ToolPresentationState.COMPLETED -> ToolCompletedContent(presentation)
@@ -271,8 +272,9 @@ private fun ToolSectionLabel(text: String) {
 
 @Composable
 private fun ToolActiveContent(text: String, output: String?) {
-    Text(
+    StableStreamingText(
         text = text,
+        streaming = true,
         style = ChatType.metaNormal,
         color = MaterialTheme.colorScheme.primary,
     )
@@ -284,20 +286,11 @@ private fun ToolActiveContent(text: String, output: String?) {
 
 @Composable
 private fun ToolErrorContent(message: String) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        NoAutoScrollSelectionContainer {
-            Text(
-                text = message,
-                style = ChatType.thoughtBody,
-                modifier = Modifier.padding(12.dp),
-            )
-        }
-    }
+    GenerationTerminalText(
+        text = message,
+        selectable = true,
+        fillWidth = true,
+    )
 }
 
 @Composable

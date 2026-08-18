@@ -9,19 +9,85 @@ import org.junit.Test
 
 class ApplicationUiSourceContractTest {
     @Test
-    fun `onboarding primary action reuses the documentation spring with lower amplitude`() {
+    fun `onboarding primary action keeps fixed geometry without custom press motion`() {
         val source = sourceFile("app/src/main/java/com/newoether/agora/ui/onboarding/WelcomeScreen.kt")
 
-        assertTrue(source.contains("MutableInteractionSource()"))
-        assertTrue(source.contains("collectIsPressedAsState()"))
-        assertTrue(source.contains("motionPolicy.allowSpatialTransitions"))
-        assertTrue(source.contains("stiffness = 400f"))
-        assertTrue(source.contains("dampingRatio = 0.25f"))
-        assertTrue(source.contains("targetValue = if (pressed) 24.dp else 32.dp"))
-        assertTrue(source.contains("targetValue = if (pressed) 50.dp else 48.dp"))
-        assertTrue(source.contains("targetValue = if (pressed) 1.02f else 1f"))
-        assertTrue(source.contains(".height(56.dp)"))
-        assertTrue(source.contains(".scale(contentScale)"))
+        assertFalse(source.contains("val continueInteractionSource"))
+        assertFalse(source.contains("collectIsPressedAsState()"))
+        assertFalse(source.contains("val isContinuePressed"))
+        assertFalse(source.contains("val horizontalInset by animateDpAsState"))
+        assertFalse(source.contains("val actionHeight by animateDpAsState"))
+        assertFalse(source.contains("val contentScale by animateFloatAsState"))
+        assertFalse(source.contains("interactionSource = continueInteractionSource"))
+        assertTrue(source.contains(".padding(horizontal = 32.dp)"))
+        assertTrue(source.contains(".height(48.dp)"))
+        assertFalse(source.contains(".scale(contentScale)"))
+        assertTrue(source.contains("pagerState.animateScrollToPage("))
+        assertTrue(source.contains("if (last) { exiting = true }"))
+    }
+
+    @Test
+    fun `Skills settings mirrors the saved Memory file presentation`() {
+        val source = sourceFile(
+            "app/src/main/java/com/newoether/agora/ui/settings/SettingsSkillsPage.kt",
+        )
+
+        assertTrue(source.contains("var skillsLoaded"))
+        assertTrue(source.contains("var skillOperationInFlight"))
+        assertTrue(source.contains("fun loadSkills("))
+        assertTrue(source.contains("CircularProgressIndicator("))
+        assertTrue(source.contains("R.string.memory_access_title"))
+        assertTrue(source.contains("R.string.skills_create_hint"))
+        assertTrue(source.contains("Icons.Default.MoreVert"))
+        assertTrue(source.contains("DropdownMenu("))
+        assertTrue(source.contains("SettingsAddItem("))
+        assertFalse(source.contains("import androidx.compose.material3.Button\n"))
+        assertTrue(source.contains("containerColor = MaterialTheme.colorScheme.surfaceContainer"))
+        assertTrue(source.contains("fontWeight = FontWeight.Bold"))
+        assertTrue(source.contains("shape = RoundedCornerShape(16.dp)"))
+        assertTrue(source.contains("FontFamily.Monospace"))
+        assertTrue(source.contains("Modifier.clearFocusOnTap()"))
+        assertTrue(source.contains("Spacer(modifier = Modifier.height(80.dp))"))
+        assertTrue(source.contains("file.name.removeSuffix(\".md\")"))
+    }
+
+    @Test
+    fun `Skills entry uses document icon and Memory-equivalent English casing`() {
+        val settings = sourceFile("app/src/main/java/com/newoether/agora/ui/settings/SettingsScreen.kt")
+        val page = sourceFile("app/src/main/java/com/newoether/agora/ui/settings/SettingsSkillsPage.kt")
+        val strings = sourceFile("app/src/main/res/values/strings.xml")
+
+        assertTrue(settings.contains("R.string.settings_skills, R.string.settings_skills_desc, Icons.Default.Description"))
+        assertFalse(page.contains("AutoAwesome"))
+        assertTrue(page.contains("Icons.Default.Description"))
+        mapOf(
+            "skills_access" to "Access Saved Skills",
+            "skills_saved_title" to "Saved Skills",
+            "skills_add" to "Add Skill",
+            "skills_delete_title" to "Delete Skill?",
+        ).forEach { (key, value) ->
+            assertTrue(strings.contains("""<string name="$key">$value</string>"""))
+        }
+    }
+
+    @Test
+    fun `Skills UI strings keep locale and delete placeholder parity`() {
+        val directories = listOf(
+            "values", "values-ar", "values-de", "values-es", "values-fr", "values-ja",
+            "values-ko", "values-pt-rBR", "values-ru", "values-vi", "values-zh",
+            "values-zh-rTW",
+        )
+
+        directories.forEach { directory ->
+            val strings = sourceFile("app/src/main/res/$directory/strings.xml")
+            assertTrue("$directory skills_create_hint", strings.contains("name=\"skills_create_hint\""))
+            assertTrue("$directory skills_create", strings.contains("name=\"skills_create\""))
+            assertTrue("$directory skills_edit", strings.contains("name=\"skills_edit\""))
+            assertTrue(
+                "$directory skills_delete_message placeholder",
+                stringValue(strings, "skills_delete_message").contains("%1\$s"),
+            )
+        }
     }
 
     @Test
@@ -150,7 +216,7 @@ class ApplicationUiSourceContractTest {
     }
 
     @Test
-    fun `MCP refreshes once on page entry without polling or duplicate connecting restart`() {
+    fun `MCP page entry refresh is background single flight without polling`() {
         val page = sourceFile("app/src/main/java/com/newoether/agora/ui/settings/SettingsMcpPage.kt")
         val viewModel = sourceFile("app/src/main/java/com/newoether/agora/viewmodel/ChatViewModel.kt")
         val registry = sourceFile("app/src/main/java/com/newoether/agora/mcp/McpRegistry.kt")
@@ -160,13 +226,153 @@ class ApplicationUiSourceContractTest {
         assertFalse(page.contains("delay("))
         assertTrue(viewModel.contains("fun refreshMcpServersOnPageEntry()"))
         assertTrue(viewModel.contains("mcpRegistry.refreshOnPageEntry()"))
-        assertTrue(registry.contains("fun refreshOnPageEntry()"))
-        assertTrue(registry.contains("it.enabled && it.url.isNotBlank()"))
-        assertTrue(registry.contains("McpConnectionStatus.CONNECTING"))
-        assertTrue(registry.contains("runtime?.connectionJob?.isActive == true"))
+        assertTrue(registry.contains("private val workDispatcher: CoroutineDispatcher = Dispatchers.IO"))
+        assertTrue(registry.contains("scope.launch(workDispatcher)"))
+        assertTrue(registry.contains("pendingBuilds"))
+        assertTrue(registry.contains("McpRuntimeRefreshReason.PAGE_ENTRY"))
+        assertTrue(registry.contains("isCurrentMcpRuntimeBuild("))
         val entryRefresh = registry.substringAfter("fun refreshOnPageEntry()")
             .substringBefore("suspend fun execute(")
+        assertFalse(entryRefresh.contains("synchronized(lock)"))
         assertFalse(entryRefresh.contains("delay("))
+    }
+
+    @Test
+    fun `ordinary segment detail does not repeat message error while Compact keeps its error`() {
+        val source = sourceFile(
+            "app/src/main/java/com/newoether/agora/ui/chat/message/MessageItem.kt",
+        )
+
+        val compactDetail = source
+            .substringAfter("if (showCompactDetail) {")
+            .substringBefore("// Segment detail bottom sheet")
+        val ordinarySegmentDetail = source
+            .substringAfter("// Segment detail bottom sheet")
+            .substringBefore("internal fun ContextCompactPill(")
+
+        assertTrue(compactDetail.contains("errorText = detailErrorText"))
+        assertFalse(ordinarySegmentDetail.contains("errorText ="))
+    }
+
+    @Test
+    fun `generation error and stopped bars share neutral body text presentation`() {
+        val source = sourceFile(
+            "app/src/main/java/com/newoether/agora/ui/chat/message/GenerationErrorBar.kt",
+        )
+        val errorBar = source
+            .substringAfter("internal fun GenerationErrorBar(")
+            .substringBefore("internal fun StoppedGenerationBar(")
+        val stoppedBar = source.substringAfter("internal fun StoppedGenerationBar(")
+
+        assertTrue(errorBar.contains("GenerationTerminalText("))
+        assertTrue(stoppedBar.contains("GenerationTerminalText("))
+        assertTrue(source.contains("style = ChatType.body"))
+        assertTrue(source.contains(
+            "color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)",
+        ))
+    }
+
+    @Test
+    fun `chat dropdown menus share the same sixteen dp rounded shape`() {
+        val bottomBar = sourceFile(
+            "app/src/main/java/com/newoether/agora/ui/chat/bottombar/ChatBottomBar.kt",
+        )
+        val compactDialog = sourceFile(
+            "app/src/main/java/com/newoether/agora/ui/chat/ChatManualCompactDialog.kt",
+        )
+
+        assertTrue(bottomBar.contains(
+            "internal val CHAT_DROPDOWN_MENU_SHAPE = RoundedCornerShape(16.dp)",
+        ))
+        assertEquals(
+            3,
+            Regex("shape = CHAT_DROPDOWN_MENU_SHAPE").findAll(bottomBar).count(),
+        )
+        assertTrue(compactDialog.contains(
+            "import com.newoether.agora.ui.chat.bottombar.CHAT_DROPDOWN_MENU_SHAPE",
+        ))
+        assertEquals(
+            1,
+            Regex("shape = CHAT_DROPDOWN_MENU_SHAPE").findAll(compactDialog).count(),
+        )
+    }
+
+    @Test
+    fun `editing a user message scrolls its turn to focus with reduced motion fallback`() {
+        val messageList = sourceFile(
+            "app/src/main/java/com/newoether/agora/ui/chat/MessageList.kt",
+        )
+        val scrollActor = sourceFile(
+            "app/src/main/java/com/newoether/agora/ui/chat/RobustLazyListScroll.kt",
+        )
+        val editFocus = messageList
+            .substringAfter("LaunchedEffect(\n        conversationId,\n        editingMessageId,")
+            .substringBefore("LaunchedEffect(regenerationTransition?.id)")
+
+        assertTrue(messageList.contains(
+            "var editingMessageId by remember(conversationId) { mutableStateOf<String?>(null) }",
+        ))
+        assertTrue(editFocus.contains("messageListTurnIndex(turns, messageId)"))
+        assertTrue(editFocus.contains("withFrameNanos { }"))
+        assertTrue(editFocus.contains("cancelMutationAnchoring()"))
+        assertTrue(editFocus.contains("140.dp.toPx()"))
+        assertTrue(editFocus.contains("state.scrollToItem("))
+        assertTrue(editFocus.contains("state.smoothSeekToItem("))
+        assertTrue(scrollActor.contains("scroll(MutatePriority.Default)"))
+    }
+
+    @Test
+    fun `both fork entry points require the shared confirmation dialog`() {
+        val source = sourceFile("app/src/main/java/com/newoether/agora/ui/chat/ChatApp.kt")
+        val dialogs = sourceFile("app/src/main/java/com/newoether/agora/ui/chat/ChatDialogs.kt")
+        val topMenuEntry = source
+            .substringAfter("onForkConversation = {")
+            .substringBefore("onShareConversation = {")
+        val messageActionEntry = source
+            .substringAfter("onFork = { id ->")
+            .substringBefore("onShare = { id ->")
+        val confirmation = dialogs
+            .substringAfter("internal fun ChatForkConfirmationHost(")
+            .substringBefore("internal fun ChatForkConfirmDialog(")
+
+        assertTrue(topMenuEntry.contains(
+            "pendingForkRequest = ForkConversationRequest(messageId = null)",
+        ))
+        assertFalse(topMenuEntry.contains("viewModel.forkConversationFrom("))
+        assertTrue(messageActionEntry.contains(
+            "pendingForkRequest = ForkConversationRequest(messageId = id)",
+        ))
+        assertFalse(messageActionEntry.contains("viewModel.forkConversationFrom("))
+        assertTrue(confirmation.contains("ChatForkConfirmDialog("))
+        assertEquals(
+            2,
+            Regex("viewModel\\.forkConversationFrom\\(").findAll(confirmation).count(),
+        )
+        assertTrue(source.contains(
+            "ChatForkConfirmationHost(pendingForkRequest, viewModel) { pendingForkRequest = null }",
+        ))
+        assertTrue(confirmation.contains("onDismiss = onDismiss"))
+    }
+
+    @Test
+    fun `image transcription progress does not impersonate provider retry activity`() {
+        val transcription = sourceFile(
+            "app/src/main/java/com/newoether/agora/viewmodel/TranscriptionManager.kt",
+        )
+        val generation = sourceFile(
+            "app/src/main/java/com/newoether/agora/viewmodel/GenerationManager.kt",
+        )
+        val assistant = sourceFile(
+            "app/src/main/java/com/newoether/agora/ui/chat/message/AssistantMessageContent.kt",
+        )
+
+        assertFalse(transcription.contains("retryText ="))
+        assertTrue(generation.contains(
+            "retryText = context.getString(R.string.generation_retry_attempt, event.attempt, event.maxAttempts)",
+        ))
+        assertTrue(assistant.contains(
+            "!retryText.isNullOrBlank() -> AssistantInlineActivityMode.RETRY",
+        ))
     }
 
     @Test
@@ -360,6 +566,21 @@ class ApplicationUiSourceContractTest {
         val mediaViewer = sourceFile(
             "app/src/main/java/com/newoether/agora/ui/chat/FullScreenMediaViewer.kt",
         )
+        val mediaDialog = sourceFile(
+            "app/src/main/java/com/newoether/agora/ui/chat/FullScreenMediaPreviewDialog.kt",
+        )
+        val imageActions = sourceFile(
+            "app/src/main/java/com/newoether/agora/ui/chat/ImageActions.kt",
+        )
+        val videoPlayer = sourceFile(
+            "app/src/main/java/com/newoether/agora/ui/chat/VideoPlayer.kt",
+        )
+        val texturePlayerLayout = sourceFile(
+            "app/src/main/res/layout/view_texture_video_player.xml",
+        )
+        val dialogWindow = sourceFile(
+            "app/src/main/java/com/newoether/agora/ui/components/DialogWindowEdgeToEdge.kt",
+        )
 
         assertTrue(source.contains(
             "private fun fullScreenPreviewEnterTransition(allowSpatialTransitions: Boolean)"
@@ -389,14 +610,33 @@ class ApplicationUiSourceContractTest {
                 .findAll(source)
                 .count(),
         )
-        assertEquals(2, Regex("if \\(!currentState && !isRunning\\)").findAll(source).count())
+        assertEquals(1, Regex("if \\(!currentState && !isRunning\\)").findAll(source).count())
+        assertTrue(mediaDialog.contains("if (!currentState && !isRunning) onHidden()"))
         assertTrue(source.contains(
             "topLevelPresentation.release(TopLevelPresentation.MEDIA_PREVIEW)"
         ))
         assertTrue(source.contains(
             "topLevelPresentation.release(TopLevelPresentation.TEXT_PREVIEW)"
         ))
-        assertTrue(source.contains("val urls = lastUrls ?: return@AnimatedVisibility"))
+        assertTrue(source.contains("FullScreenMediaPreviewDialog("))
+        assertTrue(mediaDialog.contains("Dialog("))
+        assertTrue(mediaDialog.contains(".background(Color.Black)"))
+        assertTrue(mediaDialog.contains("visibilityTransition.animateFloat("))
+        assertTrue(mediaDialog.contains("label = \"mediaPreviewBackdropAlpha\""))
+        assertTrue(mediaDialog.contains(".graphicsLayer { alpha = backdropAlpha }"))
+        assertTrue(mediaDialog.contains("DialogWindowNoSystemDim()"))
+        assertTrue(imageActions.contains("DialogWindowNoSystemDim()"))
+        assertTrue(imageActions.contains("DialogWindowNoSystemAnimation()"))
+        assertTrue(imageActions.contains("withFrameNanos { }"))
+        assertTrue(imageActions.contains("HttpClient.client.newCall("))
+        assertTrue(videoPlayer.contains("R.layout.view_texture_video_player"))
+        assertTrue(texturePlayerLayout.contains("""app:surface_type="texture_view""""))
+        assertTrue(texturePlayerLayout.contains(
+            """app:shutter_background_color="@android:color/transparent"""",
+        ))
+        assertTrue(dialogWindow.contains(
+            "clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)"
+        ))
         assertTrue(source.contains("if (savedContent != null && savedName != null)"))
         assertTrue(mediaViewer.contains(
             "val currentPageIsVideo = rememberIsVideoMedia(urls[pagerState.currentPage])",

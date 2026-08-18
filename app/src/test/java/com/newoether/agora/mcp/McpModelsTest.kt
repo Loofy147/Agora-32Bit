@@ -6,6 +6,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -98,6 +99,77 @@ class McpModelsTest {
         assertEquals(
             listOf("connected", "new"),
             mcpServerIdsForPageEntryRefresh(configs, snapshots),
+        )
+    }
+
+    @Test
+    fun pageEntryRuntimeBuildsAreSingleFlightPerConfig() {
+        val config = McpServerConfig(
+            id = "server",
+            enabled = true,
+            url = "https://example.com/mcp",
+        )
+
+        assertFalse(
+            shouldStartMcpRuntimeBuild(
+                reason = McpRuntimeRefreshReason.PAGE_ENTRY,
+                config = config,
+                runtimeConfig = config,
+                runtimeConnectionActive = true,
+                pendingConfig = null,
+            ),
+        )
+        assertFalse(
+            shouldStartMcpRuntimeBuild(
+                reason = McpRuntimeRefreshReason.PAGE_ENTRY,
+                config = config,
+                runtimeConfig = null,
+                runtimeConnectionActive = false,
+                pendingConfig = config,
+            ),
+        )
+        assertTrue(
+            shouldStartMcpRuntimeBuild(
+                reason = McpRuntimeRefreshReason.PAGE_ENTRY,
+                config = config,
+                runtimeConfig = config,
+                runtimeConnectionActive = false,
+                pendingConfig = null,
+            ),
+        )
+    }
+
+    @Test
+    fun staleRuntimeBuildCannotInstallOverNewOrDisabledConfig() {
+        val oldConfig = McpServerConfig(
+            id = "server",
+            enabled = true,
+            url = "https://old.example/mcp",
+        )
+        val newConfig = oldConfig.copy(url = "https://new.example/mcp")
+        val oldTicket = McpRuntimeBuildTicket(generation = 1L, config = oldConfig)
+        val newTicket = McpRuntimeBuildTicket(generation = 2L, config = newConfig)
+
+        assertFalse(
+            isCurrentMcpRuntimeBuild(
+                ticket = oldTicket,
+                pendingTicket = newTicket,
+                currentConfig = newConfig,
+            ),
+        )
+        assertFalse(
+            isCurrentMcpRuntimeBuild(
+                ticket = newTicket,
+                pendingTicket = newTicket,
+                currentConfig = newConfig.copy(enabled = false),
+            ),
+        )
+        assertTrue(
+            isCurrentMcpRuntimeBuild(
+                ticket = newTicket,
+                pendingTicket = newTicket,
+                currentConfig = newConfig,
+            ),
         )
     }
 }

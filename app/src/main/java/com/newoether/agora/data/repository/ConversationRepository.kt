@@ -4,6 +4,7 @@ import com.newoether.agora.data.local.ChatDao
 import com.newoether.agora.data.local.ChatEntity
 import com.newoether.agora.data.local.ConversationDraftAttachmentReference
 import com.newoether.agora.data.local.EmbeddingEntity
+import com.newoether.agora.data.local.EmbeddingModelCount
 import com.newoether.agora.data.local.EmbeddingSearchRow
 import com.newoether.agora.data.local.IndexableMessage
 import com.newoether.agora.data.local.MessageAttachmentReference
@@ -116,8 +117,7 @@ class ConversationRepository(
         hasUnreadGeneration = hasUnreadGeneration,
     )
 
-    fun getAllConversations(): Flow<List<ChatConversation>> =
-        chatDao.getAllConversations().map { entities -> entities.map { it.toConversation() } }
+    fun getAllConversations(): Flow<List<ChatConversation>> = chatDao.getAllConversations()
 
     fun observeConversation(id: String): Flow<ChatConversation?> =
         chatDao.observeConversation(id).map { it?.toConversation() }
@@ -574,6 +574,9 @@ class ConversationRepository(
 
     suspend fun getEmbeddingCountByModel(modelId: String): Int =
         chatDao.getEmbeddingCountByModel(modelId)
+
+    suspend fun getEmbeddingCountsByModels(modelIds: List<String>): List<EmbeddingModelCount> =
+        chatDao.getEmbeddingCountsByModels(modelIds)
 
     suspend fun getIndexableMessageCount(): Int =
         chatDao.getIndexableMessageCount()

@@ -17,14 +17,22 @@ class ExperimentalGenerationUiSourceContractTest {
 
         assertFalse(assistant.contains("AssistantStatusRow("))
         assertFalse(assistant.contains("AssistantStatusKind"))
-        assertTrue(assistant.contains("private val FormerAssistantStatusSpacerHeight = 8.dp"))
+        assertTrue(assistant.contains("private val FormerAssistantStatusSpacerHeight = 6.dp"))
         assertTrue(assistant.contains(
             "Spacer(modifier = Modifier.height(FormerAssistantStatusSpacerHeight))"
         ))
         assertTrue(assistant.contains("AssistantInlineActivity("))
         assertTrue(assistant.contains("RetryActivityIndicator("))
         assertTrue(assistant.contains("StoppedGenerationBar("))
-        assertTrue(assistant.contains("GenerationErrorBar(errorContent.errorText)"))
+        assertTrue(assistant.contains("AnimatedVisibility("))
+        assertTrue(assistant.contains("fadeIn(tween(durationMillis = 180"))
+        assertTrue(assistant.contains("fadeOut(tween(durationMillis = 180"))
+        assertTrue(assistant.contains("errorText = errorContent?.errorText ?: retainedErrorText"))
+        assertTrue(assistant.contains("precededByCard = terminalImmediatelyFollowsCard"))
+        assertTrue(assistant.contains("lastVisibleTerminalPredecessor"))
+        assertTrue(terminalBar.contains("precededByCard: Boolean = false"))
+        assertTrue(terminalBar.contains("if (precededByCard) 12.dp else 4.dp"))
+        assertTrue(terminalBar.contains("if (precededByCard) 12.dp"))
         assertFalse(assistant.contains("if (mode == AssistantInlineActivityMode.NONE) return"))
         assertTrue(assistant.contains("var retainedMode by remember"))
         assertTrue(assistant.contains("visibilityTransition.targetState ||"))
@@ -34,7 +42,6 @@ class ExperimentalGenerationUiSourceContractTest {
         assertTrue(assistant.contains("alpha = activityOpacity"))
         assertTrue(assistant.contains("retainExitLayout = !hasAnswerContent"))
         assertTrue(assistant.contains("clip = false"))
-        assertFalse(assistant.contains("visibilityTransition.AnimatedVisibility("))
         assertTrue(assistant.contains("GenerationActivityDot()"))
         val messageContent = assistant.substringAfter("internal fun AssistantMessageContent(")
         val fixedSpacerIndex = messageContent.indexOf(
@@ -121,7 +128,7 @@ class ExperimentalGenerationUiSourceContractTest {
         assertTrue(timeline.contains(".width(cardWidth)"))
         assertTrue(timeline.contains("durationMillis = 400"))
         assertTrue(timeline.contains("easing = LinearOutSlowInEasing"))
-        assertTrue(presentation.contains("THINKING_COLLAPSED_WIDTH_ALLOWANCE_DP = 12"))
+        assertTrue(presentation.contains("THINKING_COLLAPSED_WIDTH_ALLOWANCE_DP = 6"))
         assertTrue(presentation.contains("AUXILIARY_CARD_START_EXTENSION_DP = 4"))
         assertTrue(timeline.contains("maxWidth + (AUXILIARY_CARD_START_EXTENSION_DP * 2).dp"))
         assertFalse(timeline.contains("maxWidth + AUXILIARY_CARD_START_EXTENSION_DP.dp"))
@@ -269,16 +276,40 @@ class ExperimentalGenerationUiSourceContractTest {
     }
 
     @Test
-    fun `bottom sheet boxed tool errors use the neutral gray palette`() {
+    fun `thinking tool errors and stopped states reuse shared neutral terminal text`() {
         val toolResult = source(locateMainSourceRoot(), "message/ToolResultContent.kt")
-        val errorBar = toolResult
+        val detail = toolResult
+            .substringAfter("internal fun ToolDetailContent(")
+            .substringBefore("internal fun toolDetailHorizontalPadding(")
+        val errorContent = toolResult
             .substringAfter("private fun ToolErrorContent(")
             .substringBefore("private fun ToolMutedContent(")
+        val terminalText = source(locateMainSourceRoot(), "message/GenerationErrorBar.kt")
+            .substringAfter("internal fun GenerationTerminalText(")
+            .substringBefore("internal fun GenerationErrorBar(")
+        val webSearchCompletionOnly = detail
+            .substringAfter("presentation.kind == ToolKind.WEB_SEARCH &&")
+            .substringBefore("ToolCompletedContent(presentation)")
 
-        assertTrue(errorBar.contains("surfaceVariant.copy(alpha = 0.55f)"))
-        assertTrue(errorBar.contains("contentColor = MaterialTheme.colorScheme.onSurfaceVariant"))
-        assertFalse(errorBar.contains("errorContainer"))
-        assertFalse(errorBar.contains("onErrorContainer"))
+        assertTrue(detail.contains("ToolPresentationState.FAILED ->"))
+        assertTrue(detail.contains("ToolErrorContent("))
+        assertTrue(detail.contains("ToolPresentationState.STOPPED -> GenerationTerminalText("))
+        assertTrue(errorContent.contains("GenerationTerminalText("))
+        assertTrue(errorContent.contains("selectable = true"))
+        assertTrue(errorContent.contains("fillWidth = true"))
+        assertFalse(errorContent.contains("Surface("))
+        assertFalse(errorContent.contains("surfaceVariant"))
+        assertFalse(errorContent.contains("ChatType.thoughtBody"))
+        assertTrue(terminalText.contains("style = ChatType.body"))
+        assertTrue(
+            terminalText.contains(
+                "color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)",
+            ),
+        )
+        assertTrue(webSearchCompletionOnly.contains("ToolPresentationState.EMPTY"))
+        assertTrue(webSearchCompletionOnly.contains("ToolPresentationState.COMPLETED"))
+        assertFalse(webSearchCompletionOnly.contains("ToolPresentationState.FAILED"))
+        assertFalse(webSearchCompletionOnly.contains("ToolPresentationState.STOPPED"))
     }
 
     @Test

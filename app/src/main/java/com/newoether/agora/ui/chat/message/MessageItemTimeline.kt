@@ -580,8 +580,12 @@ internal fun CompactSegmentBlock(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.SemiBold
                                 )
-                                Text(
+                                StableStreamingText(
                                     text = toolSummary(seg),
+                                    streaming =
+                                        isStreaming &&
+                                            useLiveStatus &&
+                                            idx == segs.lastIndex,
                                     style = ChatType.metaNormal,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                     maxLines = 1,
@@ -911,8 +915,9 @@ internal fun TimelineInfoSegmentCard(
                         else -> ""
                     }
                     if (summary.isNotBlank()) {
-                        Text(
+                        StableStreamingText(
                             text = summary,
+                            streaming = isStreamingContent,
                             style = ChatType.metaNormal,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                             maxLines = 1,
@@ -958,16 +963,16 @@ private fun StreamingThoughtPreviewText(
     val color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
     val flat = remember(content) { content.replace('\n', ' ') }
     val annotated = remember(flat) { AnnotatedString(flat) }
-    val faded = rememberStreamingGlyphFade(
-        content = annotated,
-        color = color,
-        enabled = streaming,
-    )
-    val preview = remember(faded, streaming) {
-        if (streaming) thoughtPreviewTail(faded) else faded
+    var hasStreamed by remember { mutableStateOf(streaming) }
+    SideEffect {
+        if (streaming) hasStreamed = true
     }
-    Text(
-        text = preview,
+    val preview = remember(annotated, hasStreamed) {
+        if (hasStreamed) thoughtPreviewTail(annotated) else annotated
+    }
+    StableStreamingText(
+        text = preview.text,
+        streaming = streaming,
         style = ChatType.metaNormal,
         color = color,
         maxLines = 1,

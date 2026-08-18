@@ -7,7 +7,9 @@ import com.newoether.agora.tool.ToolExecutionResult
 import com.newoether.agora.tool.ToolImageStore
 import com.newoether.agora.util.DebugLog
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -35,6 +37,42 @@ internal fun mcpServerIdsForPageEntryRefresh(
     .map(McpServerConfig::id)
     .distinct()
 
+internal enum class McpRuntimeRefreshReason {
+    RECONCILE,
+    EXPLICIT,
+    PAGE_ENTRY,
+}
+
+internal data class McpRuntimeBuildTicket(
+    val generation: Long,
+    val config: McpServerConfig,
+)
+
+internal fun shouldStartMcpRuntimeBuild(
+    reason: McpRuntimeRefreshReason,
+    config: McpServerConfig,
+    runtimeConfig: McpServerConfig?,
+    runtimeConnectionActive: Boolean,
+    pendingConfig: McpServerConfig?,
+): Boolean = when {
+    pendingConfig == config -> false
+    reason == McpRuntimeRefreshReason.RECONCILE && runtimeConfig == config -> false
+    reason == McpRuntimeRefreshReason.PAGE_ENTRY &&
+        runtimeConfig == config &&
+        runtimeConnectionActive -> false
+    else -> true
+}
+
+internal fun isCurrentMcpRuntimeBuild(
+    ticket: McpRuntimeBuildTicket,
+    pendingTicket: McpRuntimeBuildTicket?,
+    currentConfig: McpServerConfig?,
+): Boolean =
+    pendingTicket == ticket &&
+        currentConfig == ticket.config &&
+        currentConfig.enabled &&
+        currentConfig.url.isNotBlank()
+
 /**
  * Process-wide MCP supervisor.
  *
@@ -47,6 +85,7 @@ class McpRegistry(
     private val context: Context,
     private val settings: SettingsRepository,
     private val scope: CoroutineScope,
+    private val workDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     companion object {
         private const val INITIAL_RETRY_MS = 5_000L
@@ -65,15 +104,22 @@ class McpRegistry(
         }
     }
 
+    private data class RuntimeBuild(
+        val ticket: McpRuntimeBuildTicket,
+        val previousRuntime: Runtime?,
+    )
+
     private val json = Json { ignoreUnknownKeys = true }
     private val imageStore = ToolImageStore(context)
     private val lock = Any()
     private val runtimes = mutableMapOf<String, Runtime>()
+    private val pendingBuilds = mutableMapOf<String, McpRuntimeBuildTicket>()
+    private var nextBuildGeneration = 0L
     private val _snapshots = MutableStateFlow<Map<String, McpServerSnapshot>>(emptyMap())
     val snapshots: StateFlow<Map<String, McpServerSnapshot>> = _snapshots.asStateFlow()
 
     init {
-        scope.launch {
+        scope.launch(workDispatcher) {
             settings.mcpServers.collect(::reconcile)
         }
     }
@@ -93,25 +139,24 @@ class McpRegistry(
             .firstOrNull { it.enabled && it.publicName == publicName }
 
     fun refresh(serverId: String) {
-        synchronized(lock) {
-            val current = settings.mcpServers.value.firstOrNull { it.id == serverId } ?: return
-            replaceRuntimeLocked(current)
+        scope.launch(workDispatcher) {
+            val current = currentConfig(serverId) ?: return@launch
+            rebuildRuntime(current, McpRuntimeRefreshReason.EXPLICIT)
         }
     }
 
     fun refreshOnPageEntry() {
-        val serverIds = mcpServerIdsForPageEntryRefresh(
-            configs = settings.mcpServers.value,
-            snapshots = snapshots.value,
-        )
-        synchronized(lock) {
+        scope.launch(workDispatcher) {
+            val configs = settings.mcpServers.value
+            val serverIds = mcpServerIdsForPageEntryRefresh(
+                configs = configs,
+                snapshots = snapshots.value,
+            )
             serverIds.forEach { serverId ->
-                val current = settings.mcpServers.value.firstOrNull {
-                    it.id == serverId && it.enabled && it.url.isNotBlank()
-                } ?: return@forEach
-                val runtime = runtimes[serverId]
-                if (runtime?.connectionJob?.isActive == true) return@forEach
-                replaceRuntimeLocked(current)
+                val current = currentConfig(serverId)
+                    ?.takeIf { it.enabled && it.url.isNotBlank() }
+                    ?: return@forEach
+                rebuildRuntime(current, McpRuntimeRefreshReason.PAGE_ENTRY)
             }
         }
     }
@@ -195,34 +240,76 @@ class McpRegistry(
     }
 
     private fun reconcile(configs: List<McpServerConfig>) {
-        synchronized(lock) {
-            val desiredIds = configs.mapTo(mutableSetOf(), McpServerConfig::id)
-            runtimes.keys.filter { it !in desiredIds }.forEach { id ->
-                runtimes.remove(id)?.close()
-            }
-            configs.forEach { config ->
-                val existing = runtimes[config.id]
-                when {
-                    !config.enabled || config.url.isBlank() -> {
-                        runtimes.remove(config.id)?.close()
-                        putSnapshot(
-                            McpServerSnapshot(
+        val desiredIds = configs.mapTo(mutableSetOf(), McpServerConfig::id)
+        val runtimesToClose = synchronized(lock) {
+            buildList {
+                runtimes.keys.filter { it !in desiredIds }.forEach { id ->
+                    pendingBuilds.remove(id)
+                    runtimes.remove(id)?.let(::add)
+                }
+                configs.filter { !it.enabled || it.url.isBlank() }.forEach { config ->
+                    pendingBuilds.remove(config.id)
+                    runtimes.remove(config.id)?.let(::add)
+                }
+            }.also {
+                _snapshots.update { current ->
+                    current.filterKeys(desiredIds::contains).toMutableMap().apply {
+                        configs.filter { !it.enabled || it.url.isBlank() }.forEach { config ->
+                            this[config.id] = McpServerSnapshot(
                                 serverId = config.id,
                                 status = McpConnectionStatus.IDLE,
-                            ),
-                        )
+                            )
+                        }
                     }
-                    existing?.config != config -> replaceRuntimeLocked(config)
                 }
             }
-            _snapshots.update { current ->
-                current.filterKeys(desiredIds::contains)
-            }
+        }
+        runtimesToClose.forEach(Runtime::close)
+        configs.filter { it.enabled && it.url.isNotBlank() }.forEach { config ->
+            rebuildRuntime(config, McpRuntimeRefreshReason.RECONCILE)
         }
     }
 
-    private fun replaceRuntimeLocked(config: McpServerConfig) {
-        runtimes.remove(config.id)?.close()
+    private fun rebuildRuntime(
+        config: McpServerConfig,
+        reason: McpRuntimeRefreshReason,
+    ) {
+        val build = synchronized(lock) {
+            if (currentConfig(config.id) != config) return
+            val runtime = runtimes[config.id]
+            val pending = pendingBuilds[config.id]
+            if (
+                !shouldStartMcpRuntimeBuild(
+                    reason = reason,
+                    config = config,
+                    runtimeConfig = runtime?.config,
+                    runtimeConnectionActive = runtime?.connectionJob?.isActive == true,
+                    pendingConfig = pending?.config,
+                )
+            ) {
+                return
+            }
+            val ticket = McpRuntimeBuildTicket(
+                generation = ++nextBuildGeneration,
+                config = config,
+            )
+            pendingBuilds[config.id] = ticket
+            RuntimeBuild(
+                ticket = ticket,
+                previousRuntime = runtimes.remove(config.id),
+            )
+        }
+
+        build.previousRuntime?.close()
+        putBuildSnapshotIfCurrent(
+            ticket = build.ticket,
+            snapshot = McpServerSnapshot(
+                serverId = config.id,
+                status = McpConnectionStatus.CONNECTING,
+                tools = snapshots.value[config.id]?.tools.orEmpty(),
+            ),
+        )
+
         val runtime = try {
             Runtime(
                 config = config,
@@ -233,51 +320,77 @@ class McpRegistry(
                 ),
             )
         } catch (e: IllegalArgumentException) {
-            putSnapshot(
-                McpServerSnapshot(
-                    serverId = config.id,
-                    status = McpConnectionStatus.ERROR,
-                    error = userMessage(e),
-                ),
-            )
+            finishBuildWithError(build.ticket, e)
             return
         }
-        runtimes[config.id] = runtime
-        runtime.connectionJob = launchConnectionLoop(runtime)
+        val connectionJob = launchConnectionLoop(runtime, start = CoroutineStart.LAZY)
+        runtime.connectionJob = connectionJob
+        val installed = synchronized(lock) {
+            if (
+                isCurrentMcpRuntimeBuild(
+                    ticket = build.ticket,
+                    pendingTicket = pendingBuilds[config.id],
+                    currentConfig = currentConfig(config.id),
+                )
+            ) {
+                pendingBuilds.remove(config.id)
+                runtimes[config.id] = runtime
+                true
+            } else {
+                false
+            }
+        }
+        if (installed) {
+            connectionJob.start()
+        } else {
+            runtime.close()
+        }
     }
 
-    private fun launchConnectionLoop(runtime: Runtime): Job = scope.launch(Dispatchers.IO) {
+    private fun launchConnectionLoop(
+        runtime: Runtime,
+        start: CoroutineStart = CoroutineStart.DEFAULT,
+    ): Job = scope.launch(workDispatcher, start = start) {
         var retryMs = INITIAL_RETRY_MS
         while (isActive && isCurrent(runtime)) {
-            putSnapshot(
-                McpServerSnapshot(
-                    serverId = runtime.config.id,
-                    status = McpConnectionStatus.CONNECTING,
-                    tools = snapshots.value[runtime.config.id]?.tools.orEmpty(),
-                ),
-            )
+            if (
+                !putRuntimeSnapshotIfCurrent(
+                    runtime = runtime,
+                    snapshot = McpServerSnapshot(
+                        serverId = runtime.config.id,
+                        status = McpConnectionStatus.CONNECTING,
+                        tools = snapshots.value[runtime.config.id]?.tools.orEmpty(),
+                    ),
+                )
+            ) {
+                return@launch
+            }
             try {
                 val remoteTools = runtime.client.listTools()
                     .distinctBy(McpRemoteTool::name)
                     .sortedBy(McpRemoteTool::name)
                 val descriptors = remoteTools.map { remote ->
-                        McpToolDescriptor(
-                            publicName = publicMcpToolName(runtime.config.id, remote.name),
-                            serverId = runtime.config.id,
-                            serverName = runtime.config.name.ifBlank { runtime.config.url },
-                            remote = remote,
-                            enabled = remote.name !in runtime.config.disabledTools,
-                        )
-                    }
-                if (!isCurrent(runtime)) return@launch
-                putSnapshot(
-                    McpServerSnapshot(
+                    McpToolDescriptor(
+                        publicName = publicMcpToolName(runtime.config.id, remote.name),
                         serverId = runtime.config.id,
-                        status = McpConnectionStatus.CONNECTED,
-                        tools = descriptors,
-                        lastSyncedAt = System.currentTimeMillis(),
-                    ),
-                )
+                        serverName = runtime.config.name.ifBlank { runtime.config.url },
+                        remote = remote,
+                        enabled = remote.name !in runtime.config.disabledTools,
+                    )
+                }
+                if (
+                    !putRuntimeSnapshotIfCurrent(
+                        runtime = runtime,
+                        snapshot = McpServerSnapshot(
+                            serverId = runtime.config.id,
+                            status = McpConnectionStatus.CONNECTED,
+                            tools = descriptors,
+                            lastSyncedAt = System.currentTimeMillis(),
+                        ),
+                    )
+                ) {
+                    return@launch
+                }
                 return@launch
             } catch (e: CancellationException) {
                 throw e
@@ -290,44 +403,113 @@ class McpRegistry(
     }
 
     private fun scheduleRetry(runtime: Runtime) {
-        synchronized(lock) {
-            if (!isCurrent(runtime) || runtime.connectionJob?.isActive == true) return
-            runtime.connectionJob = launchConnectionLoop(runtime)
+        scope.launch(workDispatcher) {
+            val retryJob = synchronized(lock) {
+                if (runtimes[runtime.config.id] !== runtime || runtime.connectionJob?.isActive == true) {
+                    return@launch
+                }
+                launchConnectionLoop(runtime, start = CoroutineStart.LAZY).also {
+                    runtime.connectionJob = it
+                }
+            }
+            retryJob.start()
         }
     }
 
     private fun updateConnected(runtime: Runtime, keepTools: Boolean) {
-        if (!isCurrent(runtime)) return
-        val previous = snapshots.value[runtime.config.id]
-        putSnapshot(
-            McpServerSnapshot(
-                serverId = runtime.config.id,
-                status = McpConnectionStatus.CONNECTED,
-                tools = if (keepTools) previous?.tools.orEmpty() else emptyList(),
-                lastSyncedAt = previous?.lastSyncedAt ?: System.currentTimeMillis(),
-            ),
-        )
+        synchronized(lock) {
+            if (runtimes[runtime.config.id] !== runtime) return
+            val previous = snapshots.value[runtime.config.id]
+            putSnapshotLocked(
+                McpServerSnapshot(
+                    serverId = runtime.config.id,
+                    status = McpConnectionStatus.CONNECTED,
+                    tools = if (keepTools) previous?.tools.orEmpty() else emptyList(),
+                    lastSyncedAt = previous?.lastSyncedAt ?: System.currentTimeMillis(),
+                ),
+            )
+        }
     }
 
     private fun markError(runtime: Runtime, error: Exception) {
-        if (!isCurrent(runtime)) return
-        DebugLog.e("McpRegistry", "MCP server ${runtime.config.id} failed", error)
-        val previous = snapshots.value[runtime.config.id]
-        putSnapshot(
-            McpServerSnapshot(
-                serverId = runtime.config.id,
-                status = McpConnectionStatus.ERROR,
-                tools = previous?.tools.orEmpty(),
-                error = userMessage(error),
-                lastSyncedAt = previous?.lastSyncedAt,
-            ),
-        )
+        val marked = synchronized(lock) {
+            if (runtimes[runtime.config.id] !== runtime) return
+            val previous = snapshots.value[runtime.config.id]
+            putSnapshotLocked(
+                McpServerSnapshot(
+                    serverId = runtime.config.id,
+                    status = McpConnectionStatus.ERROR,
+                    tools = previous?.tools.orEmpty(),
+                    error = userMessage(error),
+                    lastSyncedAt = previous?.lastSyncedAt,
+                ),
+            )
+            true
+        }
+        if (marked) {
+            DebugLog.e("McpRegistry", "MCP server ${runtime.config.id} failed", error)
+        }
+    }
+
+    private fun finishBuildWithError(ticket: McpRuntimeBuildTicket, error: Exception) {
+        synchronized(lock) {
+            if (
+                !isCurrentMcpRuntimeBuild(
+                    ticket = ticket,
+                    pendingTicket = pendingBuilds[ticket.config.id],
+                    currentConfig = currentConfig(ticket.config.id),
+                )
+            ) {
+                return
+            }
+            pendingBuilds.remove(ticket.config.id)
+            putSnapshotLocked(
+                McpServerSnapshot(
+                    serverId = ticket.config.id,
+                    status = McpConnectionStatus.ERROR,
+                    error = userMessage(error),
+                ),
+            )
+        }
+    }
+
+    private fun putBuildSnapshotIfCurrent(
+        ticket: McpRuntimeBuildTicket,
+        snapshot: McpServerSnapshot,
+    ): Boolean = synchronized(lock) {
+        if (
+            !isCurrentMcpRuntimeBuild(
+                ticket = ticket,
+                pendingTicket = pendingBuilds[ticket.config.id],
+                currentConfig = currentConfig(ticket.config.id),
+            )
+        ) {
+            false
+        } else {
+            putSnapshotLocked(snapshot)
+            true
+        }
+    }
+
+    private fun putRuntimeSnapshotIfCurrent(
+        runtime: Runtime,
+        snapshot: McpServerSnapshot,
+    ): Boolean = synchronized(lock) {
+        if (runtimes[runtime.config.id] !== runtime) {
+            false
+        } else {
+            putSnapshotLocked(snapshot)
+            true
+        }
     }
 
     private fun isCurrent(runtime: Runtime): Boolean =
         synchronized(lock) { runtimes[runtime.config.id] === runtime }
 
-    private fun putSnapshot(snapshot: McpServerSnapshot) {
+    private fun currentConfig(serverId: String): McpServerConfig? =
+        settings.mcpServers.value.firstOrNull { it.id == serverId }
+
+    private fun putSnapshotLocked(snapshot: McpServerSnapshot) {
         _snapshots.update { it + (snapshot.serverId to snapshot) }
     }
 

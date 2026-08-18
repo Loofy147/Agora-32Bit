@@ -3,6 +3,7 @@ package com.newoether.agora.viewmodel
 import com.newoether.agora.data.AutoBackupManager
 import com.newoether.agora.data.BackupResult
 import com.newoether.agora.data.MemoryManager
+import com.newoether.agora.data.SkillManager
 import com.newoether.agora.data.local.ChatEntity
 import com.newoether.agora.data.repository.ConversationRepository
 import com.newoether.agora.data.repository.SettingsRepository
@@ -29,6 +30,7 @@ class DataControlControllerTest {
         runTest {
             val conversations = mockk<ConversationRepository>()
             val memory = mockk<MemoryManager>()
+            val skills = mockk<SkillManager>()
             val settings = settings()
             coEvery { conversations.getAllConversationsList() } returns listOf(
                 ChatEntity("one", "One"),
@@ -38,14 +40,17 @@ class DataControlControllerTest {
                 MemoryManager.MemoryFileInfo("memory.md"),
             )
             every { memory.getActiveMemory() } returns "active"
+            every { skills.listFiles() } returns listOf(
+                SkillManager.SkillFileInfo("review.md"),
+            )
             coEvery { settings.getSystemPrompts() } returns emptyList()
-            val controller = controller(conversations, memory, settings)
+            val controller = controller(conversations, memory, skills, settings)
 
             controller.refreshCounts()
             runCurrent()
 
             assertEquals(2, controller.conversationCount.value)
-            assertEquals(2, controller.memoryCount.value)
+            assertEquals(3, controller.memoryCount.value)
             assertEquals(0, controller.systemPromptCount.value)
         }
 
@@ -105,12 +110,16 @@ class DataControlControllerTest {
     private fun TestScope.controller(
         conversations: ConversationRepository = mockk(),
         memory: MemoryManager = mockk(),
+        skills: SkillManager = mockk {
+            every { listFiles() } returns emptyList()
+        },
         settings: SettingsRepository = settings(),
         backupManager: AutoBackupManager = mockk(relaxed = true),
         schedule: AutoBackupSchedulePort = FakeAutoBackupSchedule(),
     ) = DataControlController(
         conversations = conversations,
         memory = memory,
+        skills = skills,
         settings = settings,
         backupManager = backupManager,
         backupSchedule = schedule,

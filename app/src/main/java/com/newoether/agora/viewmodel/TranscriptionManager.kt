@@ -185,7 +185,6 @@ class TranscriptionManager(
             onProgress(ChatMessage(
                 id = modelMessageId, parentId = parentId, text = "",
                 participant = Participant.MODEL, status = MessageStatus.TRANSCRIBING, timestamp = startTime,
-                retryText = "${processed + 1}/$total",
                 thoughtTitle = context.getString(R.string.transcription_label),
                 // Trailing empty answer segment keeps the timeline renderer active during
                 // transcription (it keys on the presence of an "answer" segment), so the
@@ -209,7 +208,6 @@ class TranscriptionManager(
                         onProgress(ChatMessage(
                             id = modelMessageId, parentId = parentId, text = "",
                             participant = Participant.MODEL, status = MessageStatus.TRANSCRIBING, timestamp = startTime,
-                            retryText = "${processed + 1}/$total",
                             thoughtTitle = context.getString(R.string.transcription_label),
                             // Trailing empty answer segment keeps the timeline renderer active during
                 // transcription (it keys on the presence of an "answer" segment), so the

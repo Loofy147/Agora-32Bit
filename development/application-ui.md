@@ -21,15 +21,12 @@ validation, persistence, or completion semantics.
 The onboarding Continue/Get Started action preserves its full-width role, page validation, paging,
 completion callback, enabled state, colors, and label semantics.
 
-Its press response reuses the Documentation FAB spring language with deliberately lower visual amplitude:
-
-- use one local press interaction source;
-- use spring stiffness `400f` and damping ratio `0.25f`;
-- reserve one fixed 56 dp outer-height slot so surrounding onboarding content does not jump;
-- animate horizontal inset from 32 dp at rest to 24 dp while pressed, making the full-width action
-  exactly 16 dp wider;
-- animate height from 48 dp to 50 dp and content scale from 1f to 1.02f while pressed;
-- when spatial transitions are disabled, keep 32 dp inset, 48 dp height, and 1f content scale.
+The action has no custom press-driven size, inset, or content-scale animation. It remains at its
+stable geometry of 32 dp horizontal inset, 48 dp height, and 1f content scale while pressed and at
+rest. The ordinary Material Button indication remains available, but the action does not own a
+`MutableInteractionSource`, pressed-state collector, spring, tween, or other custom press-motion
+state. Its existing outer layout, shape, color, enabled state, navigation, and completion behavior
+remain unchanged.
 
 ## 3. Settings category copy
 
@@ -64,9 +61,21 @@ compact-at-screen-top gradient geometry.
 
 ## 6. MCP page-entry refresh
 
-Entering the MCP Settings page triggers exactly one foreground refresh request for every enabled
-server with a nonblank URL, except a server already in CONNECTING state. The page delegates through
-the ViewModel to the process-wide `McpRegistry`; it does not create another connection authority.
+Entering the MCP Settings page submits exactly one refresh request for every enabled server with a
+nonblank URL, except a server already in CONNECTING state. The page delegates through the ViewModel to
+the process-wide `McpRegistry`; it does not create another connection authority. Public refresh entry
+points return without holding the Registry lock or constructing or closing a client on the caller
+thread. Runtime, client, and transport construction, replacement, close, and connection work run on
+the Registry's IO dispatcher under the process-wide AppContainer `appScope`, so page destruction does
+not cancel an accepted refresh.
+
+Page-entry requests are single-flight per exact server configuration. A second page-entry refresh
+coalesces with an active connection or pending build for that configuration. Every build receives a
+monotonic generation ticket, and installation plus snapshot publication require the ticket, current
+configuration, enabled state, nonblank URL, and runtime identity to remain current. A removed,
+disabled, or replaced configuration therefore fences out stale build, connection, and error results;
+stale clients are closed without replacing the newer runtime or snapshot.
+
 Recomposition and navigation within the page's editor do not retrigger refresh. No timer, delay loop,
 WorkManager job, alarm, service, background observer, or periodic polling participates. Existing
 Settings reconciliation, snapshot StateFlow, retry backoff, manual refresh, and runtime identity
@@ -154,10 +163,52 @@ PDF-authored colors or backgrounds, viewer motion, or attachment/LLM routing. A 
 or dependency is not introduced without separate evidence of a rendering defect that remains after
 opaque-white initialization.
 
-## 13. Verification
+## 13. Full-screen media window layering
 
-Focused verification must cover the exact onboarding spring constants, rest/pressed dimensions,
-motion-policy snap, unchanged action semantics, Generation Settings description, locale key/value
+A media preview opened from any Dialog-backed Bottom Sheet owns a subsequently created full-screen,
+edge-to-edge Dialog window. Window order is source Bottom Sheet below media viewer below the
+viewer-owned Image Actions Bottom Sheet created by long press. Compose `zIndex` is never treated as a
+cross-window ordering mechanism. Closing the viewer reveals the still-owned source sheet unless that
+sheet independently dismissed.
+
+The media Dialog draws one full-size, unscaled black backdrop, disables system window dimming, and
+owns that backdrop's alpha through the same retained visibility transition. The backdrop fades from
+transparent to black on entry and black to transparent on exit while the media-content layer keeps the
+existing shared fade/scale transition. Closing therefore reveals the underlying owner continuously
+instead of holding a fully black frame until Dialog destruction, while a content scale below 1f still
+cannot expose the square corners of a scaled black rectangle. Exact transition durations/easings,
+last-payload retention, Reduced Motion, pager gestures, and confirmed-video-only close waiting remain
+unchanged. The long-press Image Actions sheet remains a modal window created after and above the media
+Dialog. Its system window dim is disabled so the sheet-owned animated scrim is the only black overlay;
+long press must not introduce a one-frame opaque dim flash before the scrim fade.
+
+## 14. Composer clipboard images
+
+The Chat composer TextField participates in Compose Foundation receive-content dispatch for
+`image/*`. A clipboard paste may contribute one or multiple URI-backed images. Handled image items
+immediately enter the existing `ChatComposerState.onPickImages` private-copy, progress, rejection,
+preview, removal, draft, and send lifecycle; transient clipboard URIs are never persisted as the
+attachment's durable path.
+
+Only supported image URI items are consumed. Text and every unsupported clipboard item are returned
+to the TextField/platform so native text paste, cursor replacement, selection, undo, IME, and
+accessibility behavior remain intact. A mixed clipboard payload can therefore insert its text at the
+current selection and add its images as attachments. MIME resolution is defensive and copy failure
+uses localized existing/new attachment rejection presentation without crashing or leaving a phantom
+attachment.
+
+## 16. Drawer conversation-list loading and search progress
+
+The conversation drawer observes only the conversation fields required by navigation, selection, display, and the system-prompt dialog; it never materializes draft text, draft attachment metadata, or branch-selection blobs for that list. Its first emitted snapshot is loading, distinct from a genuinely empty library, and a motion-aware circular indicator fades in and out over the list area.
+
+Conversation search exposes a separate in-flight state from the moment a nonblank query is accepted through debounce and the existing literal/semantic query. Its circular indicator fades in and out in the search field, does not alter query debounce or ranking, and cancellation, clearing, or failure cannot leave a stuck indicator. The retained prior result may remain visible while a new query is pending.
+
+The drawer's first-list state is not a second conversation authority or a new search architecture; Room remains the durable source and the existing search methods remain authoritative.
+
+## 15. Verification
+
+Focused verification must cover the onboarding action's fixed 32 dp inset and 48 dp height, absence
+of custom press-size/inset/content-scale state, and unchanged action semantics, Generation Settings description, locale key/value
 parity for the Context and Thinking-segment labels, absence of the removed context-window wording,
 24 dp leading-icon parity across both chat-bottom dropdowns without resizing their triggers, absence
 of the Detailed token usage Appearance row and dead chat-side parameter threading, the Tool Blocks ->
@@ -172,5 +223,9 @@ both Markdown and ordinary-text paths, exact 1.1 Markdown line-height scaling, e
 unchanged Markdown font sizes, and the unchanged 13 sp / 20 sp ordinary-text metrics. It must also
 cover both shared full-screen transition hosts, the exact fade/scale durations and easings, Reduced
 Motion's fade-only fallback, last-payload retention, release only after settled exit, confirmed-video
-close waiting, immediate non-video handoff, and absence of a duplicate pager close delay. The
-project-defined full build gate remains required after final code or resource changes.
+close waiting, immediate non-video handoff, and absence of a duplicate pager close delay. Media
+verification also covers Dialog-over-sheet ordering, viewer-owned action-sheet ordering, unscaled
+full-screen backdrop, and no scale-below-one corner exposure. Composer verification covers single and
+multiple image URI paste, mixed image/text pass-through, unsupported content pass-through, immediate
+private-copy routing, and failure cleanup. The project-defined full build gate remains required after
+final code or resource changes.

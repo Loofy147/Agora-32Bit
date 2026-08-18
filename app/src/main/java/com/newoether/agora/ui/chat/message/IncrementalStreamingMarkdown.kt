@@ -8,6 +8,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.State as ComposeState
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
@@ -19,9 +20,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
 import com.newoether.agora.util.NoAutoScrollSelectionContainer
 import com.mikepenz.markdown.compose.LocalMarkdownInlineContent
 import com.mikepenz.markdown.compose.MarkdownElement
@@ -727,6 +733,94 @@ internal fun rememberStreamingGlyphFade(
             birthTimesMs = fadeSample.birthTimesMs,
             nowMs = fadeClockMs,
         )
+    }
+}
+
+@Stable
+internal class StreamingGlyphFadeDrawState(
+    val content: String,
+    val sample: StreamingTailFadeSample,
+    val enabled: Boolean,
+    val nowMs: ComposeState<Long>,
+)
+
+/**
+ * Keeps the full AnnotatedString and TextLayoutResult unchanged. The newest glyphs are faded only
+ * in the draw phase, so terminalization cannot change shaping, kerning, line breaks, or selection.
+ */
+@Composable
+internal fun rememberStreamingGlyphFadeDrawState(
+    content: String,
+    enabled: Boolean,
+): StreamingGlyphFadeDrawState {
+    val fadeTracker = remember { StreamingTailFadeTracker() }
+    val sample = remember(content, fadeTracker) {
+        fadeTracker.update(content, SystemClock.uptimeMillis())
+    }
+    val fadeClockMs = remember { mutableLongStateOf(sample.observedAtMs) }
+    LaunchedEffect(sample, enabled) {
+        fadeClockMs.longValue = sample.observedAtMs
+        if (!enabled) return@LaunchedEffect
+        while (
+            streamingTailFadeActive(
+                birthTimesMs = sample.birthTimesMs,
+                nowMs = fadeClockMs.longValue,
+            )
+        ) {
+            delay(STREAM_TAIL_FADE_TICK_MS)
+            fadeClockMs.longValue = SystemClock.uptimeMillis()
+        }
+    }
+    return remember(sample, enabled, fadeClockMs) {
+        StreamingGlyphFadeDrawState(
+            content = content,
+            sample = sample,
+            enabled = enabled,
+            nowMs = fadeClockMs,
+        )
+    }
+}
+
+internal fun Modifier.stableStreamingGlyphFade(
+    fadeState: StreamingGlyphFadeDrawState,
+    layoutResult: () -> TextLayoutResult?,
+): Modifier = graphicsLayer {
+    compositingStrategy = CompositingStrategy.Offscreen
+}.drawWithContent {
+    drawContent()
+    if (!fadeState.enabled) return@drawWithContent
+    val layout = layoutResult() ?: return@drawWithContent
+    val rawText = fadeState.content
+    if (rawText.isEmpty()) return@drawWithContent
+    val codePointCount = rawText.codePointCount(0, rawText.length)
+    val fadedCount = min(codePointCount, STREAM_TAIL_FADE_CODE_POINTS)
+    if (fadedCount <= 0 || fadeState.sample.birthTimesMs.size != fadedCount) {
+        return@drawWithContent
+    }
+    val prefixCodePoints = codePointCount - fadedCount
+    val actualBands = min(STREAM_TAIL_ALPHA_BANDS, fadedCount)
+    val nowMs = fadeState.nowMs.value
+    repeat(fadedCount) { suffixIndex ->
+        val charOffset = rawText.offsetByCodePoints(0, prefixCodePoints + suffixIndex)
+        if (charOffset >= layout.layoutInput.text.length) return@repeat
+        val band = suffixIndex * actualBands / fadedCount
+        val progress = (band + 1).toFloat() / actualBands.toFloat()
+        val spatialAlpha = 1f - progress * (1f - STREAM_TAIL_NEWEST_ALPHA)
+        val ageSeconds = (
+            nowMs - fadeState.sample.birthTimesMs[suffixIndex]
+        ).coerceAtLeast(0L) / 1_000f
+        val alpha = (
+            spatialAlpha + STREAM_TAIL_ALPHA_PER_SECOND * ageSeconds
+        ).coerceIn(0f, 1f)
+        if (alpha < 0.999f) {
+            val bounds = layout.getBoundingBox(charOffset)
+            drawRect(
+                color = Color.Black.copy(alpha = alpha),
+                topLeft = bounds.topLeft,
+                size = bounds.size,
+                blendMode = BlendMode.DstIn,
+            )
+        }
     }
 }
 

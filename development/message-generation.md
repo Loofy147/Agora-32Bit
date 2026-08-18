@@ -265,10 +265,22 @@ Markdown algorithm or switch to a different terminal renderer merely because str
 
 The implementation is only a parameterized UI variant. Its allowed inputs include Markdown
 content, streaming state, render context, font/size/color, and a generic animated empty-stream
-presentation. Every live Markdown variant uses the same bounded, position-based trailing-glyph fade;
-a caller must not disable that fade merely to hide a surrounding answering-tail dot. The ordinary
-message list may own that separate dot, while Thinking and Compact Bottom Sheets omit it without
-changing Markdown rendering. Typography or placeholder differences must remain parameterized.
+presentation. Every append-growing live text surface uses one bounded, age-based trailing-glyph
+fade: ordinary/timeline answer Markdown and plain/code leaves, Thinking previews/summaries in
+Compact/Timeline/detail-sheet modes, Tool summaries derived from streaming arguments or live state,
+and equivalent live detail text. Static titles, terminal labels, Retry, error text, and citation
+metadata do not replay this stream animation merely because they share typography.
+
+The fade is draw-only. One unchanged full AnnotatedString/Text layout owns shaping, kerning, wrapping,
+alignment, semantics, links, citations, selection mapping, search highlights, and code controls while
+only glyph paint alpha changes. Terminal settlement must not remove temporary foreground spans,
+replace the Text/Markdown implementation, reset the paint origin, or otherwise create a left jump.
+New appended code points receive their own birth time; existing glyphs keep their age and do not
+replay when another delta arrives. The finite Welcome/Onboarding typewriter may share the same
+low-level stable glyph-paint primitive, but it is not the scope boundary. A caller must not disable
+the streaming fade merely to hide a surrounding answering-tail dot. The ordinary message list may
+own that separate dot, while Thinking and Compact Bottom Sheets omit it without changing text
+rendering. Typography or placeholder differences remain parameterized.
 
 Finalized Thinking Bottom Sheet Markdown is selectable in every rendering branch, including the
 virtualized single-segment long-document path. Selection uses the shared no-auto-scroll selection
@@ -311,15 +323,19 @@ protocol and terminal contracts.
 Ordinary assistant messages render no general-purpose status row. Sending, Thinking, answering,
 terminal success/token usage, stopped, and failed labels must not restore that variable-height legacy
 row. Its historical position above all Thinking/tool/answer content instead retains exactly one empty,
-status-independent 8 dp vertical spacer. This is a fixed height, not a minimum-height threshold, and it
+status-independent 6 dp vertical spacer. This is a fixed height, not a minimum-height threshold, and it
 never hosts or alters the current below-Thinking pre-output/Retry activity.
 Generation ERROR and STOPPED render text only: no Surface/background, rounded outline, Info icon,
 icon gap, or inner container padding. Both use the exact Retry label tokens, `ChatType.body` and
 `onSurfaceVariant` at 0.55 alpha, but neither uses Retry's grapheme entrance or active white dot.
 ERROR remains full-line, multiline, and selectable with its nonblank detail; STOPPED remains a
 localized content-width label. Their existing contextual outer vertical separation remains, and
-their durable ERROR versus STOPPED semantics stay distinct. Compact capsule error/stopped chrome is
-independent and unchanged.
+their durable ERROR versus STOPPED semantics stay distinct. When the immediately preceding visible
+Assistant content is a Thinking/Tool/Transcription card, either terminal label receives exactly 12 dp
+of top separation. When answer Markdown is the immediately preceding visible content, the established
+text-to-terminal spacing remains unchanged. Timeline mode derives adjacency from its final visible
+segment; the mere existence of an earlier card does not add spacing. Compact capsule error/stopped
+chrome and detail-sheet defaults are independent and unchanged.
 
 Generation activity uses one direct, layout-owned white dot at the currently active slot.
 No transparent source marker, visual clone, source registry, coordinate follower, match-parent overlay,
@@ -330,7 +346,9 @@ active slot draws the shared dot.
 
 Pre-output keeps the exact 11 dp dot. A no-Answer transition to visible
 Thought/Tool/Transcription content or terminal disappearance retains the last non-hidden inline mode
-through its unchanged 320 ms exit. Visible Answer activation is instead an immediate direct-source
+through its unchanged 320 ms exit. In ordinary motion, the inline host's layout height collapses over
+the same 320 ms as its opacity; Reduced Motion snaps only that spatial height while preserving the
+320 ms opacity feedback. Visible Answer activation is instead an immediate direct-source
 handoff: the pre-output/Retry host releases layout and stops drawing in that frame, and the answer-tail
 dot is the only source from its first frame at the final anchor. The outgoing inline Row must never
 temporarily inflate message height beneath a newly visible Answer. Retry keeps the localized label,
@@ -367,7 +385,7 @@ unbounded horizontal constraints. Merely calculating parent width plus 8 dp and 
 discard or displace the right extension. This external-only rule must not change header or segment
 content padding. It must not use card-level `animateContentSize`: an explicit
 400 ms width-only transition matches the existing 400 ms vertical expansion/collapse and animates
-between the measured localized header width plus a 12 dp anti-ellipsis allowance and the extended
+between the measured localized header width plus a 6 dp anti-ellipsis allowance and the extended
 parent maximum width with a fast-start, slow-finish `LinearOutSlowInEasing` curve. The collapsed
 target remains capped by the available width. The animated width belongs only to the card shell:
 leading header content and expanded content retain a stable target layout width, remain anchored at
@@ -483,10 +501,12 @@ ordinary Timeline card or grouped Timeline row always opens the selected segment
 Only a Grouped/Compact card that is actually presented in Bottom Sheet mode opens the segment-list
 page first; click intent is passed explicitly and is never recomputed from the raw stored preference.
 
-Failed tool-detail content inside the shared Thinking/Tool bottom-sheet path keeps its full-width
-rounded error bar and selectable text but uses a neutral gray palette: `surfaceVariant` at 55%
-alpha with `onSurfaceVariant` content. It must not use `errorContainer` or `onErrorContainer`.
-Ordinary generation errors remain the established neutral text-only presentation. Destructive
+Failed and stopped tool-detail content inside the shared Thinking/Tool bottom-sheet path reuses the
+same neutral gray body-text terminal presentation as ordinary message content. Failed text remains
+selectable and full-width, but neither state may introduce a `Surface`, rounded background, card, or
+Thinking-specific typography. Web Search follows this shared Tool terminal contract; only its
+EMPTY/COMPLETED result content uses the specialized search-result presentation. Message-level errors
+remain owned by the Assistant message and must not be copied into every Segment detail. Destructive
 actions, non-sheet validation text, and unboxed image-load failures retain their own semantics.
 
 ### 8.8 Empty output and automatic handoff
@@ -561,10 +581,34 @@ unmatched executable-code part leaves a tool in flight so semantic termination f
 
 If the official service, selected model, or compatible relay rejects `web_search`,
 `service_tier`, reasoning summary, or the Responses request itself, that failure is an ordinary
-generation error. Persist the provider's bounded error text and render it through the existing red
-error bar. Do not silently retry without the parameter, fall back to Chat Completions or generic Web
-Search, auto-disable a setting, show the generated response as an error, or use a Snackbar-only or
-parallel error presentation.
+generation error. Persist the provider's bounded error text and render it through the shared neutral
+text-only generation terminal presentation. Do not silently retry without the parameter, fall back
+to Chat Completions or generic Web Search, auto-disable a setting, show the generated response as an
+error, or use a Snackbar-only or parallel error presentation.
+
+Non-success HTTP response parsing is independent of the response Content-Type and is shared by the
+OpenAI-compatible, Anthropic, Gemini, and Ollama transports. It accepts canonical nested Provider
+envelopes, primitive `error` values, common top-level message fields, and JSON string roots. A
+nonblank body that does not match those structures remains visible as trimmed raw text; an empty
+body falls back deterministically to its HTTP status. HTTP response failures use the API-error path,
+while connection, DNS, TLS, timeout, and other transport failures remain network errors. Persisted
+legacy network wrappers reuse the same structured detail extraction so current and historical
+presentation cannot drift.
+
+Provider-emitted structured thought events pass through one shared Provider-pass boundary before
+stream accumulation. A compatible relay that leaves final-answer bytes in its thought field may use
+a supported unmatched closing delimiter as the boundary: outside Markdown code, the prefix remains
+a `ThoughtChunk`, the delimiter is removed, and the suffix plus later misrouted thought chunks become
+ordinary text. Matching is case-insensitive and incremental across transport chunks. This fallback is
+one-way and applies only after the wire adapter has already classified content as thought; ordinary
+text and code literals are never globally stripped or reclassified. Thought title/signature metadata
+and the relative order of tool, usage, citation, retry, and terminal-error events remain intact.
+
+Rows persisted before this normalization use the same narrow condition at the shared Room projection:
+only an assistant row with blank durable answer text, no nonblank answer segment, and a nonblank
+suffix after a supported close in a thought segment is recovered. UI and Provider-history projection
+both split that segment into thought plus answer without mutating Room, so visible history and the
+next request cannot drift. A real durable answer always wins and disables compatibility recovery.
 
 ### 8.10 Provider reuse and mandatory minimum-abstraction rule
 
@@ -704,4 +748,4 @@ reachable safe prefix. It must never jump to a Compact on another branch.
 | Request terminal role | Compact dispatch appends one non-durable initial USER invocation after an Assistant or tool-result parent; provider-visible input ends USER and fixed token accounting includes it. |
 | Provider-hosted output | OpenAI-compatible Responses requests serialize enabled `web_search`, selected `service_tier`, and reasoning summaries; summary indices preserve part boundaries and headings supply titles; OpenAI Search and Gemini Google Search/Code Execution settle display-only tool blocks without local execution; Gemini Code Execution replays typed parts and fails closed when a result is missing. |
 | Races and failures | Stop before/after bind, consecutive origin/Compact release suppressions in both settlement orders, selection drift, missing target/status, transaction rollback, stale callbacks, checkpoint-versus-terminal ordering, and queue claim failure. |
-| UI stability | Compact row/pill vertical bounds do not change across progress and terminal content; entrance is draw-only and does not alter apparent vertical spacing; error colors match the shared error bar theme tokens and alpha. |
+| UI stability | Compact row/pill vertical bounds do not change across progress and terminal content; entrance is draw-only and does not alter apparent vertical spacing; message and Thinking Tool terminal text reuse the shared neutral body-text tokens and alpha without Segment error cards. |

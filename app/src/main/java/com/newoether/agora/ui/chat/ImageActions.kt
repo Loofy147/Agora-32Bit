@@ -1,6 +1,8 @@
 package com.newoether.agora.ui.chat
 
 import com.newoether.agora.ui.components.DialogWindowEdgeToEdge
+import com.newoether.agora.ui.components.DialogWindowNoSystemAnimation
+import com.newoether.agora.ui.components.DialogWindowNoSystemDim
 
 import android.content.ContentValues
 import android.content.Context
@@ -8,7 +10,17 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -20,19 +32,25 @@ import com.newoether.agora.ui.motion.MotionAwareCircularProgressIndicator as Cir
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.FileProvider
 import com.newoether.agora.R
+import com.newoether.agora.api.HttpClient
 import com.newoether.agora.ui.motion.LocalAgoraMotionPolicy
 import com.newoether.agora.ui.motion.MotionAwareModalBottomSheet as ModalBottomSheet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.Request
+import java.io.Closeable
 import java.io.File
 import java.io.InputStream
 import java.io.IOException
@@ -47,9 +65,66 @@ private fun directImageFile(url: String): File? {
     return path?.let(::File)?.takeIf(File::isFile)
 }
 
-private fun openImageInput(context: Context, url: String): InputStream? =
-    directImageFile(url)?.inputStream()
-        ?: context.contentResolver.openInputStream(Uri.parse(url))
+private class OpenedImageSource(
+    val input: InputStream,
+    val sizeBytes: Long?,
+    private val closeSource: () -> Unit = {},
+) : Closeable {
+    override fun close() {
+        try {
+            input.close()
+        } finally {
+            closeSource()
+        }
+    }
+}
+
+private fun openImageSource(context: Context, url: String): OpenedImageSource? {
+    directImageFile(url)?.let { file ->
+        return OpenedImageSource(file.inputStream(), file.length().takeIf { it >= 0L })
+    }
+    if (url.startsWith("http://", ignoreCase = true) ||
+        url.startsWith("https://", ignoreCase = true)
+    ) {
+        val response = HttpClient.client.newCall(
+            Request.Builder().url(url).get().build(),
+        ).execute()
+        if (!response.isSuccessful) {
+            response.close()
+            return null
+        }
+        val body = response.body
+        return OpenedImageSource(
+            input = body.byteStream(),
+            sizeBytes = body.contentLength().takeIf { it >= 0L },
+            closeSource = response::close,
+        )
+    }
+
+    val uri = Uri.parse(url)
+    context.contentResolver.openAssetFileDescriptor(uri, "r")?.let { descriptor ->
+        return OpenedImageSource(
+            input = descriptor.createInputStream(),
+            sizeBytes = descriptor.length.takeIf { it >= 0L },
+            closeSource = descriptor::close,
+        )
+    }
+    return context.contentResolver.openInputStream(uri)?.let { input ->
+        OpenedImageSource(input = input, sizeBytes = null)
+    }
+}
+
+private fun countImageBytes(context: Context, url: String): Long? =
+    openImageSource(context, url)?.use { source ->
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        var total = 0L
+        while (true) {
+            val read = source.input.read(buffer)
+            if (read < 0) break
+            total += read
+        }
+        total
+    }
 
 /** Save the image into the device gallery (Pictures/Agora). Returns true on success. */
 suspend fun saveImageToGallery(context: Context, url: String): Boolean = withContext(Dispatchers.IO) {
@@ -68,12 +143,12 @@ suspend fun saveImageToGallery(context: Context, url: String): Boolean = withCon
         val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
             ?: return@withContext false
         destination = uri
-        val input = openImageInput(context, url)
+        val imageSource = openImageSource(context, url)
             ?: throw IOException("Unable to open source image")
-        input.use { source ->
+        imageSource.use { source ->
             val output = resolver.openOutputStream(uri)
                 ?: throw IOException("Unable to open gallery destination")
-            output.use { sink -> source.copyTo(sink) }
+            output.use { sink -> source.input.copyTo(sink) }
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             values.clear()
@@ -92,9 +167,9 @@ suspend fun shareImage(context: Context, url: String): Boolean = withContext(Dis
     try {
         val dir = File(context.cacheDir, "shared").apply { mkdirs() }
         val file = File(dir, "agora_${System.currentTimeMillis()}.jpg")
-        val input = openImageInput(context, url) ?: return@withContext false
-        input.use { source ->
-            file.outputStream().use { sink -> source.copyTo(sink) }
+        val imageSource = openImageSource(context, url) ?: return@withContext false
+        imageSource.use { source ->
+            file.outputStream().use { sink -> source.input.copyTo(sink) }
         }
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = Intent(Intent.ACTION_SEND).apply {
@@ -113,21 +188,25 @@ suspend fun shareImage(context: Context, url: String): Boolean = withContext(Dis
     }
 }
 
-private data class ImageInfo(val width: Int, val height: Int, val sizeBytes: Long)
+private data class ImageInfo(val width: Int, val height: Int, val sizeBytes: Long?)
 
 private fun readImageInfo(context: Context, url: String): ImageInfo? {
     return try {
         val opts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        openImageInput(context, url)?.use { input ->
-            android.graphics.BitmapFactory.decodeStream(input, null, opts)
-        } ?: return null
-        val size = directImageFile(url)?.length()
-            ?: context.contentResolver
-                .openAssetFileDescriptor(Uri.parse(url), "r")
-                ?.use { descriptor -> descriptor.length.takeIf { it >= 0L } }
-            ?: 0L
-        ImageInfo(opts.outWidth, opts.outHeight, size)
-    } catch (_: Exception) { null }
+        val imageSource = openImageSource(context, url) ?: return null
+        val reportedSize = imageSource.use { source ->
+            android.graphics.BitmapFactory.decodeStream(source.input, null, opts)
+            source.sizeBytes
+        }
+        if (opts.outWidth <= 0 || opts.outHeight <= 0) return null
+        ImageInfo(
+            width = opts.outWidth,
+            height = opts.outHeight,
+            sizeBytes = reportedSize ?: countImageBytes(context, url),
+        )
+    } catch (_: Exception) {
+        null
+    }
 }
 
 private fun formatBytes(n: Long): String = when {
@@ -145,20 +224,21 @@ fun ImageActionsSheet(url: String, onMessage: (String) -> Unit, onDismiss: () ->
     var imageInfo by remember(url) { mutableStateOf<ImageInfo?>(null) }
     var imageInfoLoading by remember(url) { mutableStateOf(false) }
     var sheetVisible by remember(url) { mutableStateOf(true) }
+    var actionInFlight by remember(url) { mutableStateOf(false) }
     val motionPolicy = LocalAgoraMotionPolicy.current
     val sheetState = rememberModalBottomSheetState()
 
-    // Animate the sheet down before running the action, so every option exits with a
-    // collapse animation instead of vanishing abruptly. The composable stays in
-    // composition during hide(), so actions that need it (the Info dialog, an in-flight
-    // save) keep working.
+    // Dispose the sheet window before opening another modal. Keeping a hidden sheet Dialog alive
+    // while creating the Info Dialog lets their independent window animations race.
     fun collapseThen(action: () -> Unit) {
-        if (motionPolicy.allowSpatialTransitions) {
-            scope.launch {
-                try { sheetState.hide() } finally { action() }
+        if (actionInFlight) return
+        actionInFlight = true
+        scope.launch {
+            if (motionPolicy.allowSpatialTransitions) {
+                sheetState.hide()
             }
-        } else {
             sheetVisible = false
+            withFrameNanos { }
             action()
         }
     }
@@ -196,6 +276,7 @@ fun ImageActionsSheet(url: String, onMessage: (String) -> Unit, onDismiss: () ->
     if (sheetVisible) {
         ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
             DialogWindowEdgeToEdge()
+            DialogWindowNoSystemDim()
             Column(modifier = Modifier.navigationBarsPadding().padding(bottom = 12.dp)) {
                 ActionRow(Icons.Default.Download, stringResource(R.string.img_action_save)) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) collapseThen { doSave() }
@@ -212,33 +293,153 @@ fun ImageActionsSheet(url: String, onMessage: (String) -> Unit, onDismiss: () ->
     }
 
     if (showInfo) {
-        AlertDialog(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            onDismissRequest = { showInfo = false; onDismiss() },
-            title = { Text(stringResource(R.string.info), fontWeight = FontWeight.Bold) },
-            text = {
-                if (imageInfoLoading) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator()
-                    }
+        StableImageInfoDialog(
+            imageInfo = imageInfo,
+            loading = imageInfoLoading,
+            onDismissed = {
+                showInfo = false
+                onDismiss()
+            },
+        )
+    }
+}
+
+@Composable
+private fun StableImageInfoDialog(
+    imageInfo: ImageInfo?,
+    loading: Boolean,
+    onDismissed: () -> Unit,
+) {
+    val motionPolicy = LocalAgoraMotionPolicy.current
+    val currentOnDismissed by rememberUpdatedState(onDismissed)
+    var visible by remember { mutableStateOf(false) }
+    val transition = updateTransition(visible, label = "imageInfoDialog")
+    var dismissalRequested by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        visible = true
+    }
+
+    fun requestDismiss() {
+        if (dismissalRequested) return
+        dismissalRequested = true
+        visible = false
+    }
+
+    LaunchedEffect(
+        dismissalRequested,
+        transition.currentState,
+        transition.isRunning,
+    ) {
+        if (dismissalRequested && !transition.currentState && !transition.isRunning) {
+            currentOnDismissed()
+        }
+    }
+
+    Dialog(
+        onDismissRequest = ::requestDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
+        ),
+    ) {
+        DialogWindowEdgeToEdge()
+        DialogWindowNoSystemDim()
+        DialogWindowNoSystemAnimation()
+        Box(modifier = Modifier.fillMaxSize()) {
+            transition.AnimatedVisibility(
+                visible = { it },
+                enter = fadeIn(tween(180)),
+                exit = fadeOut(tween(160)),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                val scrimInteraction = remember { MutableInteractionSource() }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.32f))
+                        .clickable(
+                            interactionSource = scrimInteraction,
+                            indication = null,
+                            onClick = ::requestDismiss,
+                        ),
+                )
+            }
+            transition.AnimatedVisibility(
+                visible = { it },
+                enter = if (motionPolicy.allowSpatialTransitions) {
+                    fadeIn(tween(180)) + scaleIn(
+                        initialScale = 0.94f,
+                        animationSpec = tween(220, easing = FastOutSlowInEasing),
+                    )
                 } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        InfoLine(
-                            stringResource(R.string.img_info_dimensions),
-                            imageInfo?.let { "${it.width} × ${it.height}" } ?: "—",
+                    fadeIn(tween(180))
+                },
+                exit = if (motionPolicy.allowSpatialTransitions) {
+                    fadeOut(tween(140)) + scaleOut(
+                        targetScale = 0.96f,
+                        animationSpec = tween(160, easing = FastOutSlowInEasing),
+                    )
+                } else {
+                    fadeOut(tween(140))
+                },
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 28.dp),
+            ) {
+                val dialogInteraction = remember { MutableInteractionSource() }
+                Surface(
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    modifier = Modifier
+                        .widthIn(min = 280.dp, max = 560.dp)
+                        .clickable(
+                            interactionSource = dialogInteraction,
+                            indication = null,
+                            onClick = {},
+                        ),
+                ) {
+                    Column(modifier = Modifier.padding(24.dp)) {
+                        Text(
+                            text = stringResource(R.string.info),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
                         )
-                        InfoLine(
-                            stringResource(R.string.img_info_size),
-                            imageInfo?.let { formatBytes(it.sizeBytes) } ?: "—",
-                        )
+                        Spacer(Modifier.height(20.dp))
+                        if (loading) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(64.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                InfoLine(
+                                    stringResource(R.string.img_info_dimensions),
+                                    imageInfo?.let { "${it.width} × ${it.height}" } ?: "—",
+                                )
+                                InfoLine(
+                                    stringResource(R.string.img_info_size),
+                                    imageInfo?.sizeBytes?.let(::formatBytes) ?: "—",
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(16.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                        ) {
+                            TextButton(onClick = ::requestDismiss) {
+                                Text(stringResource(R.string.provider_close))
+                            }
+                        }
                     }
                 }
-            },
-            confirmButton = { TextButton(onClick = { showInfo = false; onDismiss() }) { Text(stringResource(R.string.provider_close)) } }
-        )
+            }
+        }
     }
 }
 

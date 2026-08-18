@@ -431,7 +431,6 @@ internal fun MessageItem(
             isStreaming = isStreaming,
             markdownRenderContext = thoughtMarkdownRenderContext,
             onMediaClick = onMediaClick,
-            errorText = detailErrorText,
             handleBackInternally = detailUsesExplicitBackHandler,
             showSegmentListFirst = detailUsesExplicitBackHandler,
             onDismiss = { showSegmentDetail = false }

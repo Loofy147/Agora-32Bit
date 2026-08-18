@@ -59,7 +59,8 @@ class StreamingMarkdownMessageSourceContractTest {
         assertFalse(errorBar.contains("mutableState"))
         assertFalse(errorBar.contains("MessageStatus"))
         assertFalse(wrapper.contains("GenerationErrorBar"))
-        assertTrue(assistant.contains("GenerationErrorBar(errorContent.errorText)"))
+        assertTrue(assistant.contains("GenerationErrorBar("))
+        assertTrue(assistant.contains("precededByCard = terminalImmediatelyFollowsCard"))
         assertTrue(detail.contains("GenerationErrorBar(it)"))
     }
 

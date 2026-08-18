@@ -2,6 +2,7 @@ package com.newoether.agora.ui.components
 
 import android.graphics.Color
 import android.os.Build
+import android.view.WindowManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalView
@@ -24,5 +25,28 @@ fun DialogWindowEdgeToEdge() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
         }
+    }
+}
+
+/**
+ * Removes Android's independently applied Dialog dim layer. The owning Compose surface must draw
+ * and animate its own backdrop/scrim so window creation cannot introduce a one-frame black flash.
+ */
+@Composable
+fun DialogWindowNoSystemDim() {
+    val window = (LocalView.current.parent as? DialogWindowProvider)?.window ?: return
+    SideEffect {
+        window.setDimAmount(0f)
+        window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+    }
+}
+
+/** Lets Compose own the complete enter/exit motion instead of combining it with a platform
+ * window animation whose direction can vary as adjacent dialog windows are removed. */
+@Composable
+fun DialogWindowNoSystemAnimation() {
+    val window = (LocalView.current.parent as? DialogWindowProvider)?.window ?: return
+    SideEffect {
+        window.setWindowAnimations(0)
     }
 }

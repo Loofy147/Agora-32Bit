@@ -54,9 +54,27 @@ count or total cached text.
 - Logs may contain aggregate row counts, invalid-row counts, dimensions, and scores, but no source
   message text, embedding bytes, credentials, or conversation content.
 
-## 5. Required verification
+## 5. Cache-count presentation
 
-Focused verification must cover multiple pages, ranking across page boundaries, strict threshold
+Conversation Search cache-count status is a retained aggregate projection, not a page-owned sequence
+of per-model scans. `RagManager` starts one eager refresh when it is created, coalesces overlapping
+page-entry or mutation refresh requests, and immediately exposes its last complete snapshot. One
+bounded DAO aggregate returns cached counts grouped by configured model id while the indexable-message
+total is read independently; no query returns message text or embedding blobs. The embeddings schema
+maintains a model-leading index so model-count work is not forced through the `(messageId, modelId)`
+unique index. Page entry may request freshness but must not blank the retained snapshot or issue N+1
+sequential model counts. Cache/model mutations keep their existing explicit refresh ownership.
+
+No timer, polling loop, periodic Worker, or continuously invalidating Room Flow is introduced for this
+status. Startup/page refresh failure retains the previous snapshot and logs only aggregate diagnostics.
+Semantic ranking remains governed by the bounded search path above; count optimization cannot
+materialize, decode, rank, delete, or rebuild embedding rows.
+
+## 6. Required verification
+
+Focused verification must cover aggregate count mapping, configured models with no rows, coalesced
+refresh, retained-snapshot behavior, the model-leading migration/index, and absence of page-owned N+1
+count loops. Semantic-search verification must still cover multiple pages, ranking across page boundaries, strict threshold
 exclusion, bounded retained candidates, deterministic equal-score ordering, empty results,
 dimension/byte-shape corruption, non-finite vectors, and a source/DAO contract preventing the
 unbounded full-list hot path from returning.

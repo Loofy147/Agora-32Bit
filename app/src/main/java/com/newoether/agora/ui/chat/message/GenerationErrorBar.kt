@@ -57,10 +57,14 @@ internal fun GenerationTerminalText(
 internal fun GenerationErrorBar(
     errorText: String,
     modifier: Modifier = Modifier,
+    precededByCard: Boolean = false,
 ) {
     GenerationTerminalText(
         text = errorText,
-        modifier = modifier.padding(vertical = 4.dp),
+        modifier = modifier.padding(
+            top = if (precededByCard) 12.dp else 4.dp,
+            bottom = 4.dp,
+        ),
         selectable = true,
         fillWidth = true,
         normalizeError = true,
@@ -70,9 +74,12 @@ internal fun GenerationErrorBar(
 @Composable
 internal fun StoppedGenerationBar(
     hasBodyContent: Boolean,
+    precededByCard: Boolean = false,
 ) {
     GenerationTerminalText(
         text = stringResource(R.string.generation_stopped),
-        modifier = Modifier.padding(top = if (hasBodyContent) 8.dp else 0.dp),
+        modifier = Modifier.padding(
+            top = if (precededByCard) 12.dp else if (hasBodyContent) 8.dp else 0.dp,
+        ),
     )
 }

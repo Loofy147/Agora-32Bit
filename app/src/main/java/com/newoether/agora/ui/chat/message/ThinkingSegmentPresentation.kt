@@ -12,7 +12,7 @@ import com.newoether.agora.model.MessageStatus
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
-internal const val THINKING_COLLAPSED_WIDTH_ALLOWANCE_DP = 12
+internal const val THINKING_COLLAPSED_WIDTH_ALLOWANCE_DP = 6
 internal const val AUXILIARY_CARD_START_EXTENSION_DP = 4
 
 @Composable

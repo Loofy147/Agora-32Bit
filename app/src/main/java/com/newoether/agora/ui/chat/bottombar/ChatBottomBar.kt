@@ -3,6 +3,12 @@ package com.newoether.agora.ui.chat.bottombar
 import com.newoether.agora.ui.components.DialogWindowEdgeToEdge
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.content.MediaType
+import androidx.compose.foundation.content.ReceiveContentListener
+import androidx.compose.foundation.content.TransferableContent
+import androidx.compose.foundation.content.consume
+import androidx.compose.foundation.content.contentReceiver
+import androidx.compose.foundation.content.hasMediaType
 import androidx.compose.foundation.background
 import com.newoether.agora.model.apiModelName
 import com.newoether.agora.model.ContextBudget
@@ -80,6 +86,7 @@ import com.newoether.agora.data.modelDisplayName
 
 internal val CHAT_BOTTOM_BAR_OUTER_RADIUS = 28.dp
 internal val CHAT_BOTTOM_BAR_OUTER_SHAPE = RoundedCornerShape(CHAT_BOTTOM_BAR_OUTER_RADIUS)
+internal val CHAT_DROPDOWN_MENU_SHAPE = RoundedCornerShape(16.dp)
 
 internal fun contextUsageExceedsCompactThreshold(
     estimatedTokens: Int, tokenBudget: Int, thresholdPercent: Int,
@@ -180,6 +187,28 @@ fun ChatBottomBar(
 
     val context = LocalContext.current
     val haptics = LocalAgoraHaptics.current
+    val clipboardImageReceiver = remember(context, composer) {
+        object : ReceiveContentListener {
+            override fun onReceive(
+                transferableContent: TransferableContent,
+            ): TransferableContent? {
+                val imageUris = mutableListOf<android.net.Uri>()
+                val advertisesImages = transferableContent.hasMediaType(MediaType.Image)
+                val remaining = transferableContent.consume { item ->
+                    val uri = item.uri ?: return@consume false
+                    val resolvedMime = context.contentResolver.getType(uri)
+                    val isImage = resolvedMime?.startsWith("image/") == true ||
+                        (resolvedMime == null && advertisesImages)
+                    if (isImage) imageUris += uri
+                    isImage
+                }
+                if (imageUris.isNotEmpty()) {
+                    composer.onPickImages(imageUris)
+                }
+                return remaining
+            }
+        }
+    }
     var showThinkingSheet by rememberSaveable { mutableStateOf(false) }
     var showOpenAiServiceTierSheet by rememberSaveable { mutableStateOf(false) }
     val composerOcclusionColor = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
@@ -301,6 +330,7 @@ fun ChatBottomBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .then(if (isExpanded) Modifier.fillMaxHeight() else Modifier)
+                    .contentReceiver(clipboardImageReceiver)
                     .focusRequester(focusRequester)
                     .onFocusChanged { focusState ->
                         onInputFocusChanged(focusState.isFocused)
@@ -429,7 +459,7 @@ fun ChatBottomBar(
                             }
                         },
                         matchTextFieldWidth = false,
-                        shape = MaterialTheme.shapes.medium
+                        shape = CHAT_DROPDOWN_MENU_SHAPE,
                     ) {
                         if (enabledModels.isEmpty()) {
                             DropdownMenuItem(
@@ -526,7 +556,7 @@ fun ChatBottomBar(
                             }
                         },
                         matchTextFieldWidth = false,
-                        shape = RoundedCornerShape(16.dp),
+                        shape = CHAT_DROPDOWN_MENU_SHAPE,
                     ) {
                         Column(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
@@ -586,7 +616,7 @@ fun ChatBottomBar(
                             }
                         },
                         matchTextFieldWidth = false,
-                        shape = RoundedCornerShape(16.dp)
+                        shape = CHAT_DROPDOWN_MENU_SHAPE,
                     ) {
                         DropdownMenuItem(
                             text = {

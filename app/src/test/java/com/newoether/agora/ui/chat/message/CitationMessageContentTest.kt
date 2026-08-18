@@ -15,6 +15,7 @@ import com.newoether.agora.model.MessageSegment
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import org.intellij.markdown.parser.MarkdownParser
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -503,7 +504,7 @@ class CitationMessageContentTest {
     }
 
     @Test
-    fun allChatLinkStatesUseColorWithoutUnderline() {
+    fun chatLinksProvidePressedFeedbackWithoutUnderline() {
         val color = Color(0xFF3367D6)
         val styles = chatLinkTextStyles(color)
 
@@ -511,11 +512,12 @@ class CitationMessageContentTest {
             styles.style,
             styles.focusedStyle,
             styles.hoveredStyle,
-            styles.pressedStyle,
         ).forEach { style ->
             assertEquals(color, style?.color)
             assertEquals(TextDecoration.None, style?.textDecoration)
         }
+        assertEquals(TextDecoration.None, styles.pressedStyle?.textDecoration)
+        assertNotEquals(color, styles.pressedStyle?.color)
     }
 
     @Test

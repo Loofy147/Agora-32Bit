@@ -1,6 +1,9 @@
 package com.newoether.agora.ui.chat.message
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Transition
 import androidx.compose.animation.core.animateFloat
@@ -51,11 +54,14 @@ import com.newoether.agora.model.ToolCallDisplayModes
 import com.newoether.agora.model.ThinkingSegmentDisplayModes
 import com.newoether.agora.model.citationRecords
 import com.newoether.agora.ui.chat.GenerationActivityDot
+import com.newoether.agora.ui.chat.GenerationActivityDotSize
+import com.newoether.agora.ui.motion.LocalAgoraMotionPolicy
 import com.newoether.agora.ui.common.LocalAgoraHaptics
 import com.newoether.agora.ui.theme.ChatType
 
 internal val AssistantMessageHorizontalInset = 8.dp
-private val FormerAssistantStatusSpacerHeight = 8.dp
+private val FormerAssistantStatusSpacerHeight = 6.dp
+private val AssistantInlineActivityHeight = GenerationActivityDotSize + 6.dp
 
 internal data class TokenUsagePresentation(
     val input: Int?,
@@ -115,6 +121,7 @@ private fun AssistantInlineActivity(
     retryText: String?,
     visibilityTransition: Transition<Boolean>,
     activityOpacity: Float,
+    activityLayoutProgress: Float,
     retainExitLayout: Boolean,
 ) {
     var retainedMode by remember {
@@ -139,12 +146,18 @@ private fun AssistantInlineActivity(
     ) {
         Row(
             modifier = Modifier
+                .then(
+                    if (visibleMode == AssistantInlineActivityMode.RETRY) {
+                        Modifier
+                    } else {
+                        Modifier.height(AssistantInlineActivityHeight * activityLayoutProgress)
+                    },
+                )
                 .graphicsLayer {
                     compositingStrategy = CompositingStrategy.ModulateAlpha
                     alpha = activityOpacity
                     clip = false
-                }
-                .padding(bottom = 6.dp),
+                },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (visibleMode == AssistantInlineActivityMode.RETRY) {
@@ -326,6 +339,7 @@ internal fun AssistantMessageContent(
         targetState = inlineActivityVisible,
         label = "AssistantInlineActivityVisibility",
     )
+    val allowSpatialTransitions = LocalAgoraMotionPolicy.current.allowSpatialTransitions
     val inlineActivityOpacity by inlineActivityTransition.animateFloat(
         transitionSpec = {
             if (targetState) {
@@ -335,6 +349,18 @@ internal fun AssistantMessageContent(
             }
         },
         label = "AssistantInlineActivityOpacity",
+    ) { visible ->
+        if (visible) 1f else 0f
+    }
+    val activityLayoutProgress by inlineActivityTransition.animateFloat(
+        transitionSpec = {
+            if (targetState || !allowSpatialTransitions) {
+                snap()
+            } else {
+                tween(durationMillis = 320, easing = FastOutSlowInEasing)
+            }
+        },
+        label = "AssistantInlineActivityLayoutProgress",
     ) { visible ->
         if (visible) 1f else 0f
     }
@@ -485,6 +511,7 @@ internal fun AssistantMessageContent(
                         retryText = message.retryText,
                         visibilityTransition = inlineActivityTransition,
                         activityOpacity = inlineActivityOpacity,
+                        activityLayoutProgress = activityLayoutProgress,
                         retainExitLayout = !hasAnswerContent,
                     )
                 }
@@ -498,6 +525,18 @@ internal fun AssistantMessageContent(
                     )
                 }
                 val answerContent = answerProjection?.markdown ?: answerBodyText.orEmpty()
+                val lastVisibleTerminalPredecessor = if (useTimelineSegments) {
+                    mergedSegments.lastOrNull { segment ->
+                        segment.isVisibleAnswerSegment() || segment.isInfoSegment()
+                    }
+                } else {
+                    null
+                }
+                val terminalImmediatelyFollowsCard = if (useTimelineSegments) {
+                    lastVisibleTerminalPredecessor?.isInfoSegment() == true
+                } else {
+                    compactVisible && answerContent.isEmpty()
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -534,11 +573,29 @@ internal fun AssistantMessageContent(
                         }
                     }
                 }
-                if (errorContent != null) {
-                    GenerationErrorBar(errorContent.errorText)
+                var retainedErrorText by remember { mutableStateOf("") }
+                LaunchedEffect(errorContent) {
+                    errorContent?.errorText?.let { retainedErrorText = it }
                 }
-                if (!isStreaming && message.status == MessageStatus.STOPPED) {
-                    StoppedGenerationBar(hasBodyContent = renderedText.isNotEmpty())
+                AnimatedVisibility(
+                    visible = errorContent != null,
+                    enter = fadeIn(tween(durationMillis = 180, easing = LinearEasing)),
+                    exit = fadeOut(tween(durationMillis = 180, easing = LinearEasing)),
+                ) {
+                    GenerationErrorBar(
+                        errorText = errorContent?.errorText ?: retainedErrorText,
+                        precededByCard = terminalImmediatelyFollowsCard,
+                    )
+                }
+                AnimatedVisibility(
+                    visible = !isStreaming && message.status == MessageStatus.STOPPED,
+                    enter = fadeIn(tween(durationMillis = 180, easing = LinearEasing)),
+                    exit = fadeOut(tween(durationMillis = 180, easing = LinearEasing)),
+                ) {
+                    StoppedGenerationBar(
+                        hasBodyContent = renderedText.isNotEmpty(),
+                        precededByCard = terminalImmediatelyFollowsCard,
+                    )
                 }
                 if (message.participant == Participant.MODEL && message.images.isNotEmpty()) {
                     val genImages = message.images

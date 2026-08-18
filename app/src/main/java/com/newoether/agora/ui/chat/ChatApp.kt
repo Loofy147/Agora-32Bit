@@ -69,6 +69,7 @@ import com.newoether.agora.viewmodel.ChatViewModel
 import com.newoether.agora.viewmodel.RegenerationTransitionStage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
 @OptIn(
     ExperimentalMaterial3Api::class,
     ExperimentalFoundationApi::class,
@@ -128,6 +129,7 @@ fun ChatApp(
     val queuedSends by viewModel.queuedSends.collectAsState()
     val isStopping by viewModel.isStopping.collectAsState()
     val currentConversationId by viewModel.currentConversationId.collectAsState()
+    var pendingForkRequest by remember(currentConversationId) { mutableStateOf<ForkConversationRequest?>(null) }
     val currentConversation by viewModel.currentConversation.collectAsState()
     val loadedMessagesConversationId by viewModel.loadedMessagesConversationId.collectAsState()
     val currentLoop by viewModel.currentLoop.collectAsState()
@@ -152,7 +154,7 @@ fun ChatApp(
     val globalThinkingBudgetEnabled by viewModel.settings.thinkingBudgetEnabled.collectAsState()
     val globalThinkingBudgetTokens by viewModel.settings.thinkingBudgetTokens.collectAsState()
     val customProviders by viewModel.settings.customProviders.collectAsState()
-    val displayConversations = remember(conversations, customProviders) { conversations.map { it.forDisplay(customProviders) } }
+    val displayConversations = remember(conversations, customProviders) { conversations.orEmpty().map { it.forDisplay(customProviders) } }
     val displayMessagesState = remember(messagesState, customProviders) { derivedStateOf { messagesState.value.map { it.forDisplay(customProviders) } } }
     val openAiResponsesApiEnabled by viewModel.settings.openAiResponsesApiEnabled.collectAsState()
     val globalWebSearch by viewModel.settings.webSearchEnabled.collectAsState()
@@ -453,9 +455,7 @@ fun ChatApp(
                             conversationInteraction.activateSearch()
                         },
                         onSystemPromptClick = dialogState::showPrompt,
-                        onForkConversation = {
-                            viewModel.forkConversationFrom()
-                        },
+                        onForkConversation = { pendingForkRequest = ForkConversationRequest(messageId = null) },
                         onShareConversation = {
                             conversationInteraction.dismissSearch()
                             focusManager.clearFocus()
@@ -602,9 +602,7 @@ fun ChatApp(
                                     if (accepted) haptics.confirm()
                                     accepted
                                 },
-                                onFork = { id ->
-                                    viewModel.forkConversationFrom(id)
-                                },
+                                onFork = { id -> pendingForkRequest = ForkConversationRequest(messageId = id) },
                                 onShare = { id ->
                                     viewModel.shareGeneration(id)
                                 },
@@ -995,4 +993,6 @@ fun ChatApp(
         modelAliases = modelAliases, customProviders = customProviders,
         isCompacting = isCompacting,
     )
+
+    ChatForkConfirmationHost(pendingForkRequest, viewModel) { pendingForkRequest = null }
 }
