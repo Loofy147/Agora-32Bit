@@ -62,7 +62,7 @@ class ApprovedFeatureSourceContractTest {
     }
 
     @Test
-    fun streamingFadeIsDrawOnlyAcrossMarkdownThinkingAndToolSummaries() {
+    fun streamingFadeUsesColorAlphaSpansAcrossMarkdownThinkingAndToolSummaries() {
         val root = sourceRoot()
         val fade = source(
             root,
@@ -81,12 +81,13 @@ class ApprovedFeatureSourceContractTest {
             "com/newoether/agora/ui/chat/message/ToolResultContent.kt",
         )
 
-        assertTrue(fade.contains("fun Modifier.stableStreamingGlyphFade("))
-        assertTrue(fade.contains("drawWithContent"))
-        assertTrue(fade.contains("BlendMode.DstIn"))
+        assertTrue(fade.contains("fun streamingTailAnnotatedString("))
+        assertTrue(fade.contains("fun rememberStreamingGlyphFade("))
+        assertFalse(fade.contains("fun Modifier.stableStreamingGlyphFade("))
+        assertFalse(fade.contains("BlendMode.DstIn"))
         assertTrue(assets.contains("content = base,"))
-        assertTrue(assets.contains(".stableStreamingGlyphFade("))
-        assertFalse(assets.contains("rememberStreamingGlyphFade("))
+        assertTrue(assets.contains("rememberStreamingGlyphFade("))
+        assertFalse(assets.contains(".stableStreamingGlyphFade("))
         assertTrue(timeline.contains("StableStreamingText("))
         assertTrue(tool.contains("StableStreamingText("))
     }
