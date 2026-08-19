@@ -115,6 +115,10 @@ class SettingsManager(private val context: Context) {
     val accessSavedMemories: Flow<Boolean> = context.dataStore.data.map { it[ACCESS_SAVED_MEMORIES] ?: true }
     val accessActiveMemory: Flow<Boolean> = context.dataStore.data.map { it[ACCESS_ACTIVE_MEMORY] ?: true }
     val accessSkills: Flow<Boolean> = context.dataStore.data.map { it[ACCESS_SKILLS] ?: true }
+    /** Modify access follows the legacy single access_skills value until explicitly set. */
+    val accessSkillsModify: Flow<Boolean> = context.dataStore.data.map { pref ->
+        pref[ACCESS_SKILLS_MODIFY] ?: pref[ACCESS_SKILLS] ?: true
+    }
     val ragSearchEnabled: Flow<Boolean> = context.dataStore.data.map { it[RAG_SEARCH_ENABLED] ?: false }
     val modelSearchMethod: Flow<String> = context.dataStore.data.map { it[MODEL_SEARCH_METHOD] ?: "keyword" }
     val manualSearchMethod: Flow<String> = context.dataStore.data.map { it[MANUAL_SEARCH_METHOD] ?: "keyword" }
@@ -426,6 +430,9 @@ class SettingsManager(private val context: Context) {
     }
     suspend fun saveAccessSkills(enabled: Boolean) {
         context.dataStore.edit { it[ACCESS_SKILLS] = enabled }
+    }
+    suspend fun saveAccessSkillsModify(enabled: Boolean) {
+        context.dataStore.edit { it[ACCESS_SKILLS_MODIFY] = enabled }
     }
     suspend fun saveRagSearchEnabled(enabled: Boolean) {
         context.dataStore.edit { it[RAG_SEARCH_ENABLED] = enabled }
@@ -800,6 +807,7 @@ class SettingsManager(private val context: Context) {
             prefs.remove(ACCESS_SAVED_MEMORIES)
             prefs.remove(ACCESS_ACTIVE_MEMORY)
             prefs.remove(ACCESS_SKILLS)
+            prefs.remove(ACCESS_SKILLS_MODIFY)
             prefs.remove(RAG_SEARCH_ENABLED)
             prefs.remove(MODEL_SEARCH_METHOD)
             prefs.remove(MANUAL_SEARCH_METHOD)

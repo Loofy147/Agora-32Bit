@@ -291,8 +291,9 @@ class GenerationRequestBuilder(
     ): Pair<GenerationConfig, GenerationContext> {
         val imageGenModel = settings.imageGenModel.value
         val transcriptionModel = settings.imageTranscriptionModel.value
-        val accessSkills = settings.accessSkills.value
-        val skillCatalog = if (accessSkills) skillManager.catalog() else ""
+        val skillReadAccess = settings.accessSkills.value
+        val skillModifyAccess = skillReadAccess && settings.accessSkillsModify.value
+        val skillCatalog = if (skillReadAccess) skillManager.catalog() else ""
         val effectiveSystemPromptWithSkills = listOfNotNull(
             resolvedSystemPrompt?.takeIf(String::isNotBlank),
             skillCatalog.takeIf(String::isNotBlank),
@@ -337,7 +338,8 @@ class GenerationRequestBuilder(
             conversationId = currentId,
             accessSavedMemories = settings.accessSavedMemories.value,
             accessActiveMemory = settings.accessActiveMemory.value,
-            accessSkills = accessSkills,
+            skillReadAccess = skillReadAccess,
+            skillModifyAccess = skillModifyAccess,
             skillCatalog = skillCatalog,
             accessPastConversations = settings.accessPastConversations.value,
             modelSearchMethod = settings.modelSearchMethod.value,

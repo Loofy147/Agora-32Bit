@@ -90,6 +90,15 @@ class ApprovedFeatureSourceContractTest {
         assertFalse(assets.contains(".stableStreamingGlyphFade("))
         assertTrue(timeline.contains("StableStreamingText("))
         assertTrue(tool.contains("StableStreamingText("))
+        // Document-level birth-time tracking: state survives node restructures, block promotion,
+        // and subtree re-keying; per-token arrival history survives pipeline conflation.
+        assertTrue(fade.contains("fadeSample: StreamingTailFadeSample?"))
+        assertTrue(fade.contains("fun computeBlockFadeSpecs("))
+        assertTrue(fade.contains("internal fun StreamingGlyphFadeSpec?.nodeFade("))
+        assertTrue(fade.contains("fun distributeArrivalBirths("))
+        assertFalse(fade.contains("lastVisibleSourceOffset"))
+        assertTrue(assets.contains("fade = nodeFade,"))
+        assertFalse(assets.contains("enabled = fadeThisNode"))
     }
 
     @Test
@@ -117,7 +126,7 @@ class ApprovedFeatureSourceContractTest {
         assertTrue(provider.contains("edit_skill_file"))
         assertTrue(provider.contains("delete_skill_file"))
         assertFalse(provider.contains("update_active_skill"))
-        assertTrue(builder.contains("skillCatalog = if (accessSkills) skillManager.catalog()"))
+        assertTrue(builder.contains("skillCatalog = if (skillReadAccess) skillManager.catalog()"))
         assertTrue(builder.contains("effectiveSystemPromptWithSkills"))
         assertTrue(exporter.contains("memories/skill_db/"))
         assertTrue(importer.contains("memories/skill_db/"))

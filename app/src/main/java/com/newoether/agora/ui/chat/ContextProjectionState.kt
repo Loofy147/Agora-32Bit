@@ -22,6 +22,7 @@ internal fun rememberContextProjectionInvalidationKey(
     val accessSavedMemories by settings.accessSavedMemories.collectAsState()
     val accessActiveMemory by settings.accessActiveMemory.collectAsState()
     val accessSkills by settings.accessSkills.collectAsState()
+    val accessSkillsModify by settings.accessSkillsModify.collectAsState()
     val accessPastConversations by settings.accessPastConversations.collectAsState()
     val imageGenEnabled by settings.imageGenEnabled.collectAsState()
     val imageGenModel by settings.imageGenModel.collectAsState()
@@ -38,6 +39,7 @@ internal fun rememberContextProjectionInvalidationKey(
         accessSavedMemories,
         accessActiveMemory,
         accessSkills,
+        accessSkillsModify,
         accessPastConversations,
         imageGenEnabled,
         imageGenModel,

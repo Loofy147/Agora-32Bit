@@ -6,6 +6,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
+import org.intellij.markdown.parser.MarkdownParser
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -233,6 +234,115 @@ class IncrementalStreamingMarkdownTest {
         assertNull(gate.offer("latest"))
         assertNull(gate.setActive(first, active = false))
         assertEquals("latest", gate.setActive(second, active = false))
+    }
+
+    @Test
+    fun distributeArrivalBirths_assignsPerTokenTimesAcrossConflatedBursts() {
+        // Two tokens arrived between parses: "abc" at 1_050 and "abcd" at 1_100, while the last
+        // rendered text was "ab". The conflated parse appends 2 code points; each must receive
+        // its own token's arrival time instead of one shared timestamp.
+        val births = distributeArrivalBirths(
+            arrivals = listOf(
+                ArrivalRecord(length = 3, timeMs = 1_050L),
+                ArrivalRecord(length = 4, timeMs = 1_100L),
+            ),
+            inputContent = "abcd",
+            preparedSource = "abcd",
+            appendStart = 2,
+            keep = 2,
+            nowMs = 1_200L,
+        )
+
+        assertArrayEquals(longArrayOf(1_050L, 1_100L), births)
+    }
+
+    @Test
+    fun distributeArrivalBirths_fallsBackToUniformWhenPreparedDivergesFromInput() {
+        val births = distributeArrivalBirths(
+            arrivals = listOf(ArrivalRecord(length = 4, timeMs = 1_100L)),
+            inputContent = "a\$b\$c\$d",
+            preparedSource = "abcd",
+            appendStart = 2,
+            keep = 2,
+            nowMs = 1_200L,
+        )
+
+        assertArrayEquals(longArrayOf(1_200L, 1_200L), births)
+    }
+
+    @Test
+    fun tracker_usesPerCodePointProviderBirthsForConflatedAppends() {
+        val tracker = StreamingTailFadeTracker(capacity = 8)
+        tracker.update("ab", nowMs = 1_000L)
+
+        val appended = tracker.update("abcd", nowMs = 1_100L) { count ->
+            assertEquals(2, count)
+            longArrayOf(1_050L, 1_100L)
+        }
+
+        assertArrayEquals(
+            longArrayOf(1_000L, 1_000L, 1_050L, 1_100L),
+            appended.birthTimesMs,
+        )
+    }
+
+    @Test
+    fun blockFadeSpecs_keepPromotedBlockTailAging() {
+        // Document: "para one\n\n" (10 cp, promoted) + "cont" (4 cp, live). The fade sample
+        // covers the final 6 cp (window start cp 8): the promoted block's last 2 cp and the
+        // live block's 4 cp. Both blocks must keep aging instead of snapping to solid.
+        val parser = MarkdownParser(flavour)
+        val snapshot = StreamingMarkdownSnapshot(
+            inputContent = "para one\n\ncont",
+            stableBlocks = listOf(
+                StableMarkdownBlock(
+                    startOffset = 0,
+                    endOffset = 10,
+                    sourceContent = "para one\n\n",
+                    root = parser.buildMarkdownTreeFromString("para one\n\n"),
+                )
+            ),
+            tail = "cont",
+            liveBlock = LiveMarkdownBlock(
+                startOffset = 10,
+                sourceContent = "cont",
+                root = parser.buildMarkdownTreeFromString("cont"),
+            ),
+            isStreaming = true,
+            fadeSample = StreamingTailFadeSample(
+                observedAtMs = 2_000L,
+                birthTimesMs = longArrayOf(1_000L, 1_010L, 1_020L, 1_030L, 1_040L, 1_050L),
+            ),
+        )
+
+        val specs = computeBlockFadeSpecs(snapshot)
+
+        assertEquals(2, specs.size)
+        assertEquals(2, specs[0]?.tailCodePoints)
+        assertArrayEquals(longArrayOf(1_000L, 1_010L), specs[0]!!.birthTimesMs)
+        assertEquals(4, specs[1]?.tailCodePoints)
+        assertArrayEquals(longArrayOf(1_020L, 1_030L, 1_040L, 1_050L), specs[1]!!.birthTimesMs)
+    }
+
+    @Test
+    fun nodeFade_mapsWindowOverlapAcrossNodes() {
+        val spec = StreamingGlyphFadeSpec(
+            tailCodePoints = 3,
+            birthTimesMs = longArrayOf(1_000L, 1_010L, 1_020L),
+        )
+        // Block cp count = 10, window covers cp 7..10. Node [char 5, char 8) = cp 5..8 overlaps
+        // cp 7..8 (1 cp, first birth entry).
+        val midNode = spec.nodeFade(blockContent = "0123456789", nodeStart = 5, nodeEnd = 8)
+        assertEquals(1, midNode?.tailCodePoints)
+        assertArrayEquals(longArrayOf(1_000L), midNode!!.birthTimesMs)
+
+        // Node fully inside the window (cp 8..10): the last two birth entries.
+        val tailNode = spec.nodeFade(blockContent = "0123456789", nodeStart = 8, nodeEnd = 10)
+        assertEquals(2, tailNode?.tailCodePoints)
+        assertArrayEquals(longArrayOf(1_010L, 1_020L), tailNode!!.birthTimesMs)
+
+        // Node entirely outside the window.
+        assertNull(spec.nodeFade(blockContent = "0123456789", nodeStart = 0, nodeEnd = 4))
     }
 
     private fun Int.splitsSurrogatePair(text: String): Boolean =

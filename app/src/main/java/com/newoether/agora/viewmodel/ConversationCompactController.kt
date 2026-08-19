@@ -245,7 +245,8 @@ internal class ConversationCompactController(
         context = context.copy(
             accessSavedMemories = false,
             accessActiveMemory = false,
-            accessSkills = false,
+            skillReadAccess = false,
+            skillModifyAccess = false,
             accessPastConversations = false,
             webSearchEnabled = false,
             imageGenEnabled = false,

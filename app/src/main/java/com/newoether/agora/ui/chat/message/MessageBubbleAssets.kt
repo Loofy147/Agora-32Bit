@@ -619,11 +619,13 @@ private fun SearchHighlightedMarkdownText(
         )
     }
     val streamingFadeSpec = LocalStreamingGlyphFadeSpec.current
-    val fadeTargetOffset = streamingFadeSpec?.lastVisibleSourceOffset
-    val fadeThisNode =
-        fadeTargetOffset != null &&
-            fadeTargetOffset > textNode.startOffset &&
-            fadeTargetOffset <= textNode.endOffset
+    val nodeFade = remember(streamingFadeSpec, model.content, textNode) {
+        streamingFadeSpec.nodeFade(
+            blockContent = model.content,
+            nodeStart = textNode.startOffset,
+            nodeEnd = textNode.endOffset,
+        )
+    }
     val fadeColor = style.color
         .takeUnless { it == Color.Unspecified }
         ?: LocalContentColor.current
@@ -631,7 +633,7 @@ private fun SearchHighlightedMarkdownText(
         val renderedText = rememberStreamingGlyphFade(
             content = base,
             color = fadeColor,
-            enabled = fadeThisNode,
+            fade = nodeFade,
         )
         MarkdownText(
             content = renderedText,
@@ -676,7 +678,7 @@ private fun SearchHighlightedMarkdownText(
     val renderedText = rememberStreamingGlyphFade(
         content = highlighted.first,
         color = fadeColor,
-        enabled = fadeThisNode,
+        fade = nodeFade,
     )
     var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
     var coordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
@@ -726,11 +728,13 @@ private fun SearchHighlightedMarkdownCode(
     activeHighlightColor: Color,
 ) {
     val streamingFadeSpec = LocalStreamingGlyphFadeSpec.current
-    val fadeTargetOffset = streamingFadeSpec?.lastVisibleSourceOffset
-    val fadeThisNode =
-        fadeTargetOffset != null &&
-            fadeTargetOffset > model.node.startOffset &&
-            fadeTargetOffset <= model.node.endOffset
+    val nodeFade = remember(streamingFadeSpec, model.content, model.node) {
+        streamingFadeSpec.nodeFade(
+            blockContent = model.content,
+            nodeStart = model.node.startOffset,
+            nodeEnd = model.node.endOffset,
+        )
+    }
     // Every state — idle, streaming (fade), and search — renders through the header-bearing
     // [SearchHighlightedMarkdownCodeText] path so the copy button is always present. Falling back
     // to the library's plain fence at terminal is what made the button vanish once the streaming
@@ -766,7 +770,7 @@ private fun SearchHighlightedMarkdownCode(
             sourceMatches = sourceMatches,
             highlightColor = highlightColor,
             activeHighlightColor = activeHighlightColor,
-            fadeEnabled = fadeThisNode,
+            nodeFade = nodeFade,
         )
     }
     if (fenced) {
@@ -785,7 +789,7 @@ private fun SearchHighlightedMarkdownCodeText(
     sourceMatches: List<Int>,
     highlightColor: Color,
     activeHighlightColor: Color,
-    fadeEnabled: Boolean,
+    nodeFade: StreamingGlyphNodeFade?,
 ) {
     val displayMatches = if (spec == null) {
         emptyList()
@@ -830,7 +834,7 @@ private fun SearchHighlightedMarkdownCodeText(
     val renderedText = rememberStreamingGlyphFade(
         content = highlighted,
         color = fadeColor,
-        enabled = fadeEnabled,
+        fade = nodeFade,
     )
     var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
     var coordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }

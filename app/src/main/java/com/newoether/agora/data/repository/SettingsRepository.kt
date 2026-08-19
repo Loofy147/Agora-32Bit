@@ -163,6 +163,7 @@ class SettingsRepository(
     val accessSavedMemories: StateFlow<Boolean> = hot(settingsManager.accessSavedMemories, true)
     val accessActiveMemory: StateFlow<Boolean> = hot(settingsManager.accessActiveMemory, true)
     val accessSkills: StateFlow<Boolean> = hot(settingsManager.accessSkills, true)
+    val accessSkillsModify: StateFlow<Boolean> = hot(settingsManager.accessSkillsModify, true)
     val ragSearchEnabled: StateFlow<Boolean> = hot(settingsManager.ragSearchEnabled, false)
     val autoCacheEnabled: StateFlow<Boolean> = hot(settingsManager.autoCacheEnabled, true)
     val autoUpdateCheck: StateFlow<Boolean> = hot(settingsManager.autoUpdateCheck, true)
@@ -529,6 +530,7 @@ class SettingsRepository(
     fun setAccessSavedMemories(enabled: Boolean) = scope.launch { settingsManager.saveAccessSavedMemories(enabled) }
     fun setAccessActiveMemory(enabled: Boolean) = scope.launch { settingsManager.saveAccessActiveMemory(enabled) }
     fun setAccessSkills(enabled: Boolean) = scope.launch { settingsManager.saveAccessSkills(enabled) }
+    fun setAccessSkillsModify(enabled: Boolean) = scope.launch { settingsManager.saveAccessSkillsModify(enabled) }
     fun setRagSearchEnabled(enabled: Boolean) = scope.launch { settingsManager.saveRagSearchEnabled(enabled) }
     fun setAutoCacheEnabled(enabled: Boolean) = scope.launch { settingsManager.saveAutoCacheEnabled(enabled) }
     fun setAutoUpdateCheck(enabled: Boolean) = scope.launch { settingsManager.saveAutoUpdateCheck(enabled) }

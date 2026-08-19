@@ -22,7 +22,7 @@ class SkillToolProviderTest {
         every { deleteFile(any()) } returns "Deleted"
     }
     private val provider = SkillToolProvider(skillManager)
-    private val enabled = GenerationContext(accessSkills = true)
+    private val enabled = GenerationContext(skillReadAccess = true, skillModifyAccess = true)
 
     @Test
     fun definitionsExposeExactlyFiveSavedSkillTools() {
@@ -42,7 +42,7 @@ class SkillToolProviderTest {
 
     @Test
     fun disabledAccessHidesAndRejectsTools() = runTest {
-        val disabled = enabled.copy(accessSkills = false)
+        val disabled = enabled.copy(skillReadAccess = false, skillModifyAccess = false)
         assertTrue(provider.definitions(disabled).isEmpty())
         assertTrue(
             provider.execute("list_skill_files", "{}", disabled)

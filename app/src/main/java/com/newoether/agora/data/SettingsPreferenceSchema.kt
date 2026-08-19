@@ -52,6 +52,7 @@ internal val ACCESS_PAST_CONVERSATIONS = booleanPreferencesKey("access_past_conv
 internal val ACCESS_SAVED_MEMORIES = booleanPreferencesKey("access_saved_memories")
 internal val ACCESS_ACTIVE_MEMORY = booleanPreferencesKey("access_active_memory")
 internal val ACCESS_SKILLS = booleanPreferencesKey("access_skills")
+internal val ACCESS_SKILLS_MODIFY = booleanPreferencesKey("access_skills_modify")
 internal val RAG_SEARCH_ENABLED = booleanPreferencesKey("rag_search_enabled")
 internal val MODEL_SEARCH_METHOD = stringPreferencesKey("model_search_method")
 internal val MANUAL_SEARCH_METHOD = stringPreferencesKey("manual_search_method")

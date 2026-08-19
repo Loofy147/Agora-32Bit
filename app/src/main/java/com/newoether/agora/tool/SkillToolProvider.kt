@@ -19,56 +19,67 @@ class SkillToolProvider(
     private val skillManager: SkillManager,
 ) : ToolProvider {
     override fun definitions(ctx: GenerationContext): List<ToolDefinition> {
-        if (!ctx.accessSkills) return emptyList()
-        return listOf(
-            tool(
-                name = "list_skill_files",
-                description = "List saved skill files with their names and compact descriptions.",
-            ),
-            tool(
-                name = "read_skill_file",
-                description = "Read one or more saved skill files. Read a relevant skill before applying it.",
-                properties = mapOf(
-                    "name" to ToolProperty("string", "One skill file name."),
-                    "names" to ToolProperty(
-                        "array",
-                        "Multiple skill file names.",
-                        items = ToolProperty("string", "A skill file name."),
+        if (!ctx.skillReadAccess && !ctx.skillModifyAccess) return emptyList()
+        val readTools = if (ctx.skillReadAccess) {
+            listOf(
+                tool(
+                    name = "list_skill_files",
+                    description = "List saved skill files with their names and compact descriptions.",
+                ),
+                tool(
+                    name = "read_skill_file",
+                    description = "Read one or more saved skill files. Read a relevant skill before applying it.",
+                    properties = mapOf(
+                        "name" to ToolProperty("string", "One skill file name."),
+                        "names" to ToolProperty(
+                            "array",
+                            "Multiple skill file names.",
+                            items = ToolProperty("string", "A skill file name."),
+                        ),
                     ),
                 ),
-            ),
-            tool(
-                name = "create_skill_file",
-                description = "Create a saved Markdown skill file.",
-                properties = mapOf(
-                    "name" to ToolProperty("string", "The skill file name."),
-                    "content" to ToolProperty("string", "The complete Markdown instructions."),
-                    "description" to ToolProperty("string", "A compact catalog description."),
+            )
+        } else {
+            emptyList()
+        }
+        val modifyTools = if (ctx.skillModifyAccess) {
+            listOf(
+                tool(
+                    name = "create_skill_file",
+                    description = "Create a saved Markdown skill file.",
+                    properties = mapOf(
+                        "name" to ToolProperty("string", "The skill file name."),
+                        "content" to ToolProperty("string", "The complete Markdown instructions."),
+                        "description" to ToolProperty("string", "A compact catalog description."),
+                    ),
+                    required = listOf("name", "content"),
                 ),
-                required = listOf("name", "content"),
-            ),
-            tool(
-                name = "edit_skill_file",
-                description = "Edit, patch, rename, or describe a saved skill file. old_string must match exactly once and is mutually exclusive with content.",
-                properties = mapOf(
-                    "name" to ToolProperty("string", "The current file name."),
-                    "content" to ToolProperty("string", "A complete replacement."),
-                    "old_string" to ToolProperty("string", "Exact unique text to replace."),
-                    "new_string" to ToolProperty("string", "Replacement for old_string."),
-                    "new_name" to ToolProperty("string", "An optional new file name."),
-                    "description" to ToolProperty("string", "An optional compact description."),
+                tool(
+                    name = "edit_skill_file",
+                    description = "Edit, patch, rename, or describe a saved skill file. old_string must match exactly once and is mutually exclusive with content.",
+                    properties = mapOf(
+                        "name" to ToolProperty("string", "The current file name."),
+                        "content" to ToolProperty("string", "A complete replacement."),
+                        "old_string" to ToolProperty("string", "Exact unique text to replace."),
+                        "new_string" to ToolProperty("string", "Replacement for old_string."),
+                        "new_name" to ToolProperty("string", "An optional new file name."),
+                        "description" to ToolProperty("string", "An optional compact description."),
+                    ),
+                    required = listOf("name"),
                 ),
-                required = listOf("name"),
-            ),
-            tool(
-                name = "delete_skill_file",
-                description = "Delete a saved skill file.",
-                properties = mapOf(
-                    "name" to ToolProperty("string", "The skill file name to delete."),
+                tool(
+                    name = "delete_skill_file",
+                    description = "Delete a saved skill file.",
+                    properties = mapOf(
+                        "name" to ToolProperty("string", "The skill file name to delete."),
+                    ),
+                    required = listOf("name"),
                 ),
-                required = listOf("name"),
-            ),
-        )
+            )
+        } else {
+            emptyList()
+        }
+        return readTools + modifyTools
     }
 
     override suspend fun execute(
@@ -76,7 +87,12 @@ class SkillToolProvider(
         arguments: String,
         ctx: GenerationContext,
     ): String = withContext(Dispatchers.IO) {
-        if (!ctx.accessSkills) return@withContext "Error: Skill access is disabled."
+        if (!ctx.skillReadAccess && name in READ_TOOL_NAMES) {
+            return@withContext "Error: Skill read access is disabled."
+        }
+        if (!ctx.skillModifyAccess && name in MODIFY_TOOL_NAMES) {
+            return@withContext "Error: Skill modify access is disabled."
+        }
         val args = Json.decodeFromString<Map<String, kotlinx.serialization.json.JsonElement>>(
             arguments.ifBlank { "{}" },
         )
@@ -163,5 +179,7 @@ class SkillToolProvider(
             "edit_skill_file",
             "delete_skill_file",
         )
+        val READ_TOOL_NAMES = setOf("list_skill_files", "read_skill_file")
+        val MODIFY_TOOL_NAMES = setOf("create_skill_file", "edit_skill_file", "delete_skill_file")
     }
 }

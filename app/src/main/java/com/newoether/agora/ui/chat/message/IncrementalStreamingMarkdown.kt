@@ -39,6 +39,7 @@ import org.intellij.markdown.ast.ASTNode
 import org.intellij.markdown.flavours.MarkdownFlavourDescriptor
 import org.intellij.markdown.parser.MarkdownParser
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.max
 import kotlin.math.min
 
 private const val STREAM_TAIL_FADE_CODE_POINTS = 42
@@ -73,10 +74,7 @@ internal class LiveMarkdownBlock(
     val startOffset: Int,
     val sourceContent: String,
     val root: ASTNode,
-) {
-    val lastVisibleSourceOffset: Int? =
-        sourceContent.indexOfLast { !it.isWhitespace() }.takeIf { it >= 0 }?.plus(1)
-}
+)
 
 @Immutable
 internal data class StreamingMarkdownSnapshot(
@@ -85,6 +83,7 @@ internal data class StreamingMarkdownSnapshot(
     val tail: String,
     val liveBlock: LiveMarkdownBlock?,
     val isStreaming: Boolean,
+    val fadeSample: StreamingTailFadeSample? = null,
 )
 
 private data class StreamingMarkdownInput(
@@ -131,17 +130,99 @@ internal val LocalStreamingMarkdownInteractionController =
     staticCompositionLocalOf<StreamingMarkdownInteractionController?> { null }
 
 /**
- * Identifies the final visible source position in the live Markdown block. Markdown text
- * components use it to apply alpha to only the actual trailing text node, without changing any
- * typography, padding, measurement, or Markdown structure.
+ * Per-block fade window: the final [tailCodePoints] code points of a block's source text overlap
+ * the document-level fade window, and [birthTimesMs] holds their per-code-point birth times
+ * (oldest first, size == tailCodePoints). Markdown text components map this onto their own node
+ * ranges so the tail gradient survives AST restructures, block promotion, and subtree re-keying,
+ * without changing any typography, padding, measurement, or Markdown structure.
  */
 @Immutable
 internal data class StreamingGlyphFadeSpec(
-    val lastVisibleSourceOffset: Int?,
+    val tailCodePoints: Int,
+    val birthTimesMs: LongArray,
 )
 
 internal val LocalStreamingGlyphFadeSpec =
     compositionLocalOf<StreamingGlyphFadeSpec?> { null }
+
+/**
+ * Per-node slice of the block fade window: the node's final [tailCodePoints] code points overlap
+ * the window and [birthTimesMs] holds their birth times (oldest first).
+ */
+@Immutable
+internal data class StreamingGlyphNodeFade(
+    val tailCodePoints: Int,
+    val birthTimesMs: LongArray,
+)
+
+/**
+ * Maps a block-level [StreamingGlyphFadeSpec] onto one text node, using code-point offsets within
+ * the node's block source content. Returns null when the node does not overlap the fade window.
+ */
+internal fun StreamingGlyphFadeSpec?.nodeFade(
+    blockContent: String,
+    nodeStart: Int,
+    nodeEnd: Int,
+): StreamingGlyphNodeFade? {
+    if (this == null || tailCodePoints <= 0) return null
+    val nodeStartCp = blockContent.codePointCount(0, nodeStart)
+    val nodeEndCp = blockContent.codePointCount(0, nodeEnd)
+    val windowStartCp = blockContent.codePointCount(0, blockContent.length) - tailCodePoints
+    val overlapStart = max(nodeStartCp, windowStartCp)
+    val overlapCount = nodeEndCp - overlapStart
+    if (overlapCount <= 0) return null
+    val sliceStart = max(0, nodeStartCp - windowStartCp)
+    return StreamingGlyphNodeFade(
+        tailCodePoints = overlapCount,
+        birthTimesMs = birthTimesMs.copyOfRange(sliceStart, sliceStart + overlapCount),
+    )
+}
+
+/**
+ * Splits the document-level fade sample into one spec per rendered block (stable blocks first,
+ * live block last). The sample's birth array covers the final code points of the whole rendered
+ * source; each block keeps the slice overlapping its own range, so a just-promoted stable block
+ * keeps aging its tail instead of snapping to solid.
+ */
+internal fun computeBlockFadeSpecs(
+    snapshot: StreamingMarkdownSnapshot,
+): List<StreamingGlyphFadeSpec?> {
+    val births = snapshot.fadeSample?.birthTimesMs ?: LongArray(0)
+    if (births.isEmpty()) return emptyList()
+    val blocks = snapshot.stableBlocks
+    val live = snapshot.liveBlock
+    val blockCount = blocks.size + (if (live != null) 1 else 0)
+    if (blockCount == 0) return emptyList()
+
+    val cpCounts = IntArray(blockCount) { index ->
+        val text = if (index < blocks.size) blocks[index].sourceContent else live!!.sourceContent
+        text.codePointCount(0, text.length)
+    }
+    val totalCp = cpCounts.sum()
+    val windowStartCp = max(0, totalCp - births.size)
+
+    val specs = ArrayList<StreamingGlyphFadeSpec?>(blockCount)
+    var cursorCp = 0
+    for (index in 0 until blockCount) {
+        val blockStart = cursorCp
+        val blockEnd = cursorCp + cpCounts[index]
+        cursorCp = blockEnd
+        val overlapStart = max(blockStart, windowStartCp)
+        val tailCp = blockEnd - overlapStart
+        if (tailCp <= 0) {
+            specs.add(null)
+            continue
+        }
+        val sliceStart = max(0, blockStart - windowStartCp)
+        specs.add(
+            StreamingGlyphFadeSpec(
+                tailCodePoints = tailCp,
+                birthTimesMs = births.copyOfRange(sliceStart, sliceStart + tailCp),
+            )
+        )
+    }
+    return specs
+}
 
 @Immutable
 internal data class StreamingTailFadeSample(
@@ -152,6 +233,11 @@ internal data class StreamingTailFadeSample(
 /**
  * Retains the arrival time of only the bounded fading suffix. Appends never reset older glyphs;
  * when the Markdown scanner promotes a prefix, suffix timestamps are retained as well.
+ *
+ * [update] takes a [newBirths] provider that supplies per-code-point birth times for the last
+ * [min][kotlin.math.min](appendedCount, capacity) code points of the appended range. Callers
+ * without per-token arrival data can rely on the default, which stamps every new glyph with
+ * [nowMs].
  */
 internal class StreamingTailFadeTracker(
     private val capacity: Int = STREAM_TAIL_FADE_CODE_POINTS,
@@ -159,7 +245,11 @@ internal class StreamingTailFadeTracker(
     private var previousText = ""
     private val birthTimesMs = java.util.ArrayDeque<Long>()
 
-    fun update(text: String, nowMs: Long): StreamingTailFadeSample {
+    fun update(
+        text: String,
+        nowMs: Long,
+        newBirths: (count: Int) -> LongArray = { count -> LongArray(count) { nowMs } },
+    ): StreamingTailFadeSample {
         require(nowMs >= 0L)
         if (capacity <= 0) {
             previousText = text
@@ -171,7 +261,7 @@ internal class StreamingTailFadeTracker(
             text == previousText -> Unit
             text.startsWith(previousText) -> {
                 val appendedCount = text.codePointCount(previousText.length, text.length)
-                appendBirths(appendedCount, nowMs)
+                appendBirths(appendedCount, newBirths)
             }
             previousText.endsWith(text) -> {
                 // A closed Markdown block was promoted out of the live tail. The remaining text is
@@ -181,7 +271,7 @@ internal class StreamingTailFadeTracker(
             }
             else -> {
                 birthTimesMs.clear()
-                appendBirths(min(text.codePointCount(0, text.length), capacity), nowMs)
+                appendBirths(min(text.codePointCount(0, text.length), capacity), newBirths)
             }
         }
         previousText = text
@@ -191,17 +281,15 @@ internal class StreamingTailFadeTracker(
         )
     }
 
-    private fun appendBirths(count: Int, nowMs: Long) {
+    private fun appendBirths(count: Int, newBirths: (Int) -> LongArray) {
         if (count <= 0) return
+        val keep = min(count, capacity)
+        val births = newBirths(keep)
         if (count >= capacity) {
             birthTimesMs.clear()
-            repeat(capacity) { birthTimesMs.addLast(nowMs) }
-            return
         }
-        repeat(count) {
-            birthTimesMs.addLast(nowMs)
-            if (birthTimesMs.size > capacity) birthTimesMs.removeFirst()
-        }
+        birthTimesMs.addAll(births.asIterable())
+        while (birthTimesMs.size > capacity) birthTimesMs.removeFirst()
     }
 }
 
@@ -369,6 +457,11 @@ internal class IncrementalMarkdownDocument(
 /**
  * One persistent worker per rendered message. A conflated channel keeps only the newest pending
  * snapshot while the current delta is parsed, so CPU parsing is sequential and can never pile up.
+ *
+ * Fade birth times live here, not in composition: [offer] records every token arrival (the
+ * conflated parse pipeline never sees intermediate content), and the parsed snapshot carries a
+ * fade sample aligned with the exact source it renders. Node restructures, block promotion, and
+ * subtree re-keying therefore cannot reset or skip the gradient.
  */
 @Stable
 private class StreamingMarkdownRenderState(
@@ -382,6 +475,10 @@ private class StreamingMarkdownRenderState(
     private val offeredRevision = AtomicLong(0L)
     private val interactionCommitGate =
         StreamingInteractionCommitGate<StreamingMarkdownSnapshot>()
+    private val fadeTracker = StreamingTailFadeTracker()
+    private val arrivals = kotlin.collections.ArrayDeque<ArrivalRecord>()
+    private var lastInputContent = ""
+    private var lastPreparedSource = ""
     private val _snapshot = MutableStateFlow(
         StreamingMarkdownSnapshot(
             inputContent = initialContent,
@@ -395,6 +492,13 @@ private class StreamingMarkdownRenderState(
 
     fun offer(content: String, isStreaming: Boolean) {
         val revision = offeredRevision.incrementAndGet()
+        if (!content.startsWith(lastInputContent)) {
+            // Retraction or replacement: per-arrival history no longer describes the content.
+            arrivals.clear()
+        }
+        arrivals.addLast(ArrivalRecord(content.length, SystemClock.uptimeMillis()))
+        while (arrivals.size > MAX_ARRIVAL_RECORDS) arrivals.removeFirst()
+        lastInputContent = content
         inputs.trySend(StreamingMarkdownInput(revision, content, isStreaming))
     }
 
@@ -429,26 +533,106 @@ private class StreamingMarkdownRenderState(
                 if (remainingDelay <= 0L) break
                 delay(minOf(remainingDelay, 16L))
             }
-            val next = withContext(Dispatchers.Default) {
-                document.update(
-                    preparedSource = input.content.toRenderableMarkdownText(parseInlineDollarMath),
+            val (next, preparedSource) = withContext(Dispatchers.Default) {
+                val preparedSource =
+                    input.content.toRenderableMarkdownText(parseInlineDollarMath)
+                val next = document.update(
+                    preparedSource = preparedSource,
                     inputContent = input.content,
                     isStreaming = input.isStreaming,
                 )
+                next to preparedSource
             }
+            // Fade state is updated here, on the main dispatcher: the arrival history is
+            // appended by offer() on the main thread and ArrayDeque is not thread-safe.
+            val nowMs = SystemClock.uptimeMillis()
+            val fadeSample = fadeTracker.update(preparedSource, nowMs) { keep ->
+                distributeArrivalBirths(
+                    inputContent = input.content,
+                    preparedSource = preparedSource,
+                    appendStart = if (preparedSource.startsWith(lastPreparedSource)) {
+                        lastPreparedSource.length
+                    } else {
+                        0
+                    },
+                    keep = keep,
+                    nowMs = nowMs,
+                )
+            }
+            // lastPreparedSource must advance with the tracker even when the revision gate
+            // below drops this parse, so the next parse's appended range stays aligned with
+            // the tracker's previous text.
+            lastPreparedSource = preparedSource
             // Parsing is not cooperatively cancellable. A revision gate provides mapLatest
             // semantics anyway: if tokens arrived during parsing, keep the previous measured tree
             // until the newest parse succeeds instead of flashing this stale snapshot.
             if (offeredRevision.get() == input.revision) {
-                interactionCommitGate.offer(next)?.let { _snapshot.value = it }
+                interactionCommitGate.offer(next.copy(fadeSample = fadeSample))
+                    ?.let { _snapshot.value = it }
                 lastRenderedAtMs = SystemClock.uptimeMillis()
             }
         }
     }
 
+    private fun distributeArrivalBirths(
+        inputContent: String,
+        preparedSource: String,
+        appendStart: Int,
+        keep: Int,
+        nowMs: Long,
+    ): LongArray = distributeArrivalBirths(
+        arrivals = arrivals,
+        inputContent = inputContent,
+        preparedSource = preparedSource,
+        appendStart = appendStart,
+        keep = keep,
+        nowMs = nowMs,
+    )
+
     fun close() {
         inputs.close()
     }
+}
+
+private const val MAX_ARRIVAL_RECORDS = 256
+
+internal data class ArrivalRecord(
+    val length: Int,
+    val timeMs: Long,
+)
+
+/**
+ * Produces per-code-point birth times for the last [keep] code points of the appended range
+ * `[appendStart, preparedSource.length)`, walking the offer-time arrival history backward.
+ * Positions are approximated as char indices — surrogate pairs may skew by one position, which
+ * is invisible inside the bounded fading window. Falls back to [nowMs] when the prepared source
+ * diverges from the raw input (LaTeX/dollar transforms) or the range was replaced outright.
+ */
+internal fun distributeArrivalBirths(
+    arrivals: List<ArrivalRecord>,
+    inputContent: String,
+    preparedSource: String,
+    appendStart: Int,
+    keep: Int,
+    nowMs: Long,
+): LongArray {
+    if (inputContent != preparedSource || appendStart <= 0) {
+        return LongArray(keep) { nowMs }
+    }
+    val births = LongArray(keep)
+    var recordIndex = arrivals.lastIndex
+    var fallbackTime = nowMs
+    for (i in keep - 1 downTo 0) {
+        val position = preparedSource.length - keep + i
+        while (recordIndex >= 0 && arrivals[recordIndex].length > position) recordIndex--
+        births[i] = if (recordIndex + 1 < arrivals.size) {
+            arrivals[recordIndex + 1].timeMs
+        } else {
+            fallbackTime
+        }
+        fallbackTime = births[i]
+    }
+    return births
 }
 
 @Composable
@@ -500,14 +684,21 @@ internal fun IncrementalStreamingMarkdownContent(
     }
 
     val snapshot by state.snapshot.collectAsState()
+    val blockFadeSpecs = remember(snapshot) { computeBlockFadeSpecs(snapshot) }
     androidx.compose.runtime.CompositionLocalProvider(
         LocalStreamingMarkdownInteractionController provides state,
     ) {
         MarkdownSelectionHost(selectionEnabled) {
             Column(modifier = modifier) {
-                snapshot.stableBlocks.forEach { block ->
+                snapshot.stableBlocks.forEachIndexed { index, block ->
                     key(block.startOffset, block.identity) {
-                        StableMarkdownBlockContent(block, renderContext)
+                        // A stable block inside the document fade window (the just-promoted
+                        // block) keeps aging its tail instead of snapping to solid.
+                        androidx.compose.runtime.CompositionLocalProvider(
+                            LocalStreamingGlyphFadeSpec provides blockFadeSpecs.getOrNull(index),
+                        ) {
+                            StableMarkdownBlockContent(block, renderContext)
+                        }
                     }
                 }
                 snapshot.liveBlock?.let { block ->
@@ -516,9 +707,7 @@ internal fun IncrementalStreamingMarkdownContent(
                     // code block's horizontal ScrollState.
                     key("live-tail", block.startOffset) {
                         androidx.compose.runtime.CompositionLocalProvider(
-                            LocalStreamingGlyphFadeSpec provides StreamingGlyphFadeSpec(
-                                lastVisibleSourceOffset = block.lastVisibleSourceOffset,
-                            )
+                            LocalStreamingGlyphFadeSpec provides blockFadeSpecs.lastOrNull(),
                         ) {
                             ParsedMarkdownBlockContent(
                                 sourceContent = block.sourceContent,
@@ -693,6 +882,64 @@ internal fun streamingTailAnnotatedString(
 /**
  * Owns the bounded time component of the glyph fade inside the final Markdown text composable.
  * Only this leaf recomposes while alpha changes; the parser, block column, and LazyColumn do not.
+ * Birth times come from the document-level fade sample (via [StreamingGlyphNodeFade]), so node
+ * restructures and subtree re-keying cannot reset or skip the gradient.
+ */
+@Composable
+internal fun rememberStreamingGlyphFade(
+    content: AnnotatedString,
+    color: Color,
+    fade: StreamingGlyphNodeFade?,
+): AnnotatedString {
+    if (fade == null || fade.tailCodePoints <= 0 || content.isEmpty()) return content
+    val effective = remember(fade, content.text.length) {
+        val displayCodePoints = content.text.codePointCount(0, content.text.length)
+        val fadedCount = min(fade.tailCodePoints, displayCodePoints)
+        when {
+            fadedCount <= 0 -> null
+            fadedCount == fade.birthTimesMs.size -> fade
+            else -> {
+                // Display text can outgrow the node's source range (citation superscripts).
+                // Fade the final code points with the newest slice of the birth array.
+                StreamingGlyphNodeFade(
+                    tailCodePoints = fadedCount,
+                    birthTimesMs = fade.birthTimesMs.copyOfRange(
+                        fade.birthTimesMs.size - fadedCount,
+                        fade.birthTimesMs.size,
+                    ),
+                )
+            }
+        }
+    }
+    if (effective == null) return content
+    var fadeClockMs by remember(effective) {
+        mutableLongStateOf(SystemClock.uptimeMillis())
+    }
+    LaunchedEffect(effective) {
+        while (
+            streamingTailFadeActive(
+                birthTimesMs = effective.birthTimesMs,
+                nowMs = fadeClockMs,
+            )
+        ) {
+            delay(STREAM_TAIL_FADE_TICK_MS)
+            fadeClockMs = SystemClock.uptimeMillis()
+        }
+    }
+    return remember(content, color, effective, fadeClockMs) {
+        streamingTailAnnotatedString(
+            text = content,
+            color = color,
+            fadeCodePoints = effective.tailCodePoints,
+            birthTimesMs = effective.birthTimesMs,
+            nowMs = fadeClockMs,
+        )
+    }
+}
+
+/**
+ * Standalone variant for plain-text streaming companions (timeline entries, tool summaries)
+ * that do not render through the markdown block pipeline. Each instance keeps its own tracker.
  */
 @Composable
 internal fun rememberStreamingGlyphFade(
