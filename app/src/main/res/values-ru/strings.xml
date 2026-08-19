@@ -1009,9 +1009,12 @@
     <string name="proxy_password">Пароль (необязательно)</string>
     <string name="proxy_bypass">Список исключений</string>
     <string name="proxy_bypass_desc">Хосты и диапазоны CIDR для прямого подключения, по одному в строке</string>
-    <string name="conversation_fork">Создать ветку диалога</string>
+    <string name="conversation_fork">Создать ветку диалога?</string>
     <string name="conversation_fork_failed">Не удалось создать ветку диалога: %1$s</string>
-    <string name="conversation_fork_from_here">Создать ветку отсюда</string>
+    <string name="conversation_fork_from_here">Создать ветку отсюда?</string>
+    <string name="conversation_fork_confirm">Создать копию этого диалога. Текущий диалог останется без изменений.</string>
+    <string name="conversation_fork_from_here_confirm">Создать копию этого диалога до этого сообщения. Текущий диалог останется без изменений.</string>
+    <string name="conversation_fork_action">Создать ветку</string>
     <string name="conversation_search">Поиск</string>
     <string name="conversation_search_hint">Поиск…</string>
     <string name="conversation_share">Поделиться</string>

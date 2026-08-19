@@ -1009,9 +1009,12 @@
     <string name="proxy_password">Passwort (optional)</string>
     <string name="proxy_bypass">Ausnahmeliste</string>
     <string name="proxy_bypass_desc">Hosts und CIDR-Bereiche, die direkt verbinden – einer pro Zeile</string>
-    <string name="conversation_fork">Unterhaltung abzweigen</string>
+    <string name="conversation_fork">Unterhaltung abzweigen?</string>
     <string name="conversation_fork_failed">Unterhaltung konnte nicht abgezweigt werden: %1$s</string>
-    <string name="conversation_fork_from_here">Ab hier abzweigen</string>
+    <string name="conversation_fork_from_here">Ab hier abzweigen?</string>
+    <string name="conversation_fork_confirm">Eine Kopie dieser Unterhaltung erstellen. Die aktuelle Unterhaltung bleibt unverändert.</string>
+    <string name="conversation_fork_from_here_confirm">Eine Kopie dieser Unterhaltung bis zu dieser Nachricht erstellen. Die aktuelle Unterhaltung bleibt unverändert.</string>
+    <string name="conversation_fork_action">Abzweigen</string>
     <string name="conversation_search">Suchen</string>
     <string name="conversation_search_hint">Suchen…</string>
     <string name="conversation_share">Teilen</string>

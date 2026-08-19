@@ -1009,9 +1009,12 @@
     <string name="proxy_password">비밀번호(선택)</string>
     <string name="proxy_bypass">우회 목록</string>
     <string name="proxy_bypass_desc">직접 연결하는 호스트와 CIDR 범위, 한 줄에 하나씩</string>
-    <string name="conversation_fork">대화 분기</string>
+    <string name="conversation_fork">대화를 분기하시겠습니까?</string>
     <string name="conversation_fork_failed">대화를 분기할 수 없습니다: %1$s</string>
-    <string name="conversation_fork_from_here">여기서 분기</string>
+    <string name="conversation_fork_from_here">여기서 분기하시겠습니까?</string>
+    <string name="conversation_fork_confirm">이 대화의 사본을 만듭니다. 현재 대화는 변경되지 않습니다.</string>
+    <string name="conversation_fork_from_here_confirm">이 메시지까지의 대화 사본을 만듭니다. 현재 대화는 변경되지 않습니다.</string>
+    <string name="conversation_fork_action">분기</string>
     <string name="conversation_search">검색</string>
     <string name="conversation_search_hint">검색…</string>
     <string name="conversation_share">공유</string>

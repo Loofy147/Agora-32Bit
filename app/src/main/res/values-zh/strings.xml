@@ -245,8 +245,11 @@
     <string name="tool_generated_image">已生成图片</string>
     <string name="img_action_save">保存到相册</string>
     <string name="img_action_share">分享</string>
-    <string name="conversation_fork">分支整个对话</string>
-    <string name="conversation_fork_from_here">从这里创建分支</string>
+    <string name="conversation_fork">分支整个对话？</string>
+    <string name="conversation_fork_from_here">从这里创建分支？</string>
+    <string name="conversation_fork_confirm">创建此对话的副本。当前对话保持不变。</string>
+    <string name="conversation_fork_from_here_confirm">创建从此消息为止的对话副本。当前对话保持不变。</string>
+    <string name="conversation_fork_action">创建分支</string>
     <string name="conversation_share">分享</string>
     <string name="conversation_search">搜索</string>
     <string name="conversation_search_hint">搜索…</string>

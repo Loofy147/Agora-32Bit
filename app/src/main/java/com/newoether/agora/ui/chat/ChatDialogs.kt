@@ -143,9 +143,23 @@ internal fun ChatForkConfirmDialog(
                 fontWeight = FontWeight.Bold,
             )
         },
+        text = {
+            Text(
+                stringResource(
+                    if (fromMessage) {
+                        R.string.conversation_fork_from_here_confirm
+                    } else {
+                        R.string.conversation_fork_confirm
+                    },
+                )
+            )
+        },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(stringResource(R.string.ok))
+            TextButton(
+                onClick = onConfirm,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Text(stringResource(R.string.conversation_fork_action))
             }
         },
         dismissButton = {

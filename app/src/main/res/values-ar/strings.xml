@@ -1009,9 +1009,12 @@
     <string name="proxy_password">كلمة المرور (اختياري)</string>
     <string name="proxy_bypass">قائمة التجاوز</string>
     <string name="proxy_bypass_desc">المضيفون ونطاقات CIDR التي تتصل مباشرةً، واحد في كل سطر</string>
-    <string name="conversation_fork">تفريع المحادثة</string>
+    <string name="conversation_fork">تفريع المحادثة؟</string>
     <string name="conversation_fork_failed">تعذر تفريع المحادثة: %1$s</string>
-    <string name="conversation_fork_from_here">تفريع من هنا</string>
+    <string name="conversation_fork_from_here">تفريع من هنا؟</string>
+    <string name="conversation_fork_confirm">إنشاء نسخة من هذه المحادثة. تبقى المحادثة الحالية دون تغيير.</string>
+    <string name="conversation_fork_from_here_confirm">إنشاء نسخة من هذه المحادثة حتى هذه الرسالة. تبقى المحادثة الحالية دون تغيير.</string>
+    <string name="conversation_fork_action">تفريع</string>
     <string name="conversation_search">بحث</string>
     <string name="conversation_search_hint">بحث…</string>
     <string name="conversation_share">مشاركة</string>

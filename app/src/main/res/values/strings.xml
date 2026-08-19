@@ -274,8 +274,11 @@
     <string name="tool_generated_image">Generated image</string>
     <string name="img_action_save">Save to gallery</string>
     <string name="img_action_share">Share</string>
-    <string name="conversation_fork">Fork Conversation</string>
-    <string name="conversation_fork_from_here">Fork from here</string>
+    <string name="conversation_fork">Fork Conversation?</string>
+    <string name="conversation_fork_from_here">Fork from here?</string>
+    <string name="conversation_fork_confirm">Create a copy of this conversation. The current conversation stays unchanged.</string>
+    <string name="conversation_fork_from_here_confirm">Create a copy of this conversation up to this message. The current conversation stays unchanged.</string>
+    <string name="conversation_fork_action">Fork</string>
     <string name="conversation_share">Share</string>
     <string name="conversation_search">Search</string>
     <string name="conversation_search_hint">Search…</string>

@@ -1018,9 +1018,12 @@
     <string name="proxy_password">Mật khẩu (tùy chọn)</string>
     <string name="proxy_bypass">Danh sách bỏ qua</string>
     <string name="proxy_bypass_desc">Các máy chủ và dải CIDR kết nối trực tiếp, mỗi địa chỉ một dòng</string>
-    <string name="conversation_fork">Rẽ nhánh cuộc trò chuyện</string>
+    <string name="conversation_fork">Rẽ nhánh cuộc trò chuyện?</string>
     <string name="conversation_fork_failed">Không thể rẽ nhánh cuộc trò chuyện: %1$s</string>
-    <string name="conversation_fork_from_here">Rẽ nhánh từ đây</string>
+    <string name="conversation_fork_from_here">Rẽ nhánh từ đây?</string>
+    <string name="conversation_fork_confirm">Tạo bản sao của cuộc trò chuyện này. Cuộc trò chuyện hiện tại không thay đổi.</string>
+    <string name="conversation_fork_from_here_confirm">Tạo bản sao của cuộc trò chuyện này cho đến tin nhắn này. Cuộc trò chuyện hiện tại không thay đổi.</string>
+    <string name="conversation_fork_action">Rẽ nhánh</string>
     <string name="conversation_search">Tìm kiếm</string>
     <string name="conversation_search_hint">Tìm kiếm…</string>
     <string name="conversation_share">Chia sẻ</string>
