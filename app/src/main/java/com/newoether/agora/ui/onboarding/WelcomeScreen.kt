@@ -8,7 +8,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -542,13 +541,17 @@ fun WelcomeScreen(
                     }
                 }
 
-                // Dot indicators
+                // Dot indicators. Each dot lives in a fixed 10 dp slot, keeping the row height
+                // constant: selection changes no longer shift the whole indicator (or the action
+                // below it) vertically, and the tween removes the spring's bounce.
                 Row(Modifier.padding(bottom = 16.dp).alpha(contentAlpha), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                     repeat(pages.size) { idx ->
                         val sel = pagerState.currentPage == idx
-                        val sz by animateDpAsState(if (sel) 10.dp else 8.dp, spring(0.7f, 400f))
-                        val cl by animateColorAsState(if (sel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, spring(0.7f, 400f))
-                        Box(Modifier.padding(horizontal = 4.dp).size(sz).clip(CircleShape).background(cl))
+                        val sz by animateDpAsState(if (sel) 10.dp else 8.dp, tween(120))
+                        val cl by animateColorAsState(if (sel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, tween(120))
+                        Box(Modifier.padding(horizontal = 4.dp).size(10.dp), contentAlignment = Alignment.Center) {
+                            Box(Modifier.size(sz).clip(CircleShape).background(cl))
+                        }
                     }
                 }
 

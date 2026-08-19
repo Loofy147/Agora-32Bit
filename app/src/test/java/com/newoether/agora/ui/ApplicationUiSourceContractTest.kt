@@ -27,6 +27,22 @@ class ApplicationUiSourceContractTest {
     }
 
     @Test
+    fun `onboarding dot indicator keeps constant row height without spring`() {
+        val source = sourceFile("app/src/main/java/com/newoether/agora/ui/onboarding/WelcomeScreen.kt")
+
+        // Fixed outer slot: selection changes never shift the whole indicator vertically.
+        assertTrue(source.contains(
+            "Box(Modifier.padding(horizontal = 4.dp).size(10.dp), contentAlignment = Alignment.Center)"
+        ))
+        assertTrue(source.contains("animateDpAsState(if (sel) 10.dp else 8.dp, tween(120))"))
+        assertTrue(source.contains(
+            "animateColorAsState(if (sel) MaterialTheme.colorScheme.primary else " +
+                "MaterialTheme.colorScheme.outlineVariant, tween(120))"
+        ))
+        assertFalse(source.contains("spring("))
+    }
+
+    @Test
     fun `Skills settings mirrors the saved Memory file presentation`() {
         val source = sourceFile(
             "app/src/main/java/com/newoether/agora/ui/settings/SettingsSkillsPage.kt",
