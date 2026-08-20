@@ -66,7 +66,9 @@ internal class ConversationContextProjector(
         val contextMessages = snapshot?.let {
             projectGenerationInputMessages(
                 messages = durableProviderMessages,
-                includeImages = true,
+                // Transcription-enabled models receive descriptions instead of raw images at
+                // dispatch; the bottom-bar estimate must match.
+                includeImages = !it.context.imageTranscriptionEnabled,
                 userPrepend = it.config.userPrepend,
                 userPostpend = it.config.userPostpend,
             )

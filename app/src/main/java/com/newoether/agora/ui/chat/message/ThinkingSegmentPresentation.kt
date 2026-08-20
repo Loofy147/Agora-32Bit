@@ -106,11 +106,25 @@ internal fun compactSegmentTitle(
     return when {
         isThinking -> message.thoughtTitle ?: stringResource(R.string.thinking_ellipsis)
         isTranscribing -> message.thoughtTitle ?: stringResource(R.string.transcription_ellipsis)
-        isToolCalling || isToolInProgress -> toolDisplayName(lastSeg)
+        isToolCalling || isToolInProgress ->
+            if (segs.any { it.type == "transcription" }) {
+                // Tool-result image transcription streams while the message is TOOL_CALLING;
+                // the group title must stay the transcription label, not the tool name
+                // (the transcription segment would otherwise fall back to the generic "Tool").
+                transcriptionLabel(
+                    segs,
+                    segs.indexOfLast { it.type == "transcription" },
+                )
+            } else {
+                toolDisplayName(lastSeg)
+            }
         thoughtMs != null && thoughtMs > 0 -> thoughtDurationTitle(thoughtMs, toolCount)
         toolCount > 0 -> stringResource(R.string.called_n_tools, toolCount)
         message.thoughtTitle != null -> message.thoughtTitle
-        segs.any { it.type == "transcription" } -> "Image Transcription"
+        segs.any { it.type == "transcription" } -> transcriptionLabel(
+            segs,
+            segs.indexOfLast { it.type == "transcription" },
+        )
         else -> stringResource(R.string.thinking_complete)
     }
 }

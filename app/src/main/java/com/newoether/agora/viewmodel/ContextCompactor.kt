@@ -157,6 +157,9 @@ internal fun automaticCompactNeeded(
         fixedTokenCost = fixedTokenCost,
         userPrepend = userPrepend,
         userPostpend = userPostpend,
+        // Transcription-enabled models receive descriptions instead of raw images at dispatch;
+        // the admission estimate must match.
+        includeImages = !includeStoredTranscriptions,
     )
 }
 
@@ -167,6 +170,7 @@ internal fun automaticCompactNeeded(
     fixedTokenCost: Int = 0,
     userPrepend: String? = null,
     userPostpend: String? = null,
+    includeImages: Boolean = true,
 ): Boolean {
     if (path.isEmpty() || retainLogicalMessages < 0) return false
     val semanticPath = path.filterNot { it.isContextCompact() && !it.isSuccessfulContextCompact() }
@@ -179,7 +183,7 @@ internal fun automaticCompactNeeded(
         contextWindowUsage(
             projectGenerationInputMessages(
                 messages = semanticPath,
-                includeImages = true,
+                includeImages = includeImages,
                 userPrepend = userPrepend,
                 userPostpend = userPostpend,
             ),

@@ -470,7 +470,10 @@ fun projectToolResultImagesToUserMessage(
                 .take(8)
                 .joinToString("") { "%02x".format(it) }
             projected += ChatMessage(
-                id = "tool_image_context_$digest",
+                // The id must not start with tool_ / result_ / compact_: provider serializers
+                // branch on those prefixes and would silently drop this API-only row (its text
+                // and images would never reach the model). image_context_ is reserved-free.
+                id = "image_context_$digest",
                 parentId = batch.last().id,
                 text = if (includeImages) {
                     "[Tool visual result: inspect the attached image${if (images.size == 1) "" else "s"} before continuing.]"

@@ -40,6 +40,8 @@ internal data class AuthorizedToolCall(
     val arguments: String,
     val context: GenerationContext,
     val authorizedToolNames: Set<String>,
+    /** Per-generation single-image transcription flow; null disables it. */
+    val toolImageTranscriber: (suspend (com.newoether.agora.model.ToolImageAttachment, suspend (String) -> Unit) -> String?)? = null,
 )
 
 internal data class AuthorizedToolResult(

@@ -102,6 +102,68 @@ class ApprovedFeatureSourceContractTest {
     }
 
     @Test
+    fun toolResultImageContextRowKeepsANonProtocolIdPrefix() {
+        val root = sourceRoot()
+        val toolMessages = source(root, "com/newoether/agora/api/util/ToolMessages.kt")
+
+        // The API-only image-context row must never start with a protocol prefix: provider
+        // serializers branch on tool_/result_ and would silently drop the row (view_image
+        // results would display in the UI but never reach the model).
+        assertTrue(toolMessages.contains("id = \"image_context_\$digest\""))
+        assertFalse(toolMessages.contains("tool_image_context_"))
+    }
+
+    @Test
+    fun toolResultImageTranscriptionFollowsTheGenericDeclaredRule() {
+        val root = sourceRoot()
+        val toolProvider = source(root, "com/newoether/agora/tool/ToolProvider.kt")
+        val shell = source(root, "com/newoether/agora/tool/ShellToolProvider.kt")
+        val executor = source(
+            root,
+            "com/newoether/agora/viewmodel/GenerationToolBatchEffectExecutor.kt",
+        )
+        val manager = source(root, "com/newoether/agora/viewmodel/GenerationManager.kt")
+        val transcription = source(root, "com/newoether/agora/viewmodel/TranscriptionManager.kt")
+        val contracts = source(root, "com/newoether/agora/viewmodel/GenerationContracts.kt")
+
+        // The tool declares intent via the result flag; the executor implements one generic
+        // rule with no tool-name routing; the transcriber travels the per-generation call
+        // chain; GenerationContext stays free of function fields.
+        assertTrue(toolProvider.contains("val transcribeImages: Boolean = false"))
+        assertTrue(shell.contains("transcribeImages = true"))
+        assertTrue(executor.contains("result.transcribeImages && toolImage != null && transcriber != null"))
+        assertFalse(executor.contains("\"view_image\""))
+        assertTrue(executor.contains("appendTranscriptionSegment("))
+        assertTrue(executor.contains("toolImageTranscriber = request.toolImageTranscriber"))
+        assertTrue(manager.contains("toolImageTranscriber ="))
+        assertTrue(manager.contains("transcriptionManager.describeImageWithProgress("))
+        assertTrue(transcription.contains("suspend fun describeImageWithProgress("))
+        assertFalse(contracts.contains("toolImageTranscriber"))
+        // Defect pins (owner device reports): transcription-enabled models never receive raw
+        // images; the compact group title stays the transcription label while TOOL_CALLING;
+        // the thinking block always announces the transcribing state.
+        val pathBuilder = source(root, "com/newoether/agora/viewmodel/GenerationApiPathBuilder.kt")
+        val titles = source(
+            root,
+            "com/newoether/agora/ui/chat/message/ThinkingSegmentPresentation.kt",
+        )
+        assertTrue(pathBuilder.contains("includeImages = !request.context.imageTranscriptionEnabled"))
+        assertTrue(titles.contains("segs.any { it.type == \"transcription\" }"))
+        assertTrue(transcription.contains("onProgress(context.getString(R.string.transcription_ellipsis))"))
+    }
+
+    @Test
+    fun ratingDialogContentKeepsStandardMargins() {
+        val root = sourceRoot()
+        val rating = source(root, "com/newoether/agora/ui/settings/RatingForm.kt")
+
+        // The dialog content must never touch the 28 dp rounded surface edge.
+        assertTrue(rating.contains(
+            "Modifier\n            .clearFocusOnTap()\n            .padding(horizontal = 24.dp, vertical = 20.dp)"
+        ))
+    }
+
+    @Test
     fun skillsAreSavedOnlyFrozenCatalogToolsWithNoActiveSkill() {
         val root = sourceRoot()
         val manager = source(root, "com/newoether/agora/data/SkillManager.kt")

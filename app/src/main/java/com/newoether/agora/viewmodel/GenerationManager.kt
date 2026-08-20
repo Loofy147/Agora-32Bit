@@ -150,9 +150,9 @@ class GenerationManager(
         var parentId: String? = null
         var modelRunSequence = -1L
         var toolPath = emptyList<ChatMessage>()
-        val transcriptionExecution = GenerationTranscriptionStage(
-            TranscriptionManager(providerInstances, conversations, context),
-        ).newExecution()
+        val transcriptionManager = TranscriptionManager(providerInstances, conversations, context)
+        val transcriptionExecution =
+            GenerationTranscriptionStage(transcriptionManager).newExecution()
         val checkpoints = StreamingMessageCheckpoints(
             scope = CoroutineScope(currentCoroutineContext()),
             isLatestPersist = isLatestPersist,
@@ -347,6 +347,24 @@ class GenerationManager(
                         conversationId = conversationId,
                         authorizedToolNames = providerConfig.tools.orEmpty()
                             .mapTo(linkedSetOf()) { it.function.name },
+                        // view_image results reuse this generation's transcription flow when
+                        // image transcription is enabled for the current model.
+                        toolImageTranscriber =
+                            if (
+                                ctx.imageTranscriptionEnabled &&
+                                ctx.transcriptionModelId.isNotBlank()
+                            ) {
+                                { image, onProgress ->
+                                    transcriptionManager.describeImageWithProgress(
+                                        image = image,
+                                        ctx = ctx,
+                                        generationJob = generationJob,
+                                        onProgress = onProgress,
+                                    )
+                                }
+                            } else {
+                                null
+                            },
                     ),
                     overlay = toolOverlay,
                     callbacks = ToolBatchProgressCallbacks(

@@ -76,6 +76,10 @@ internal class GenerationApiPathBuilder(
                 providerConfig = ProviderConfig(
                     apiKey = config.apiKey,
                     modelId = config.modelId,
+                    // Transcription-enabled models receive image DESCRIPTIONS instead of raw
+                    // images on every path; sending image_url parts to a non-vision model is a
+                    // hard provider 400.
+                    includeImages = !request.context.imageTranscriptionEnabled,
                     systemPrompt = config.effectiveSystemPrompt,
                     maxContextWindow = (config.maxContextWindow - fixedTokenCost).coerceAtLeast(1),
                     codeExecutionEnabled = config.codeExecutionEnabled,

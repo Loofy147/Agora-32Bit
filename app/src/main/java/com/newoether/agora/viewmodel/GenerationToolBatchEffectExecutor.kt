@@ -8,6 +8,7 @@ import com.newoether.agora.model.RunEffect
 import com.newoether.agora.model.RunEffectIdentity
 import com.newoether.agora.model.ToolCallData
 import com.newoether.agora.model.ToolExecutionStates
+import com.newoether.agora.model.ToolImageAttachment
 import com.newoether.agora.model.toCitationRecord
 import com.newoether.agora.model.toMessageSegment
 import com.newoether.agora.tool.ToolExecutionEvent
@@ -60,6 +61,22 @@ internal class GenerationToolOverlay(
         } else {
             appendMergedSegment(segments, segment)
         }
+    }
+
+    /**
+     * Appends a thinking-style transcription segment (the same type the main transcription
+     * stage streams) and returns its index for live updates. Consecutive calls produce
+     * consecutive segments, matching the main flow's ordinal labeling.
+     */
+    fun appendTranscriptionSegment(content: String): Int {
+        val index = segments.size
+        segments += MessageSegment(type = "transcription", content = content)
+        return index
+    }
+
+    fun updateTranscriptionSegment(index: Int, content: String) {
+        if (index !in segments.indices) return
+        segments[index] = segments[index].copy(content = content)
     }
 
     fun updateLastThoughtMetadata(
@@ -275,6 +292,9 @@ internal data class AuthorizedToolBatchRequest(
     val context: GenerationContext,
     val conversationId: String,
     val authorizedToolNames: Set<String>,
+    /** Per-generation single-image transcription flow, resolved from this generation's
+     *  provider instances. Null disables tool-result image transcription. */
+    val toolImageTranscriber: (suspend (ToolImageAttachment, suspend (String) -> Unit) -> String?)? = null,
 ) {
     init {
         require(calls.isNotEmpty())
@@ -293,7 +313,15 @@ internal data class ToolBatchProgressCallbacks(
     val onPublishedAt: (Long) -> Unit,
 )
 
-/** Executes one already-authorized tool batch without committing or continuing the Run. */
+/**
+ * Executes one already-authorized tool batch without committing or continuing the Run.
+ *
+ * Tool-result image transcription sub-phase: when a completed result declares
+ * [ToolExecutionResult.transcribeImages] and carries images, the executor runs the
+ * per-generation [AuthorizedToolCall.toolImageTranscriber] over the first declared image,
+ * streams a thinking (transcription) segment into the overlay, and appends the description to
+ * the result text. This is one generic rule — the executor contains no tool-name routing.
+ */
 internal class GenerationToolBatchEffectExecutor(
     private val tools: GenerationToolExecutor,
     private val nowMs: () -> Long = System::currentTimeMillis,
@@ -321,6 +349,7 @@ internal class GenerationToolBatchEffectExecutor(
                     arguments = call.arguments,
                     context = request.context,
                     authorizedToolNames = request.authorizedToolNames,
+                    toolImageTranscriber = request.toolImageTranscriber,
                 ),
             ) { event ->
                 if (event !is ToolExecutionEvent.Completed) {
@@ -336,7 +365,43 @@ internal class GenerationToolBatchEffectExecutor(
             check(executed.batchIdentity == request.effect.identity)
             check(executed.callId == call.id)
             generatedImages += tools.drainGeneratedImages(request.conversationId)
-            val completed = overlay.complete(call, executed.result)
+            var result = executed.result
+            val transcriber = request.toolImageTranscriber
+            val toolImage = result.images.firstOrNull()
+            if (result.transcribeImages && toolImage != null && transcriber != null) {
+                // Generic rule (no tool-name routing): results that declare their images as
+                // model input are described with the main transcription flow, streamed as a
+                // thinking segment, and the description is appended to the result text.
+                val segmentIndex = overlay.appendTranscriptionSegment("")
+                callbacks.publish(true)
+                callbacks.onPublishedAt(nowMs())
+                var lastTranscriptionUiEmitMs = 0L
+                var lastPartial = ""
+                val description = transcriber(toolImage) { partial ->
+                    lastPartial = partial
+                    overlay.updateTranscriptionSegment(segmentIndex, partial)
+                    val now = nowMs()
+                    if (now - lastTranscriptionUiEmitMs >= TOOL_PROGRESS_UI_UPDATE_INTERVAL_MS) {
+                        callbacks.publish(false)
+                        callbacks.onPublishedAt(now)
+                        lastTranscriptionUiEmitMs = now
+                    }
+                }
+                // The transcriber always emits a terminal progress line (description or failure
+                // notice), so the thinking block never ends up empty.
+                overlay.updateTranscriptionSegment(
+                    segmentIndex,
+                    description ?: lastPartial,
+                )
+                if (!description.isNullOrBlank()) {
+                    result = result.copy(
+                        text = result.text + "\n\n[Image description]\n" + description,
+                    )
+                }
+                callbacks.publish(false)
+                callbacks.onPublishedAt(nowMs())
+            }
+            val completed = overlay.complete(call, result)
             completedSegments += completed.segment
             results += completed.data
             callbacks.publish(false)

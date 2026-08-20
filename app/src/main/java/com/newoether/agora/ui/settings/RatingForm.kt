@@ -62,7 +62,11 @@ fun RatingForm(
         append('"')
     }
 
-    Column(Modifier.clearFocusOnTap()) {
+    Column(
+        Modifier
+            .clearFocusOnTap()
+            .padding(horizontal = 24.dp, vertical = 20.dp)
+    ) {
         Text(
             text = stringResource(R.string.rating_title),
             style = ChatType.ratingTitle,

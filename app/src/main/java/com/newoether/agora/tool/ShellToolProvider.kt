@@ -529,6 +529,7 @@ class ShellToolProvider(
                     put("ok", true)
                 }.toString(),
                 images = listOf(attachment),
+                transcribeImages = true,
             )
         } catch (error: Exception) {
             ToolExecutionResult(

@@ -16,6 +16,8 @@ import com.newoether.agora.tool.ToolProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -225,13 +227,143 @@ class GenerationToolBatchEffectExecutorTest {
         assertTrue(outcome.generatedImages.isEmpty())
     }
 
-    private fun call() = StreamEvent.ToolCallRequest(
-        id = "call",
+    @Test
+    fun `declared tool images are transcribed into consecutive thinking segments and the result text`() = runTest {
+        val provider = ImageResultToolProvider()
+        val tools = GenerationToolExecutor.forTest(listOf(provider))
+        var now = 0L
+        val executor = GenerationToolBatchEffectExecutor(tools) { now += 100L; now }
+        val overlay = GenerationToolOverlay(tools, "provider")
+        overlay.upsert("stream-a", "call-a", "tool", "{\"path\":\"/private/a.png\"}", null)
+        overlay.upsert("stream-b", "call-b", "tool", "{\"path\":\"/private/b.png\"}", null)
+        val transcribed = mutableListOf<String>()
+        val progress = mutableListOf<String>()
+
+        val outcome = executor.execute(
+            request = AuthorizedToolBatchRequest(
+                effect = RunEffect.ExecuteToolBatch(IDENTITY),
+                calls = listOf(
+                    call("call-a", "stream-a", "{\"path\":\"/private/a.png\"}"),
+                    call("call-b", "stream-b", "{\"path\":\"/private/b.png\"}"),
+                ),
+                context = GenerationContext(),
+                conversationId = "conversation",
+                authorizedToolNames = setOf("tool"),
+                toolImageTranscriber = { image, onProgress ->
+                    transcribed += image.path
+                    val partial = "partial ${image.path}"
+                    progress += partial
+                    onProgress(partial)
+                    "description of ${image.path}"
+                },
+            ),
+            overlay = overlay,
+            callbacks = ToolBatchProgressCallbacks(
+                publish = {},
+                onPublishedAt = {},
+            ),
+        )
+
+        assertEquals(
+            listOf("/private/a.png", "/private/b.png"),
+            transcribed,
+        )
+        assertEquals(
+            listOf("partial /private/a.png", "partial /private/b.png"),
+            progress,
+        )
+        val transcriptionSegments = overlay.snapshot().filter { it.type == "transcription" }
+        assertEquals(2, transcriptionSegments.size)
+        assertEquals(
+            listOf(
+                "description of /private/a.png",
+                "description of /private/b.png",
+            ),
+            transcriptionSegments.map { it.content },
+        )
+        assertEquals(
+            listOf(
+                "done\n\n[Image description]\ndescription of /private/a.png",
+                "done\n\n[Image description]\ndescription of /private/b.png",
+            ),
+            outcome.calls.map { it.result },
+        )
+    }
+
+    @Test
+    fun `declared tool images without a transcriber keep the raw result and add no segment`() = runTest {
+        val tools = GenerationToolExecutor.forTest(listOf(ImageResultToolProvider()))
+        var now = 0L
+        val executor = GenerationToolBatchEffectExecutor(tools) { now += 100L; now }
+        val overlay = GenerationToolOverlay(tools, "provider")
+        overlay.upsert("stream", "call", "tool", "{\"path\":\"/private/a.png\"}", null)
+
+        val outcome = executor.execute(
+            request = AuthorizedToolBatchRequest(
+                effect = RunEffect.ExecuteToolBatch(IDENTITY),
+                calls = listOf(call(arguments = "{\"path\":\"/private/a.png\"}")),
+                context = GenerationContext(),
+                conversationId = "conversation",
+                authorizedToolNames = setOf("tool"),
+            ),
+            overlay = overlay,
+            callbacks = ToolBatchProgressCallbacks(
+                publish = {},
+                onPublishedAt = {},
+            ),
+        )
+
+        assertEquals("done", outcome.calls.single().result)
+        assertTrue(overlay.snapshot().none { it.type == "transcription" })
+    }
+
+    private fun call(
+        id: String = "call",
+        streamKey: String = "stream",
+        arguments: String = "{}",
+    ) = StreamEvent.ToolCallRequest(
+        id = id,
         name = "tool",
-        arguments = "{}",
-        streamKey = "stream",
+        arguments = arguments,
+        streamKey = streamKey,
         signature = "signature",
     )
+
+    private class ImageResultToolProvider : ToolProvider {
+        override fun definitions(ctx: GenerationContext): List<ToolDefinition> = emptyList()
+
+        override fun handles(name: String): Boolean = name == "tool"
+
+        override suspend fun execute(name: String, arguments: String, ctx: GenerationContext): String =
+            error("Streaming adapter expected")
+
+        override fun executeEvents(
+            name: String,
+            arguments: String,
+            ctx: GenerationContext,
+        ): Flow<ToolExecutionEvent> {
+            val path = kotlinx.serialization.json.Json.parseToJsonElement(arguments)
+                .jsonObject["path"]!!.jsonPrimitive.content
+            return flowOf(
+                ToolExecutionEvent.Completed(
+                    ToolExecutionResult(
+                        text = "done",
+                        images = listOf(
+                            com.newoether.agora.model.ToolImageAttachment(
+                                path = path,
+                                mimeType = "image/png",
+                                sizeBytes = 1L,
+                                width = 1,
+                                height = 1,
+                                sha256 = "sha",
+                            ),
+                        ),
+                        transcribeImages = true,
+                    ),
+                ),
+            )
+        }
+    }
 
     private class StreamingToolProvider : ToolProvider {
         val executedNames = mutableListOf<String>()

@@ -57,10 +57,45 @@ class ToolMessagesTest {
             contextTokenBudget = 16_384,
         )
 
-        val visualTurn = prepared.single {
-            it.images == listOf("/private/tool-result.png")
-        }
+        // The result_ row keeps its images in the prepared list (the projection trigger reads
+        // them there); the API-only image-context row is the one that must survive as a normal
+        // user message.
+        val visualTurn = prepared.single { it.id.startsWith("image_context_") }
         assertEquals(Participant.USER, visualTurn.participant)
+        assertEquals(listOf("/private/tool-result.png"), visualTurn.images)
+    }
+
+    @Test
+    fun syntheticImageContextRow_usesNonProtocolIdAndSerializesAsNormalUserMessage() {
+        val projected = projectToolResultImagesToUserMessage(
+            messages = listOf(
+                tool("tool_round", "call-image"),
+                result("result_image", "call-image").copy(
+                    images = listOf("/private/tool-result.png"),
+                ),
+            ),
+            includeImages = true,
+        )
+
+        val visualTurn = projected.single { it.text.contains("Tool visual result") }
+        // The regression: this id used to start with "tool_", so every provider serializer
+        // routed it into the tool-protocol branch and silently dropped its text and images.
+        assertFalse(visualTurn.id.startsWith("tool_"))
+        assertFalse(visualTurn.id.startsWith("result_"))
+        assertFalse(visualTurn.id.startsWith("compact_"))
+        assertFalse(visualTurn.isToolProtocolMessage())
+        assertEquals(Participant.USER, visualTurn.participant)
+        assertEquals(listOf("/private/tool-result.png"), visualTurn.images)
+        assertEquals("result_image", visualTurn.parentId)
+
+        val wire = convertToOpenAiMessages(projected, includeImages = true)
+        val wireUser = wire.single { message ->
+            message.role == "user" &&
+                message.content?.any { part ->
+                    part.type == "text" && part.text?.contains("Tool visual result") == true
+                } == true
+        }
+        assertTrue(wireUser.content.orEmpty().any { it.text?.contains("Tool visual result") == true })
     }
 
     @Test

@@ -37,6 +37,12 @@ data class ToolExecutionResult(
     /** Human-readable content for UI display when [text] also carries protocol JSON/attachments. */
     val displayText: String? = null,
     val isError: Boolean = false,
+    /**
+     * Declares that [images] are INPUT the model must understand (e.g. view_image), so the tool
+     * batch executor runs the per-generation image transcription flow over them and appends the
+     * description to [text]. Output images (image generation) never set this.
+     */
+    val transcribeImages: Boolean = false,
 )
 
 /** Provider-owned presentation metadata resolved without exposing protocol routing IDs to the UI. */

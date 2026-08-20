@@ -14,6 +14,7 @@ import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
+import com.newoether.agora.model.ToolImageAttachment
 import com.newoether.agora.service.AgoraForegroundService
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
@@ -129,6 +130,88 @@ class TranscriptionManager(
             }
         }
         return targets
+    }
+
+    /**
+     * Describes one tool-result image (view_image) with the same provider resolution, prompt,
+     * config, and streaming loop as [transcribe] — but for a single image and without any
+     * attachment-metadata persistence (tool images have no attachment row).
+     *
+     * @return the trimmed description text, or null when the provider is unavailable or the
+     * stream fails. Fail-closed on provider lookup: the image is never rerouted to another
+     * provider.
+     */
+    suspend fun describeImageWithProgress(
+        image: ToolImageAttachment,
+        ctx: GenerationContext,
+        generationJob: Job?,
+        onProgress: suspend (String) -> Unit,
+    ): String? {
+        // The block must never render as empty: announce the transcribing state immediately and
+        // always emit a terminal progress line, mirroring the main transcription stage.
+        onProgress(context.getString(R.string.transcription_ellipsis))
+        val provider = providers[ctx.transcriptionProviderName]
+        if (provider == null) {
+            onProgress(
+                context.getString(
+                    R.string.generation_error_transcription,
+                    "Transcription provider \"${ctx.transcriptionProviderName}\" is not available. Check the image transcription settings.",
+                ),
+            )
+            return null
+        }
+        val transcriptionConfig = ProviderConfig(
+            apiKey = ctx.transcriptionApiKey,
+            modelId = ctx.transcriptionModelId,
+            systemPrompt = BuiltInPrompts.IMAGE_TRANSCRIPTION_SYSTEM,
+            thinkingEnabled = false,
+            baseUrl = ctx.transcriptionBaseUrl,
+        )
+        val promptMessages = listOf(
+            ChatMessage(
+                text = ctx.imageTranscriptionPrompt.ifBlank {
+                    BuiltInPrompts.IMAGE_TRANSCRIPTION_USER
+                },
+                images = listOf(image.path),
+                participant = Participant.USER,
+                status = MessageStatus.SUCCESS,
+            ),
+        )
+        val transcription = StringBuilder()
+        var streamError: StreamEvent.Error? = null
+        provider.generateResponse(promptMessages, transcriptionConfig).collect { event ->
+            when (event) {
+                is StreamEvent.TextChunk -> {
+                    transcription.append(event.text)
+                    onProgress(transcription.toString())
+                }
+                is StreamEvent.Error -> streamError = event
+                else -> {}
+            }
+            if (generationJob?.isCancelled == true || !currentCoroutineContext().isActive) {
+                throw CancellationException("Tool image transcription cancelled")
+            }
+        }
+        if (streamError != null) {
+            onProgress(
+                context.getString(
+                    R.string.generation_error_transcription,
+                    localizedGenerationError(context, streamError.error),
+                ),
+            )
+            return null
+        }
+        val text = transcription.toString().trim()
+        if (text.isEmpty()) {
+            onProgress(
+                context.getString(
+                    R.string.generation_error_transcription,
+                    "The transcription stream produced no text.",
+                ),
+            )
+            return null
+        }
+        return text
     }
 
     /**
