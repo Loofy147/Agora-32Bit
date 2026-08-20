@@ -6,7 +6,7 @@ Status: repository maintenance baseline, 2026-08-10.
 
 - `docs/` is exclusively the MkDocs public user-manual source. Its direct children are locale directories.
 - `development-docs/` contains internal engineering requirements, architecture baselines, and maintenance policy. It is not published by MkDocs.
-- `README.md`, `README_CN.md`, `ARCHITECTURE.md`, and `PRIVACY.md` remain root repository documents.
+- `README.md`, `ARCHITECTURE.md`, and `PRIVACY.md` remain root repository documents.
 
 Do not reintroduce non-locale folders under `docs/`.
 

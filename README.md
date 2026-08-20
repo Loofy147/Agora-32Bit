@@ -8,7 +8,6 @@
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
   [![Platform: Android](https://img.shields.io/badge/Platform-Android-green.svg)](https://developer.android.com)
   [![Kotlin](https://img.shields.io/badge/Kotlin-Native-blue.svg)](https://kotlinlang.org/)
-  <br/>**English** | [中文](README_CN.md)
 
   <img src="assets/feature_graphic.png" alt="Agora — A BYOK AI app that takes back your data sovereignty." width="100%" />
 </div>
