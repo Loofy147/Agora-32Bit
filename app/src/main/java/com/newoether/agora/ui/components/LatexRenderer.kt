@@ -127,7 +127,7 @@ private fun findMarkdownProtectedRanges(src: String): List<ProtectedRange> {
 /**
  * Returns true if every non-ASCII character in [s] is safely inside `{…}`,
  * OR is a Greek / math-symbol Unicode codepoint.
- * This lets `x_{中文}` and `\alpha` through while rejecting bare prose.
+ * This permits braced non-ASCII content and commands such as `\alpha` while rejecting bare prose.
  */
 private fun nonAsciiInsideBraces(s: String): Boolean {
     var depth = 0

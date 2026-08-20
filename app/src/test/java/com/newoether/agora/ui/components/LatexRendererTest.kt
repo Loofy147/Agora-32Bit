@@ -8,7 +8,7 @@ class LatexRendererTest {
 
     @Test
     fun testFullParagraph() {
-        // Raw text as received: 显存带宽 $BW = 672\ \mathrm{GB/s}$ 在 $p$ 值 $p < 0.01$
+        // Use representative non-English prose containing inline bandwidth and p-value formulas.
         val text = "显存带宽 \$BW = 672\\ \\mathrm{GB/s}\$ 在 \$p\$ 值 \$p < 0.01\$ 的显著性检验里确实落后了。"
         println("=== Full paragraph ===")
         val spans = parseLatexSpans(text, parseInlineDollarMath = true)

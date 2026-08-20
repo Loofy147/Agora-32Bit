@@ -35,9 +35,9 @@ class GenerationRequestBuilder(
     private val providerRegistry: ProviderRegistry,
     private val ragManager: RagManager,
     private val appContext: Context,
-    // _pendingConversationSettings 也是 StateFlow,buildEffectiveConversationSettings 读它的 .value
+    // This remains a StateFlow because buildEffectiveConversationSettings reads its current value.
     private val pendingConversationSettings: StateFlow<ConversationSettings?>,
-    // resolveProviderKey 需要 emit snackbar
+    // resolveProviderKey uses this callback to emit snackbar messages.
     private val onSnackbar: (String) -> Unit,
 ) {
     data class ProviderKey(val providerName: String, val apiKey: String)
