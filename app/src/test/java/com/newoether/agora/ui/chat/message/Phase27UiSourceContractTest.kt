@@ -46,8 +46,12 @@ class Phase27UiSourceContractTest {
         assertTrue(timeline.contains("generationActive: Boolean ="))
         assertTrue(timeline.contains("if (!generationActive) return false"))
         assertTrue(timeline.contains("generationActive = generationActive"))
-        assertTrue(presentation.contains(
+        // isActive drives the loading indicator and must exclude detached background jobs.
+        assertFalse(presentation.contains(
             "state == ToolPresentationState.BACKGROUND_RUNNING"
+        ))
+        assertTrue(presentation.contains(
+            "state == ToolPresentationState.CALLING ||"
         ))
     }
 

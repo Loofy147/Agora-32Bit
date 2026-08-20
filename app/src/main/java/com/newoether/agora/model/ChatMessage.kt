@@ -23,6 +23,8 @@ data class ToolCallData(
     val responseOutputItems: List<JsonObject> = emptyList(),
     /** Provider identity that owns [responseOutputItems]; foreign transports must ignore them. */
     val responseOutputItemProvider: String? = null,
+    /** Transcription description of a tool-result image; travels with the result row. */
+    val transcription: String? = null,
 )
 
 @Serializable
@@ -65,6 +67,13 @@ data class MessageSegment(
     val toolStructuredResult: String? = null,
     /** Private-file metadata for image content returned by a tool. */
     val toolImages: List<ToolImageAttachment> = emptyList(),
+    /**
+     * Transcription description of a tool-result image (view_image). Persisted WITH the result
+     * row so the API projection can inject it into the model context — the round-boundary path
+     * rebuild does not include the model message, so a segment living there is unreachable.
+     * Displayed only in the Image Transcription thinking block, never in the tool card.
+     */
+    val toolTranscription: String? = null,
     /** Raw provider protocol items needed to reconstruct a stateless tool continuation. */
     val responseOutputItems: List<JsonObject> = emptyList(),
     /** Provider identity that owns [responseOutputItems]; foreign transports must ignore them. */

@@ -521,6 +521,7 @@
     <string name="transcription_no_models_hint">Thêm các mô hình ở trên để bật tính năng chuyển tả hình ảnh</string>
     <string name="transcription_add_model">Thêm mô hình</string>
     <string name="transcription_ellipsis">Đang chuyển tả hình ảnh…</string>
+    <string name="transcription_ellipsis_single">Đang mô tả hình ảnh…</string>
     <string name="transcription_progress">Đang chuyển tả hình ảnh %1$d/%2$d…</string>
     <string name="generating_response">Đang tạo phản hồi…</string>
     <string name="transcription_label">Chuyển tả hình ảnh</string>

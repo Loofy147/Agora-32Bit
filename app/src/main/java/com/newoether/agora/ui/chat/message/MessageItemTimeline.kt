@@ -189,7 +189,9 @@ internal fun compactSegmentHasActiveContent(
         when (segment.type) {
             "tool" -> ToolPresentationResolver.resolve(segment).isActive
             "thought" -> useLiveStatus && message.status == MessageStatus.THINKING
-            "transcription" -> useLiveStatus && message.status == MessageStatus.TRANSCRIBING
+            "transcription" -> useLiveStatus &&
+                (message.status == MessageStatus.TRANSCRIBING ||
+                    message.status == MessageStatus.TOOL_CALLING)
             else -> false
         }
     }

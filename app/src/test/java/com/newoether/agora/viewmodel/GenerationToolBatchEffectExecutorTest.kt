@@ -228,7 +228,7 @@ class GenerationToolBatchEffectExecutorTest {
     }
 
     @Test
-    fun `declared tool images are transcribed into consecutive thinking segments and the result text`() = runTest {
+    fun `declared tool images are transcribed into consecutive thinking segments without polluting the result`() = runTest {
         val provider = ImageResultToolProvider()
         val tools = GenerationToolExecutor.forTest(listOf(provider))
         var now = 0L
@@ -281,12 +281,23 @@ class GenerationToolBatchEffectExecutorTest {
             ),
             transcriptionSegments.map { it.content },
         )
+        // The description stays out of the tool result text — it travels on the result row
+        // (ToolCallData.transcription / segment.toolTranscription) and reaches the model via
+        // the image-context row (ToolMessagesTest).
+        assertEquals(listOf("done", "done"), outcome.calls.map { it.result })
         assertEquals(
             listOf(
-                "done\n\n[Image description]\ndescription of /private/a.png",
-                "done\n\n[Image description]\ndescription of /private/b.png",
+                "description of /private/a.png",
+                "description of /private/b.png",
             ),
-            outcome.calls.map { it.result },
+            outcome.calls.map { it.transcription },
+        )
+        assertEquals(
+            listOf(
+                "description of /private/a.png",
+                "description of /private/b.png",
+            ),
+            outcome.segments.map { it.toolTranscription },
         )
     }
 

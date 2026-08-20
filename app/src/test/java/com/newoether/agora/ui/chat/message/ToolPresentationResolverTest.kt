@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.int
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -183,7 +184,7 @@ class ToolPresentationResolverTest {
     }
 
     @Test
-    fun backgroundJobRemainsActiveAfterToolCallReturns() {
+    fun backgroundJobIsNotActiveAfterToolCallReturns() {
         val presentation = ToolPresentationResolver.resolve(
             MessageSegment(
                 type = "tool",
@@ -194,7 +195,8 @@ class ToolPresentationResolverTest {
 
         assertEquals(ToolPresentationState.BACKGROUND_RUNNING, presentation.state)
         assertEquals("abc", presentation.jobId)
-        assertTrue(presentation.isActive)
+        // A detached background job must not occupy the group loading indicator.
+        assertFalse(presentation.isActive)
     }
 
     @Test

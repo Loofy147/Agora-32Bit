@@ -522,6 +522,7 @@
     <string name="transcription_no_models_hint">Добавьте модели выше, чтобы включить транскрипцию изображений</string>
     <string name="transcription_add_model">Добавить модель</string>
     <string name="transcription_ellipsis">Транскрипция изображений…</string>
+    <string name="transcription_ellipsis_single">Описание изображения…</string>
     <string name="transcription_progress">Транскрипция изображений %1$d/%2$d…</string>
     <string name="generating_response">Генерация ответа…</string>
     <string name="transcription_label">Транскрипция изображения</string>

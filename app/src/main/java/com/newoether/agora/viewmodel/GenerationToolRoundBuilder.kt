@@ -123,6 +123,7 @@ internal class GenerationToolRoundBuilder(
         toolResultText = resultText,
         toolStructuredResult = structuredResult,
         toolImages = resultImages,
+        toolTranscription = transcription,
         responseOutputItems = if (includeResponseState) responseOutputItems else emptyList(),
         responseOutputItemProvider = if (includeResponseState) responseOutputItemProvider else null,
     )

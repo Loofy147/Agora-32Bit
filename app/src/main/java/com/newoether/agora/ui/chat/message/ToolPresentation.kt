@@ -79,10 +79,14 @@ internal data class ToolPresentation(
     val jobId: String?,
     val outputLength: Int?,
 ) {
+    /**
+     * Drives the group loading indicator. BACKGROUND_RUNNING is deliberately excluded: a
+     * detached background shell job must not occupy the loading bar once its tool round ends —
+     * the card shows its own "running in background" status instead.
+     */
     val isActive: Boolean
         get() = state == ToolPresentationState.CALLING ||
-            state == ToolPresentationState.RUNNING ||
-            state == ToolPresentationState.BACKGROUND_RUNNING
+            state == ToolPresentationState.RUNNING
 }
 
 internal object ToolPresentationResolver {

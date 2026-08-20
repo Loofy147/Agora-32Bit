@@ -371,6 +371,19 @@ internal fun SegmentDetailSheet(
                                                     .copy(alpha = 0.4f),
                                                 modifier = Modifier.padding(horizontal = 24.dp),
                                             )
+                                        } else if (
+                                            detailSeg.type == "transcription" &&
+                                            (detailSeg.content ==
+                                                stringResource(R.string.transcription_ellipsis_single) ||
+                                                detailSeg.content ==
+                                                stringResource(R.string.transcription_ellipsis))
+                                        ) {
+                                            Text(
+                                                text = detailSeg.content,
+                                                style = markdownRenderContext.plainTextStyle,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.padding(horizontal = 24.dp),
+                                            )
                                         } else {
                                             val detailIsStreaming =
                                                 isStreaming && index == selectedSegs.lastIndex
@@ -419,6 +432,19 @@ internal fun SegmentDetailSheet(
                                         style = ChatType.body,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                             .copy(alpha = 0.4f),
+                                        modifier = Modifier.padding(horizontal = 24.dp),
+                                    )
+                                } else if (
+                                    seg.type == "transcription" &&
+                                    (seg.content ==
+                                        stringResource(R.string.transcription_ellipsis_single) ||
+                                        seg.content ==
+                                        stringResource(R.string.transcription_ellipsis))
+                                ) {
+                                    Text(
+                                        text = seg.content,
+                                        style = markdownRenderContext.plainTextStyle,
+                                        color = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.padding(horizontal = 24.dp),
                                     )
                                 } else {

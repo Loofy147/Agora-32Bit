@@ -144,7 +144,9 @@ class ExperimentalGenerationUiPresentationTest {
                 useLiveStatus = true,
             ),
         )
-        assertTrue(
+        // A detached background job is not active content — it must not occupy the loading
+        // indicator once its tool round ends.
+        assertFalse(
             compactSegmentHasActiveContent(
                 segs = listOf(backgroundTool),
                 message = message(MessageStatus.TOOL_CALLING),

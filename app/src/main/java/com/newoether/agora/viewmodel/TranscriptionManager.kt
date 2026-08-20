@@ -148,8 +148,9 @@ class TranscriptionManager(
         onProgress: suspend (String) -> Unit,
     ): String? {
         // The block must never render as empty: announce the transcribing state immediately and
-        // always emit a terminal progress line, mirroring the main transcription stage.
-        onProgress(context.getString(R.string.transcription_ellipsis))
+        // always emit a terminal progress line, mirroring the main transcription stage. This
+        // flow transcribes exactly one image per slot, so the label is singular.
+        onProgress(context.getString(R.string.transcription_ellipsis_single))
         val provider = providers[ctx.transcriptionProviderName]
         if (provider == null) {
             onProgress(

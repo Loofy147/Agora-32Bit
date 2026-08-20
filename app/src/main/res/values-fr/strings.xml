@@ -522,6 +522,7 @@
     <string name="transcription_no_models_hint">Ajoutez des modèles ci-dessus pour activer la transcription d\'images</string>
     <string name="transcription_add_model">Ajouter un modèle</string>
     <string name="transcription_ellipsis">Transcription des images…</string>
+    <string name="transcription_ellipsis_single">Transcription de l’image…</string>
     <string name="transcription_progress">Transcription des images %1$d/%2$d…</string>
     <string name="generating_response">Génération de la réponse…</string>
     <string name="transcription_label">Transcription d’image</string>

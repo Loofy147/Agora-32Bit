@@ -469,6 +469,13 @@ fun projectToolResultImagesToUserMessage(
                 .digest(seed.toByteArray())
                 .take(8)
                 .joinToString("") { "%02x".format(it) }
+            // Carried like regular image transcriptions: a text block on this API-only row,
+            // read from the toolTranscription persisted on the batch's tool segments (the
+            // round-boundary path rebuild excludes the model message, so the description must
+            // travel with the result rows).
+            val descriptionBlock = transcriptionDescriptionsForBatch(batch)
+                ?.let { "\n\n--- Image Transcription: view_image ---\n$it" }
+                .orEmpty()
             projected += ChatMessage(
                 // The id must not start with tool_ / result_ / compact_: provider serializers
                 // branch on those prefixes and would silently drop this API-only row (its text
@@ -476,7 +483,9 @@ fun projectToolResultImagesToUserMessage(
                 id = "image_context_$digest",
                 parentId = batch.last().id,
                 text = if (includeImages) {
-                    "[Tool visual result: inspect the attached image${if (images.size == 1) "" else "s"} before continuing.]"
+                    "[Tool visual result: inspect the attached image${if (images.size == 1) "" else "s"} before continuing.]$descriptionBlock"
+                } else if (descriptionBlock.isNotBlank()) {
+                    "[Tool visual result: the image description follows.]$descriptionBlock"
                 } else {
                     "[Tool visual result unavailable: the current model does not support image input.]"
                 },
@@ -495,6 +504,16 @@ fun projectToolResultImagesToUserMessage(
 
 private fun ChatMessage.isNormalUserMessage(): Boolean =
     participant == Participant.USER && !isToolProtocolMessage()
+
+/** Tool-image transcription travels on the result rows' tool segments (toolTranscription). */
+private fun transcriptionDescriptionsForBatch(
+    batch: List<ChatMessage>,
+): String? = batch
+    .flatMap { it.segments.orEmpty() }
+    .mapNotNull { it.toolTranscription?.takeIf(String::isNotBlank) }
+    .distinct()
+    .joinToString("\n\n")
+    .takeIf(String::isNotBlank)
 
 private fun ChatMessage.isNormalAssistantMessage(): Boolean =
     participant == Participant.MODEL && !isToolProtocolMessage()

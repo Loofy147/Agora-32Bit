@@ -104,7 +104,7 @@ class TranscriptionManagerTest {
 
     private fun manager(providers: Map<String, LlmProvider>): TranscriptionManager {
         val context = mockk<Context>(relaxed = true)
-        every { context.getString(R.string.transcription_ellipsis) } returns "Transcribing…"
+        every { context.getString(R.string.transcription_ellipsis_single) } returns "Transcribing…"
         every {
             context.getString(R.string.generation_error_transcription, any<String>())
         } returns "Image transcription failed"

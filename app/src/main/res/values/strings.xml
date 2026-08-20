@@ -570,6 +570,7 @@
     <string name="transcription_no_models_hint">Add models above to enable image transcription</string>
     <string name="transcription_add_model">Add Model</string>
     <string name="transcription_ellipsis">Transcribing images…</string>
+    <string name="transcription_ellipsis_single">Transcribing image…</string>
     <string name="transcription_progress">Transcribing images %1$d/%2$d…</string>
     <string name="generating_response">Generating response…</string>
     <string name="transcription_label">Image Transcription</string>

@@ -531,6 +531,7 @@
     <string name="transcription_no_models_hint">请在上方添加模型以启用图像转述</string>
     <string name="transcription_add_model">添加模型</string>
     <string name="transcription_ellipsis">正在转述图片…</string>
+    <string name="transcription_ellipsis_single">正在描述图片…</string>
     <string name="transcription_progress">正在转述图片 %1$d/%2$d…</string>
     <string name="generating_response">正在生成回复…</string>
     <string name="transcription_label">图片转述</string>

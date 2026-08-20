@@ -68,6 +68,23 @@ class ApplicationUiSourceContractTest {
     }
 
     @Test
+    fun `singular transcription ellipsis exists in every locale`() {
+        val directories = listOf(
+            "values", "values-ar", "values-de", "values-es", "values-fr", "values-ja",
+            "values-ko", "values-pt-rBR", "values-ru", "values-vi", "values-zh",
+            "values-zh-rTW",
+        )
+
+        directories.forEach { directory ->
+            val strings = sourceFile("app/src/main/res/$directory/strings.xml")
+            assertTrue(
+                "$directory transcription_ellipsis_single",
+                strings.contains("name=\"transcription_ellipsis_single\""),
+            )
+        }
+    }
+
+    @Test
     fun `Skills entry and page use Extension icon and Memory-equivalent English casing`() {
         val settings = sourceFile("app/src/main/java/com/newoether/agora/ui/settings/SettingsScreen.kt")
         val page = sourceFile("app/src/main/java/com/newoether/agora/ui/settings/SettingsSkillsPage.kt")

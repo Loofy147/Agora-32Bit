@@ -522,6 +522,7 @@
     <string name="transcription_no_models_hint">Füge oben Modelle hinzu, um die Bildtranskription zu aktivieren</string>
     <string name="transcription_add_model">Modell hinzufügen</string>
     <string name="transcription_ellipsis">Bilder werden transkribiert…</string>
+    <string name="transcription_ellipsis_single">Bild wird beschrieben…</string>
     <string name="transcription_progress">Bilder werden transkribiert %1$d/%2$d…</string>
     <string name="generating_response">Antwort wird generiert…</string>
     <string name="transcription_label">Bildtranskription</string>

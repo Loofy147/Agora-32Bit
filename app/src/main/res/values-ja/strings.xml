@@ -522,6 +522,7 @@
     <string name="transcription_no_models_hint">画像の文字起こしを有効にするには上でモデルを追加してください</string>
     <string name="transcription_add_model">モデルを追加</string>
     <string name="transcription_ellipsis">画像を文字起こし中…</string>
+    <string name="transcription_ellipsis_single">画像を文字起こし中…</string>
     <string name="transcription_progress">画像を文字起こし中 %1$d/%2$d…</string>
     <string name="generating_response">応答を生成中…</string>
     <string name="transcription_label">画像の文字起こし</string>

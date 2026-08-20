@@ -522,6 +522,7 @@
     <string name="transcription_no_models_hint">이미지 전사를 활성화하려면 위에 모델을 추가하세요</string>
     <string name="transcription_add_model">모델 추가</string>
     <string name="transcription_ellipsis">이미지 전사 중…</string>
+    <string name="transcription_ellipsis_single">이미지 설명 중…</string>
     <string name="transcription_progress">이미지 전사 중 %1$d/%2$d…</string>
     <string name="generating_response">응답 생성 중…</string>
     <string name="transcription_label">이미지 전사</string>

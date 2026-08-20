@@ -133,12 +133,16 @@ class ApprovedFeatureSourceContractTest {
         assertTrue(shell.contains("transcribeImages = true"))
         assertTrue(executor.contains("result.transcribeImages && toolImage != null && transcriber != null"))
         assertFalse(executor.contains("\"view_image\""))
+        assertFalse(executor.contains("[Image description]"))
         assertTrue(executor.contains("appendTranscriptionSegment("))
         assertTrue(executor.contains("toolImageTranscriber = request.toolImageTranscriber"))
         assertTrue(manager.contains("toolImageTranscriber ="))
         assertTrue(manager.contains("transcriptionManager.describeImageWithProgress("))
         assertTrue(transcription.contains("suspend fun describeImageWithProgress("))
         assertFalse(contracts.contains("toolImageTranscriber"))
+        val toolMessages = source(root, "com/newoether/agora/api/util/ToolMessages.kt")
+        assertTrue(toolMessages.contains("--- Image Transcription: view_image ---"))
+        assertTrue(toolMessages.contains("transcriptionDescriptionsForBatch("))
         // Defect pins (owner device reports): transcription-enabled models never receive raw
         // images; the compact group title stays the transcription label while TOOL_CALLING;
         // the thinking block always announces the transcribing state.
@@ -149,7 +153,32 @@ class ApprovedFeatureSourceContractTest {
         )
         assertTrue(pathBuilder.contains("includeImages = !request.context.imageTranscriptionEnabled"))
         assertTrue(titles.contains("segs.any { it.type == \"transcription\" }"))
-        assertTrue(transcription.contains("onProgress(context.getString(R.string.transcription_ellipsis))"))
+        assertTrue(transcription.contains("onProgress(context.getString(R.string.transcription_ellipsis_single))"))
+    }
+
+    @Test
+    fun backgroundShellJobDoesNotOccupyTheGroupLoadingIndicator() {
+        val root = sourceRoot()
+        val presentation = source(
+            root,
+            "com/newoether/agora/ui/chat/message/ToolPresentation.kt",
+        )
+        val labels = source(
+            root,
+            "com/newoether/agora/ui/chat/message/MessageItemToolLabels.kt",
+        )
+
+        // isActive drives the group loading bar; a detached background job must not occupy it.
+        assertTrue(presentation.contains(
+            "state == ToolPresentationState.CALLING ||\n            state == ToolPresentationState.RUNNING"
+        ))
+        assertFalse(presentation.contains(
+            "state == ToolPresentationState.BACKGROUND_RUNNING\n"
+        ))
+        // The card still shows the background status (matched before isActive).
+        assertTrue(labels.contains(
+            "presentation.state == ToolPresentationState.BACKGROUND_RUNNING ->"
+        ))
     }
 
     @Test

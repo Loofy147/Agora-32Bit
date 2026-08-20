@@ -99,6 +99,39 @@ class ToolMessagesTest {
     }
 
     @Test
+    fun toolImageDescriptionReachesTheModelRowLikeRegularImageTranscriptions() {
+        // The description travels on the result row's tool segment — the round-boundary path
+        // rebuild excludes the model message, so nothing else survives.
+        val messages = listOf(
+            tool("tool_round", "call-image"),
+            result("result_image", "call-image").copy(
+                images = listOf("/private/tool-result.png"),
+                segments = listOf(
+                    toolResultSegment("call-image", "result").copy(
+                        toolTranscription = "A cat sitting.",
+                    ),
+                ),
+            ),
+        )
+
+        val visualTurn = projectToolResultImagesToUserMessage(
+            messages = messages,
+            includeImages = true,
+        ).single { it.id.startsWith("image_context_") }
+        assertTrue(visualTurn.text.contains("--- Image Transcription: view_image ---"))
+        assertTrue(visualTurn.text.contains("A cat sitting."))
+
+        // Non-vision models receive the description instead of the unavailable notice.
+        val textOnly = projectToolResultImagesToUserMessage(
+            messages = messages,
+            includeImages = false,
+        ).single { it.id.startsWith("image_context_") }
+        assertTrue(textOnly.images.isEmpty())
+        assertTrue(textOnly.text.contains("A cat sitting."))
+        assertFalse(textOnly.text.contains("does not support image input"))
+    }
+
+    @Test
     fun unsupportedModelGetsExplicitToolImageNoticeWithoutBinaryInput() {
         val projected = projectToolResultImagesToUserMessage(
             messages = listOf(

@@ -220,7 +220,11 @@ internal class GenerationToolOverlay(
         }
     }
 
-    fun complete(call: StreamEvent.ToolCallRequest, result: ToolExecutionResult): CompletedToolCall {
+    fun complete(
+        call: StreamEvent.ToolCallRequest,
+        result: ToolExecutionResult,
+        transcription: String? = null,
+    ): CompletedToolCall {
         val index = checkNotNull(streamIndices[call.streamKey]) {
             "Missing live segment for tool call ${call.streamKey}"
         }
@@ -233,6 +237,7 @@ internal class GenerationToolOverlay(
             toolStructuredResult = structuredResult,
             toolState = if (result.isError) ToolExecutionStates.FAILED else finalToolState(result.text),
             toolImages = result.images,
+            toolTranscription = transcription,
         )
         segments[index] = completed
         return CompletedToolCall(
@@ -249,6 +254,7 @@ internal class GenerationToolOverlay(
                 structuredResult = structuredResult,
                 responseOutputItems = completed.responseOutputItems,
                 responseOutputItemProvider = completed.responseOutputItemProvider,
+                transcription = transcription,
             ),
         )
     }
@@ -365,13 +371,16 @@ internal class GenerationToolBatchEffectExecutor(
             check(executed.batchIdentity == request.effect.identity)
             check(executed.callId == call.id)
             generatedImages += tools.drainGeneratedImages(request.conversationId)
-            var result = executed.result
+            val result = executed.result
             val transcriber = request.toolImageTranscriber
             val toolImage = result.images.firstOrNull()
+            var transcription: String? = null
             if (result.transcribeImages && toolImage != null && transcriber != null) {
                 // Generic rule (no tool-name routing): results that declare their images as
-                // model input are described with the main transcription flow, streamed as a
-                // thinking segment, and the description is appended to the result text.
+                // model input are described with the main transcription flow and streamed as a
+                // thinking segment. The description reaches the model through the API-only
+                // image-context row, mirroring regular image transcriptions — the tool result
+                // text itself stays clean.
                 val segmentIndex = overlay.appendTranscriptionSegment("")
                 callbacks.publish(true)
                 callbacks.onPublishedAt(nowMs())
@@ -388,20 +397,18 @@ internal class GenerationToolBatchEffectExecutor(
                     }
                 }
                 // The transcriber always emits a terminal progress line (description or failure
-                // notice), so the thinking block never ends up empty.
+                // notice), so the thinking block never ends up empty. The description travels
+                // with the result row (segment.toolTranscription) so the API projection can
+                // inject it — the round-boundary path rebuild excludes the model message.
                 overlay.updateTranscriptionSegment(
                     segmentIndex,
                     description ?: lastPartial,
                 )
-                if (!description.isNullOrBlank()) {
-                    result = result.copy(
-                        text = result.text + "\n\n[Image description]\n" + description,
-                    )
-                }
+                transcription = description
                 callbacks.publish(false)
                 callbacks.onPublishedAt(nowMs())
             }
-            val completed = overlay.complete(call, result)
+            val completed = overlay.complete(call, result, transcription = transcription)
             completedSegments += completed.segment
             results += completed.data
             callbacks.publish(false)
