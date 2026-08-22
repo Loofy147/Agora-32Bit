@@ -95,20 +95,17 @@ internal class ConversationRegenerationService(
                     ) {
                         return@lock
                     }
-                    val persistedMessages = conversations
-                        .getMessagesForConversationSnapshot(request.conversationId)
-                    val persistedTarget = persistedMessages
-                        .find { it.id == request.messageId } ?: return@lock
+                    val persistedMessages = conversations.getMessagesByIds(
+                        listOf(request.messageId, rootOutputId, targetParentMessageId),
+                    ).associateBy(MessageEntity::id)
+                    val persistedTarget = persistedMessages[request.messageId] ?: return@lock
 
                     if (!MessageGenerationBoundaryResolver.isOrdinaryAssistant(toUiMessage(persistedTarget))) {
                         return@lock
                     }
-                    val persistedRoot = persistedMessages
-                        .find { it.id == rootOutputId }
-                        ?: return@lock
-                    val sourceBoundary = persistedMessages
-                        .find { it.id == targetParentMessageId }
-                        ?: return@lock
+                    val persistedRoot = persistedMessages[rootOutputId] ?: return@lock
+                    val sourceBoundary =
+                        persistedMessages[targetParentMessageId] ?: return@lock
                     if (
                         !MessageGenerationBoundaryResolver.isOrdinaryAssistant(toUiMessage(persistedRoot)) ||
                         persistedRoot.parentId != sourceBoundary.id ||

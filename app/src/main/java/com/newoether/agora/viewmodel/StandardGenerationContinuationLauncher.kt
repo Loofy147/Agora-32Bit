@@ -91,9 +91,7 @@ internal class StandardGenerationContinuationLauncher(
                 val persistId = state.nextPersistId()
                 val launchAtBoundary: suspend () -> Unit = boundary@{
                     if (!state.isCurrentToken(uiToken)) return@boundary
-                    val loadedMessages = conversations
-                        .getMessagesForConversationSnapshot(request.conversationId)
-                    val parent = loadedMessages.find { it.id == request.parentMessageId }
+                    val parent = conversations.getMessage(request.parentMessageId)
                         ?: return@boundary
                     val selectedChildren =
                         conversations.restoreBranchSelections(request.conversationId)
@@ -107,7 +105,7 @@ internal class StandardGenerationContinuationLauncher(
                     val modelEntity: MessageEntity
                     val messageSelections: Map<String?, String>
                     if (request.replacementMessageId != null) {
-                        val target = loadedMessages.find { it.id == request.replacementMessageId }
+                        val target = conversations.getMessage(request.replacementMessageId)
                             ?: return@boundary
                         if (target.parentId != parent.id) return@boundary
                         modelEntity = conversations.beginRecompactContextCompact(
@@ -196,10 +194,7 @@ internal class StandardGenerationContinuationLauncher(
                         state,
                     )
                     if (request.queueDrainRequiresSuccess) {
-                        val terminalStatus = conversations
-                            .getMessagesForConversationSnapshot(request.conversationId)
-                            .find { it.id == messageId }
-                            ?.status
+                        val terminalStatus = conversations.getMessage(messageId)?.status
                         if (terminalStatus == MessageStatus.SUCCESS) {
                             state.cancelDeferredQueueDrain()
                         }

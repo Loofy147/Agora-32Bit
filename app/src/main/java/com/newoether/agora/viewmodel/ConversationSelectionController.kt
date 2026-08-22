@@ -35,6 +35,7 @@ internal class ConversationSelectionController(
     private val clearPendingSystemPrompt: () -> Unit,
     private val clearPendingConversationSettings: () -> Unit,
     private val abortRegeneration: () -> Unit,
+    private val onTreeMutationCommitted: (String) -> Unit = {},
     private val fadeDelay: suspend () -> Unit = { delay(SWITCH_OVERLAY_FADE_MS) },
 ) {
     private val switching = SwitchingCoordinator()
@@ -217,8 +218,8 @@ internal class ConversationSelectionController(
                         runId = targetRunId,
                         messageSelections = newSelections,
                     )
+                    markTreeMutationReady(request.id, targetMessage.id)
                     store.setSelectedChildren(newSelections)
-                    switching.markTreeMutationReady(request.id, targetMessage.id)
                 }
             } catch (error: CancellationException) {
                 throw error
@@ -239,7 +240,17 @@ internal class ConversationSelectionController(
     }
 
     fun markTreeMutationReady(requestId: Long?, targetMessageId: String?) {
-        requestId?.let { switching.markTreeMutationReady(it, targetMessageId) }
+        val request = switching.request.value
+        if (
+            requestId == null ||
+            request?.id != requestId ||
+            request.kind != SwitchingRequestKind.TREE_MUTATION
+        ) {
+            return
+        }
+        val conversationId = request.conversationId ?: return
+        onTreeMutationCommitted(conversationId)
+        switching.markTreeMutationReady(requestId, targetMessageId)
     }
 
     fun failTreeMutation(requestId: Long?) {

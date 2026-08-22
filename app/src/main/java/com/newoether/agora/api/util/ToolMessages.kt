@@ -242,10 +242,16 @@ fun contextWindowRetainedMessageIds(
 }
 
 fun prepareMessages(messages: List<ChatMessage>, contextTokenBudget: Int): List<ChatMessage> {
-    val canonical = canonicalContextMessages(messages)
+    val previous = messages.getOrNull(messages.lastIndex - 1)
+    val prompt = messages.lastOrNull()?.takeIf {
+        it.id == "api_initial_user_${previous?.id.orEmpty()}" &&
+            it.parentId == previous?.id &&
+            it.participant == Participant.USER
+    }
+    val history = if (prompt == null) messages else messages.dropLast(1)
     return stripEmptyTurns(
-        mergeConsecutiveSameRole(limitContext(canonical, contextTokenBudget))
-    )
+        mergeConsecutiveSameRole(limitContext(canonicalContextMessages(history), contextTokenBudget))
+    ) + listOfNotNull(prompt)
 }
 
 internal fun protocolAtomicUnits(messages: List<ChatMessage>): List<List<ChatMessage>> {

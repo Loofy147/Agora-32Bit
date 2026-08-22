@@ -1,6 +1,8 @@
 package com.newoether.agora.viewmodel
 
+import com.newoether.agora.data.local.MessageContextTopology
 import com.newoether.agora.data.local.MessageEntity
+import com.newoether.agora.data.local.ProviderContextTopologySnapshot
 import com.newoether.agora.data.local.RunEntity
 import com.newoether.agora.data.local.RunGraphCommit
 import com.newoether.agora.data.repository.ConversationRepository
@@ -9,6 +11,7 @@ import com.newoether.agora.model.Participant
 import com.newoether.agora.model.RunEffect
 import com.newoether.agora.model.RunEffectIdentity
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -22,10 +25,12 @@ class AcceptedInputGraphWriterTest {
         val root = message("root", null, Participant.USER, 1L, "old-run")
         val selected = message("selected", "root", Participant.MODEL, 2L, "selected-run")
         val newerSibling = message("newer", "root", Participant.MODEL, 3L, "other-run")
-        coEvery { repository.getMessagesForConversationSnapshot("conversation") } returns
-            listOf(root, selected, newerSibling)
-        coEvery { repository.restoreBranchSelections("conversation") } returns
-            mapOf("root" to "selected")
+        coEvery {
+            repository.getProviderContextTopologySnapshot("conversation")
+        } returns ProviderContextTopologySnapshot(
+            selectedBranchesJson = """{"root":"selected"}""",
+            messages = listOf(root, selected, newerSibling).map { it.toTopology() },
+        )
 
         lateinit var insertedRun: RunEntity
         lateinit var insertedMessages: List<MessageEntity>
@@ -63,6 +68,7 @@ class AcceptedInputGraphWriterTest {
         assertEquals("OpenAI:model", insertedConversationModelId)
         assertEquals(insertedSelections, result.messageSelections)
         assertEquals(true, beforeCommitCalled)
+        coVerify(exactly = 0) { repository.getMessagesForConversationSnapshot(any()) }
     }
 
     @Test
@@ -113,6 +119,19 @@ class AcceptedInputGraphWriterTest {
         timestamp = timestamp,
         runId = runId,
         runSequence = timestamp,
+    )
+
+    private fun MessageEntity.toTopology() = MessageContextTopology(
+        id = id,
+        conversationId = conversationId,
+        parentId = parentId,
+        status = status,
+        participant = participant,
+        timestamp = timestamp,
+        modelName = modelName,
+        runId = runId,
+        runSequence = runSequence,
+        consumedAtPass = consumedAtPass,
     )
 
     private fun inputEffect(conversationId: String, runId: String) =

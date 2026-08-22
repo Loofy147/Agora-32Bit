@@ -20,7 +20,7 @@ class ConversationRepositoryRecoveryTest {
             val dao = mockk<ChatDao>()
             coEvery { dao.recoverOrphanedRuns(any()) } throws
                 IllegalStateException("database temporarily busy") andThen 1
-            val repository = ConversationRepository(dao)
+            val repository = ConversationRepository(dao, database = null)
 
             repository.ensureRunRecovery()
             // The completed barrier is process-idempotent.

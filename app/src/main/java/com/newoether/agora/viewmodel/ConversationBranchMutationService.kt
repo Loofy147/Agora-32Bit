@@ -55,11 +55,11 @@ internal class ConversationBranchMutationService(
                                 conversations.getMessagesForConversationSnapshot(conversationId)
                             val remainingChatMessages = remaining.map(toUiMessage)
                             val selections = conversations.restoreBranchSelections(conversationId)
+                            onMutationSettling(switchingRequestId, null)
                             if (isConversationOpen(conversationId)) {
                                 projectGraph(remainingChatMessages, selections)
                             }
                             committed = true
-                            onMutationSettling(switchingRequestId, null)
                             return@lock
                         }
 
@@ -105,11 +105,11 @@ internal class ConversationBranchMutationService(
                             deletedRootMessageId = messageId,
                             remainingPath = remainingPath,
                         )
+                        onMutationSettling(switchingRequestId, targetAfterDelete)
                         if (isConversationOpen(conversationId)) {
                             projectGraph(remainingChatMessages, plan.messageSelections)
                         }
                         committed = true
-                        onMutationSettling(switchingRequestId, targetAfterDelete)
                     }
                 }
             } catch (error: Exception) {

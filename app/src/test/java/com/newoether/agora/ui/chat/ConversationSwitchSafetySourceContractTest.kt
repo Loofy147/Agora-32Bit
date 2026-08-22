@@ -35,9 +35,113 @@ class ConversationSwitchSafetySourceContractTest {
                 """rememberUpdatedState\(\s*loadedMessagesConversationId,?\s*\)""",
             ).containsMatchIn(source),
         )
+        assertTrue(
+            "the switch effect must observe the latest context projection",
+            source.contains("rememberUpdatedState(contextProjection)"),
+        )
+        assertTrue(
+            "the cover must wait for the visible conversation identity",
+            source.contains("projection.conversationId == targetConversationId"),
+        )
+        assertTrue(
+            "the cover must wait for the visible selected branch identity",
+            source.contains(
+                "projection.selectedBranchesJson == conversation.selectedBranchesJson",
+            ),
+        )
+        assertTrue(
+            "matching success or failure must be explicit before uncovering",
+            source.contains("projection.completed") && source.contains("!projection.loading"),
+        )
+        val projectionWaitStart = source.indexOf("val projection = latestContextProjection")
+        val layoutSettleStart = source.indexOf("settleCoveredTransition", projectionWaitStart)
+        assertTrue("matching context wait must precede layout settlement", projectionWaitStart >= 0 && layoutSettleStart > projectionWaitStart)
+        assertFalse(
+            "context projection latency must not terminalize the switch on a timer",
+            source.substring(projectionWaitStart, layoutSettleStart).contains("withTimeoutOrNull"),
+        )
+        assertFalse(
+            "a failed matching projection must still release the cover neutrally",
+            source.substring(projectionWaitStart, layoutSettleStart).contains("projection.failed"),
+        )
         assertFalse(
             "projection latency must never be interpreted as a request to enter New Chat",
             source.contains("viewModel.createNewChat()"),
+        )
+    }
+
+    @Test
+    fun `context rollout dims only classified rows through legacy message subtree alpha`() {
+        val root = locateMainSourceRoot()
+        val chatApp = File(root, "com/newoether/agora/ui/chat/ChatApp.kt").readText()
+        val messageList = File(root, "com/newoether/agora/ui/chat/MessageList.kt").readText()
+        val messageItem = File(
+            root,
+            "com/newoether/agora/ui/chat/message/MessageItem.kt",
+        ).readText()
+        val userBubble = File(
+            root,
+            "com/newoether/agora/ui/chat/message/UserMessageBubble.kt",
+        ).readText()
+        val assistantContent = File(
+            root,
+            "com/newoether/agora/ui/chat/message/AssistantMessageContent.kt",
+        ).readText()
+
+        assertTrue(
+            "rollout must be disabled until a matching successful projection is ready",
+            chatApp.contains("visualizeContextRollout && contextProjectionReady"),
+        )
+        listOf(
+            "MessageStatus.SENDING",
+            "MessageStatus.THINKING",
+            "MessageStatus.TOOL_CALLING",
+            "MessageStatus.TRANSCRIBING",
+        ).forEach { status ->
+            assertTrue("active MODEL status $status must stay in normal presentation", status in messageList)
+        }
+        assertTrue(
+            "active MODEL rows must bypass rollout coloring",
+            Regex("""messageIsStreaming\s*\|\|\s*\(\s*!isRetainedRegenerationExit""")
+                .containsMatchIn(messageList),
+        )
+        assertTrue(
+            "only the existing rolled-out classification may create the legacy alpha modifier",
+            messageItem.contains(
+                "val contextAlpha = if (visualizeContextRollout && !isInContext)",
+            ),
+        )
+        assertTrue(
+            "rolled-out rows must use the legacy whole-subtree opacity",
+            messageItem.contains("Modifier.alpha(0.38f)"),
+        )
+        assertFalse(
+            "rollout must not replace semantic text colors",
+            "contentTextColor" in messageItem,
+        )
+        assertTrue(
+            "assistant markdown must keep the original text color inside the dimmed subtree",
+            Regex("""rememberChatMarkdownAssets\(\s*textColor""")
+                .containsMatchIn(messageItem),
+        )
+        assertTrue(
+            "user text must keep the original text color inside the dimmed subtree",
+            messageItem.contains("textColor = textColor"),
+        )
+        assertTrue(
+            "compact rollout must dim the complete compact container",
+            Regex("""fillMaxWidth\(\)\s*\.then\(contextAlpha\)""")
+                .containsMatchIn(messageItem),
+        )
+        assertTrue(
+            "user bubble and branch navigation must both receive the legacy alpha modifier",
+            "contextAlpha: Modifier" in userBubble &&
+                Regex("""\.then\(contextAlpha\)""").findAll(userBubble).count() >= 2,
+        )
+        assertTrue(
+            "the complete assistant message subtree must receive the legacy alpha modifier",
+            "contextAlpha: Modifier" in assistantContent &&
+                ".then(contextAlpha)" in assistantContent,
         )
     }
 

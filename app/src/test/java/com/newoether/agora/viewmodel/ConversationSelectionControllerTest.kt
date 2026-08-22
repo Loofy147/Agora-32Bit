@@ -171,6 +171,7 @@ class ConversationSelectionControllerTest {
         assertEquals(SwitchingRequestKind.TREE_MUTATION, request?.kind)
         assertEquals("second", request?.targetMessageId)
         assertTrue(request?.readyForUi == true)
+        assertEquals(listOf("conversation"), fixture.contextInvalidations)
         coVerify(exactly = 1) {
             fixture.conversations.selectRunBranch(
                 "conversation",
@@ -181,6 +182,23 @@ class ConversationSelectionControllerTest {
             )
         }
         fixture.registry.remove("conversation")
+    }
+
+    @Test
+    fun deleteMutationCompletionInvalidatesContextBeforePublishingReady() = runTest {
+        val fixture = Fixture(backgroundScope)
+        fixture.controller.publishAcceptedConversation("conversation")
+
+        val requestId = fixture.controller.beginTreeMutation(scrollToTarget = false)
+
+        assertTrue(fixture.contextInvalidations.isEmpty())
+        fixture.controller.markTreeMutationReady(requestId, targetMessageId = null)
+
+        assertEquals(listOf("conversation"), fixture.contextInvalidations)
+        val request = fixture.controller.switchingScrollRequest.value
+        assertTrue(request?.readyForUi == true)
+        assertFalse(request?.scrollToTarget ?: true)
+        assertTrue(fixture.controller.completeSwitchingScroll(checkNotNull(request).id))
     }
 
     @Test
@@ -216,6 +234,7 @@ class ConversationSelectionControllerTest {
         var clearPromptCount = 0
         var clearSettingsCount = 0
         var abortRegenerationCount = 0
+        val contextInvalidations = mutableListOf<String>()
         val controller = ConversationSelectionController(
             scope = scope,
             conversations = conversations,
@@ -227,6 +246,7 @@ class ConversationSelectionControllerTest {
             clearPendingSystemPrompt = { clearPromptCount += 1 },
             clearPendingConversationSettings = { clearSettingsCount += 1 },
             abortRegeneration = { abortRegenerationCount += 1 },
+            onTreeMutationCommitted = contextInvalidations::add,
             fadeDelay = fadeDelay,
         )
     }

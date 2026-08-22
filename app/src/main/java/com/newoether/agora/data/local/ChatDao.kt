@@ -34,9 +34,9 @@ data class EmbeddingModelCount(
 )
 
 @Dao
-interface ChatDao : ChatAutomationDao, ChatContextCompactDao {
+interface ChatDao : ChatAutomationDao, ChatContextCompactDao, ChatProviderContextDao {
     // Task executions always remain in their owning Task's History.
-    @Query("SELECT id, title, systemPromptId, modelId, taskId, origin, graduated, hasUnreadGeneration FROM conversations WHERE taskId IS NULL ORDER BY lastUpdated DESC")
+    @Query("SELECT id, title, systemPromptId, modelId, taskId, origin, graduated, hasUnreadGeneration, selectedBranchesJson FROM conversations WHERE taskId IS NULL ORDER BY lastUpdated DESC")
     fun getAllConversations(): Flow<List<ChatConversation>>
 
     @Query("SELECT * FROM conversations WHERE taskId = :taskId ORDER BY lastUpdated DESC")

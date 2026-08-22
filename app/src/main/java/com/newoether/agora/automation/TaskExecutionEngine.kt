@@ -252,10 +252,7 @@ class TaskExecutionEngine(
                 throw cancelled
             }
             val compactMessageId = compactLaunch.messageId
-            val compactStatus = convRepo
-                .getMessagesForConversationSnapshot(current.generationRequest.conversationId)
-                .find { it.id == compactMessageId }
-                ?.status
+            val compactStatus = convRepo.getMessage(compactMessageId)?.status
             if (!automaticCompactAllowsHandoff(compactStatus)) {
                 return StandardCompactContinuationResult(lastModelMessageId, aborted = true)
             }
@@ -276,9 +273,7 @@ class TaskExecutionEngine(
             } ?: return StandardCompactContinuationResult(lastModelMessageId)
             launch.job.join()
             state.awaitSendAvailable()
-            val continuationMessage = convRepo.getMessagesForConversationSnapshot(
-                current.generationRequest.conversationId,
-            ).find { it.id == launch.modelMessageId }
+            val continuationMessage = convRepo.getMessage(launch.modelMessageId)
             if (continuationMessage?.status == MessageStatus.STOPPED) {
                 return StandardCompactContinuationResult(lastModelMessageId, aborted = true)
             }
@@ -513,9 +508,7 @@ class TaskExecutionEngine(
             }
             val preCompactMessageId = preCompactLaunch?.messageId
             if (preCompactMessageId != null) {
-                val preCompactMessage = convRepo
-                    .getMessagesForConversationSnapshot(conversationId)
-                    .find { it.id == preCompactMessageId }
+                val preCompactMessage = convRepo.getMessage(preCompactMessageId)
                 if (!automaticCompactAllowsHandoff(preCompactMessage?.status)) {
                     return Result.Failure(
                         preCompactMessage?.text?.takeIf(String::isNotBlank)
@@ -661,8 +654,7 @@ class TaskExecutionEngine(
                 continuationResult.modelMessageId?.let { finalModelMessageId = it }
             }
 
-            val finalMsg = convRepo.getMessagesForConversationSnapshot(conversationId)
-                .find { it.id == finalModelMessageId }
+            val finalMsg = convRepo.getMessage(finalModelMessageId)
             if (finalMsg != null && finalMsg.status == MessageStatus.SUCCESS) {
                 Result.Success(finalModelMessageId, finalMsg.text)
             } else {

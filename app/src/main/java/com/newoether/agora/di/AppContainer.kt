@@ -69,7 +69,7 @@ class AppContainer(
     // ── Repositories ──────────────────────────────────────────
 
     val conversationRepository: ConversationRepository by lazy {
-        ConversationRepository(chatDao)
+        ConversationRepository(chatDao, database)
     }
 
     /**

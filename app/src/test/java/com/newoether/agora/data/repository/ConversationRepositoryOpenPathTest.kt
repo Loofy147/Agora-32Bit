@@ -30,7 +30,7 @@ class ConversationRepositoryOpenPathTest {
                 ),
             ),
         )
-        val repository = ConversationRepository(dao)
+        val repository = ConversationRepository(dao, database = null)
 
         repository.fixStuckMessages("conversation")
 

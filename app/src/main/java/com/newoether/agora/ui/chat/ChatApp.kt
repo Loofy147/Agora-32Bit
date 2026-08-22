@@ -190,12 +190,12 @@ fun ChatApp(
     val shellEnabled = globalShell && (convOverride?.shellEnabled ?: true)
     val contextWindow = ContextBudget.normalize(convOverride?.contextWindow ?: maxContextWindow)
     val contextProjectionKey = rememberContextProjectionInvalidationKey(viewModel, listOf(codeExecutionEnabled, googleSearchEnabled, webSearchEnabled, shellEnabled, shellDevices, currentConversation?.systemPromptId))
-    val contextProjection = rememberConversationContextProjection(
-        viewModel, currentConversationId, selectedModel, contextWindow,
-        allMessagesState.value,
-        contextProjectionKey,
-    )
-    val contextUsage = contextProjection.usage
+    val contextProjection by viewModel.conversationContextProjection.collectAsState()
+    LaunchedEffect(currentConversationId, currentConversation?.selectedBranchesJson, selectedModel, contextWindow, allMessagesState.value, contextProjectionKey) {
+        viewModel.requestConversationContext(currentConversationId, currentConversation?.selectedBranchesJson, selectedModel, contextWindow)
+    }
+    val contextProjectionReady = contextProjection.completed && !contextProjection.loading && !contextProjection.failed && contextProjection.conversationId == currentConversationId && contextProjection.selectedBranchesJson == currentConversation?.selectedBranchesJson
+    val contextUsage = contextProjection.usage ?: com.newoether.agora.api.util.ContextWindowUsage(0, contextWindow, 0, false)
     val blurEffectsEnabled by viewModel.settings.blurEffectsEnabled.collectAsState()
     val reduceMotion = motionPolicy.reduceMotion
     val hapticsEnabled by viewModel.settings.hapticsEnabled.collectAsState()
@@ -572,13 +572,13 @@ fun ChatApp(
                                 regenerationTransition = regenerationTransition,
                                 onRegenerationFadeOutFinished =
                                     viewModel::acknowledgeRegenerationFade,
-                                visualizeContextRollout = visualizeContextRollout,
+                                visualizeContextRollout = visualizeContextRollout && contextProjectionReady,
                                 toolCallDisplayMode = toolCallDisplayMode,
                                 thinkingSegmentDisplayMode = thinkingSegmentDisplayMode,
                                 autoExpandActiveGroup = autoExpandActiveGroup,
 
                                 parseInlineDollarMath = parseInlineDollarMath,
-                                contextRetainedMessageIds = contextProjection.retainedMessageIds,
+                                contextRetainedMessageIds = contextProjection.retainedMessageIds.orEmpty(),
                                 modelAliases = StableModelAliases(modelAliases),
                                 customProviders = customProviders,
                                 bottomBarHeight = bottomBarHeight + shareSelectionBarSpace,

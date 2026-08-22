@@ -679,6 +679,90 @@ ordinary Provider request rebuild inside the shared generation tail.
 A branch-selection change, missing parent, or corrupt chain must fail closed or produce only the
 reachable safe prefix. It must never jump to a Compact on another branch.
 
+### 9.1 Immutable materialization and single rollout ownership
+
+The Room read side may optimize payload materialization, but it may not select a different context.
+One immutable read transaction captures the selected-branch state, payload-free message topology,
+and every full row reachable from the requested parent or selected visible path. The transaction
+walks the same durable parent chain, applies the nearest-SUCCESS-Compact boundary regardless of
+summary text content, and expands the same run-matched tool/result side chains in established order.
+Only full payload rows outside that canonical path may be omitted. There is no pre-rollout,
+overscan, payload-size product limit, topology-retry approximation, or alternate Compact boundary.
+
+After Room projection, Provider preparation remains the only rollout authority. No DAO, loader,
+Compact controller, UI projector, transcription stage, or automation caller may remove an older
+eligible row because of a token estimate before that shared boundary. This optimization therefore
+changes database materialization and object lifetime only; it does not change Provider-visible
+ordering, attachment projection, protocol validation, context selection, or failure semantics.
+
+### 9.2 Canonical history and soft token window
+
+The shared Provider preparation order is deterministic:
+
+1. remove non-successful Compact rows from Provider history and project the nearest successful
+   Compact as the established USER summary boundary;
+2. deduplicate durable IDs, project terminal generation status on the same assistant turn, validate
+   tool protocol fail-closed, remove empty normal turns, and merge consecutive ordinary roles;
+3. treat one tool request and all consecutive result rows as one indivisible protocol unit while
+   every ordinary canonical message is one unit;
+4. scan complete units newest-to-oldest until the estimated message budget is reached, retaining at
+   least the newest complete unit and one normal USER anchor even when that legal suffix exceeds the
+   estimate;
+5. start the dispatched history at its first normal USER and never keep an older ordinary row while
+   dropping a later ordinary row on that selected branch.
+
+The configured context value is a soft estimated request budget, not a hard byte limit. Fixed
+request cost consists of the system prompt, complete enabled tool schemas, and the optional
+API-only initial USER prompt. It is subtracted exactly once from the configured budget before
+history rollout. The initial prompt is excluded from retained-history selection and appended
+exactly once afterward as the final USER request item. It is never merged into Room history,
+persisted, rendered, or treated as a durable retention anchor.
+
+### 9.3 Complete conservative token accounting
+
+Token accounting runs only after the same Provider-visible projection used by dispatch. It includes
+all projected ordinary text, attachment file text, stored image transcription, user templates,
+terminal annotations, tool names, arguments, results, signatures, tool-call reasoning content,
+opaque continuation JSON, system prompts, complete app tool schemas, enabled Provider-native tool
+descriptors, and the optional API-only initial USER prompt. Every Provider-visible image path is counted, including each image attachment, PDF
+page, video frame, assistant-generated image projected to the latest USER, and tool-result image
+projected to its synthetic USER turn.
+
+Exact tokenization and visual-token pricing vary by selected model and custom Provider, so the
+shared estimator remains intentionally conservative: text uses its deterministic cross-provider
+heuristic and every projected image uses the established fixed per-image estimate. It may
+overestimate, but it may not omit a Provider-visible category. Display-only citations, tool
+progress, presentation metadata, and attachment metadata that is not serialized are excluded.
+
+The conversation UI reports the full selected canonical context estimate plus fixed request cost;
+it does not replace that number with the already-retained Provider window. Its rollout projection
+maps the shared canonical window back to one contiguous eligible durable suffix on the selected
+branch, including complete protocol units. Automatic Compact eligibility and retained verbatim text
+consume the complete selected canonical path, not an already-rolled Provider suffix.
+
+The UI projection reloads whenever the visible conversation ID or exact durable
+`selectedBranchesJson`, selected model, normalized context budget, durable message projection, or
+request-configuration invalidation input changes. The existing projector publishes one
+identity-fenced state: loading has no usage or retained IDs, a completed success may contain a valid
+empty retained set, and a completed failure has no retained IDs. A superseded request may never
+publish over a newer identity.
+
+Rollout may consume a projection only when it is completed, not loading, not failed, and its
+conversation ID and `selectedBranchesJson` exactly match the visible conversation. Branch-switch
+and deletion covers wait without a fixed projection timeout for matching completion, then for the
+existing graph/layout settlement. Matching failure is completion for cover release only: rollout
+stays disabled and presentation remains neutral; failure or loading must never be interpreted as an
+empty all-rolled-out context.
+
+Context rollout visualization is presentation-only. A MODEL message in `SENDING`, `THINKING`,
+`TOOL_CALLING`, or `TRANSCRIBING` is generation-in-progress and must remain at normal opacity even
+when its durable ID is not yet present in the retained-history projection. After that message reaches
+a terminal status, the existing canonical retained-history projection determines its rollout
+presentation. Only a message already classified as rolled out receives the legacy whole-message
+`Modifier.alpha(0.38f)` presentation, so its complete rendered subtree dims together. This visual
+rule never inserts the in-progress row into Provider history, token accounting, Compact input, or
+retained-message calculation.
+
 ## 10. Concurrency and failure-safety principles
 
 1. **Single process authority.** Only the conversation mailbox/reducer accepts lifecycle

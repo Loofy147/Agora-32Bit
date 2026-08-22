@@ -129,8 +129,8 @@ class BoundRunGenerationLauncherTest {
             )
         } throws IllegalStateException("configuration failed")
         coEvery {
-            fixture.conversations.getMessagesForConversationSnapshot("conversation")
-        } returns listOf(MESSAGE_ENTITY)
+            fixture.conversations.getMessage("model-message")
+        } returns MESSAGE_ENTITY
         val failedMessage = slot<ChatMessage>()
         coEvery {
             fixture.terminalSettlement.finalizeBoundFailure(

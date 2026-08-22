@@ -85,7 +85,8 @@ class OpenAiNativeSearchWiringTest {
         assertTrue("AutomaticCompactConfig must carry Responses API", "val responsesApiEnabled" in contracts)
         assertTrue(
             "ContextCompactor must apply the configured threshold",
-            "automaticCompactTokenThreshold(contextLimit, config.thresholdPercent)" in compactor,
+            "automaticCompactTokenThreshold(" in compactor &&
+                "config.thresholdPercent" in compactor,
         )
         assertTrue(
             "Compact must delegate admission to the ordinary continuation launcher",
@@ -151,6 +152,35 @@ class OpenAiNativeSearchWiringTest {
             "val providers = listOf(\n" +
                 "                        \"duckduckgo\" to R.string.web_search_duckduckgo,\n" +
                 "                        \"brave\" to R.string.web_search_brave," in settingsPage,
+        )
+    }
+
+    @Test
+    fun `fork menu label is punctuation free without changing confirmation title`() {
+        val root = locateMainSourceRoot()
+        val topBar = File(root, "com/newoether/agora/ui/chat/ChatTopBar.kt").readText()
+        val dialogs = File(root, "com/newoether/agora/ui/chat/ChatDialogs.kt").readText()
+        val resourceRoot = File(requireNotNull(root.parentFile), "res")
+        val localizedMenus = resourceRoot.listFiles()
+            .orEmpty()
+            .filter { it.isDirectory && it.name.startsWith("values") }
+            .map { File(it, "strings.xml") }
+            .filter(File::isFile)
+            .mapNotNull { file ->
+                Regex("""<string name="conversation_fork_menu">([^<]+)</string>""")
+                    .find(file.readText())
+                    ?.groupValues
+                    ?.get(1)
+            }
+
+        assertTrue("top bar must use the dedicated menu label", "conversation_fork_menu" in topBar)
+        assertTrue("confirmation dialog must keep its question title", "conversation_fork" in dialogs)
+        assertTrue("every existing locale must define the menu label", localizedMenus.size >= 12)
+        assertTrue(
+            "menu labels must not contain question punctuation",
+            localizedMenus.all { label ->
+                '?' !in label && '؟' !in label && '？' !in label
+            },
         )
     }
 

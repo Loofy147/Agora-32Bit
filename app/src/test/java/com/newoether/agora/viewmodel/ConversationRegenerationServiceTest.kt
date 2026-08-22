@@ -74,7 +74,9 @@ class ConversationRegenerationServiceTest {
         val fixture = Fixture()
         val state = ConversationGenerationState("conversation")
         coEvery {
-            fixture.conversations.getMessagesForConversationSnapshot("conversation")
+            fixture.conversations.getMessagesByIds(
+                listOf("target-model", "target-model", "source-input"),
+            )
         } returns listOf(SOURCE_USER_ENTITY, TARGET_MODEL_ENTITY)
         coEvery { fixture.conversations.getRun("source-run") } returns SOURCE_RUN
         val createdRun = slot<RunEntity>()
@@ -156,8 +158,10 @@ class ConversationRegenerationServiceTest {
         val createdRun = slot<RunEntity>()
         val createdMessages = slot<List<MessageEntity>>()
         coEvery {
-            fixture.conversations.getMessagesForConversationSnapshot("conversation")
-        } returns listOf(SOURCE_USER_ENTITY, upperEntity, lowerEntity)
+            fixture.conversations.getMessagesByIds(
+                listOf(lower.id, lower.id, upper.id),
+            )
+        } returns listOf(upperEntity, lowerEntity)
         coEvery {
             fixture.conversations.createRunWithMessages(
                 run = capture(createdRun),

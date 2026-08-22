@@ -695,20 +695,23 @@ internal fun MessageList(
     val renderMessage: @Composable (ChatMessage) -> Unit = { message ->
         val isRetainedRegenerationExit =
             message.id in regenerationExitIds && message.id !in activeMessageIds
-        val isInContext = !isRetainedRegenerationExit && inContextIds.contains(message.id)
+        val messageIsStreaming =
+            message.participant == Participant.MODEL &&
+                message.status in setOf(
+                    MessageStatus.SENDING,
+                    MessageStatus.THINKING,
+                    MessageStatus.TOOL_CALLING,
+                    MessageStatus.TRANSCRIBING,
+                )
+        val isInContext =
+            messageIsStreaming ||
+                (!isRetainedRegenerationExit && message.id in inContextIds)
         // Once the new branch commits, the active Run projection no longer contains the
         // transparent old answer. Retain its exact presentation until the regeneration handoff
         // releases that composition, otherwise the action row is conditionally removed instead
         // of participating in the fade.
         val presentation =
             runPresentation[message.id] ?: retainedRegenerationPresentations[message.id]
-        val messageIsStreaming = message.participant == Participant.MODEL &&
-            message.status in setOf(
-                MessageStatus.SENDING,
-                MessageStatus.THINKING,
-                MessageStatus.TOOL_CALLING,
-                MessageStatus.TRANSCRIBING,
-            )
         val animateLifecycleEntrance =
             !isRetainedRegenerationExit &&
             message.id != resolvedEditReplacement?.id &&

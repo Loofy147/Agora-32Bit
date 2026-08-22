@@ -1,8 +1,14 @@
 package com.newoether.agora.automation
 
+import com.newoether.agora.data.local.ChatEntity
+import com.newoether.agora.data.local.MessageContextTopology
+import com.newoether.agora.data.local.MessageEntity
+import com.newoether.agora.data.local.ProviderContextTopologySnapshot
 import com.newoether.agora.data.local.TaskEntity
 import com.newoether.agora.data.repository.ConversationRepository
 import com.newoether.agora.data.repository.TaskRepository
+import com.newoether.agora.model.MessageStatus
+import com.newoether.agora.model.Participant
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -73,6 +79,68 @@ class TaskManagerTest {
         val deferred = result as TaskManager.ExecutionResult.Deferred
         assertEquals("execution", deferred.conversationId)
         assertEquals("Conversation is already generating", deferred.reason)
+    }
+
+    @Test
+    fun successfulRecoveryLoadsOnlyTheTerminalAssistantPayload() = runTest {
+        val repository = mockk<TaskRepository>()
+        val conversations = mockk<ConversationRepository>()
+        val engine = mockk<TaskExecutionEngine>()
+        val stored = task()
+        val assistant = MessageEntity(
+            id = "assistant",
+            conversationId = "execution",
+            text = "done",
+            participant = Participant.MODEL,
+            status = MessageStatus.SUCCESS,
+            timestamp = 2L,
+            runId = "run",
+            runSequence = 1L,
+        )
+        every { repository.getAllTasks() } returns MutableStateFlow(listOf(stored))
+        coEvery { repository.getTask(stored.id) } returns stored
+        coEvery { conversations.ensureRunRecovery() } returns Unit
+        coEvery { conversations.getConversation("execution") } returns ChatEntity(
+            id = "execution",
+            title = "Task",
+            taskId = stored.id,
+        )
+        coEvery {
+            conversations.getProviderContextTopologySnapshot("execution")
+        } returns ProviderContextTopologySnapshot(
+            selectedBranchesJson = null,
+            messages = listOf(
+                MessageContextTopology(
+                    id = assistant.id,
+                    conversationId = assistant.conversationId,
+                    parentId = null,
+                    status = assistant.status,
+                    participant = assistant.participant,
+                    timestamp = assistant.timestamp,
+                    modelName = assistant.modelName,
+                    runId = assistant.runId,
+                    runSequence = assistant.runSequence,
+                    consumedAtPass = assistant.consumedAtPass,
+                ),
+            ),
+        )
+        coEvery { conversations.getMessage(assistant.id) } returns assistant
+        coEvery {
+            conversations.withProviderContextSnapshot<Any?>(any())
+        } coAnswers {
+            firstArg<suspend () -> Any?>().invoke()
+        }
+        val manager = TaskManager(repository, conversations, engine, backgroundScope)
+
+        val result = manager.executeById(stored.id, "execution")
+
+        val success = result as TaskManager.ExecutionResult.Success
+        assertEquals("execution", success.conversationId)
+        assertEquals("done", success.response)
+        coVerify(exactly = 0) {
+            conversations.getMessagesForConversationSnapshot(any())
+        }
+        coVerify(exactly = 0) { engine.runOnce(any(), any(), any(), any(), any(), any()) }
     }
 
     private fun task(

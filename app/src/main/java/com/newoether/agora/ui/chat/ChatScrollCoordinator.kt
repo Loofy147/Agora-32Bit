@@ -248,6 +248,8 @@ internal class ChatScrollCoordinator internal constructor(
         }
 
         val switchingScrollRequest by viewModel.switchingScrollRequest.collectAsState()
+        val contextProjection by viewModel.conversationContextProjection.collectAsState()
+        val latestContextProjection by rememberUpdatedState(contextProjection)
         LaunchedEffect(switchingScrollRequest?.id, switchingScrollRequest?.readyForUi) {
             val request = switchingScrollRequest ?: return@LaunchedEffect
             if (!request.readyForUi || request.kind == SwitchingRequestKind.NEW_CHAT) {
@@ -279,6 +281,16 @@ internal class ChatScrollCoordinator internal constructor(
                     terminalized = true
                     return@LaunchedEffect
                 }
+
+                snapshotFlow {
+                    val conversation = latestCurrentConversation
+                    val projection = latestContextProjection
+                    conversation?.id == targetConversationId &&
+                        projection.conversationId == targetConversationId &&
+                        projection.selectedBranchesJson == conversation.selectedBranchesJson &&
+                        projection.completed &&
+                        !projection.loading
+                }.first { settled -> settled }
 
                 if (
                     settleCoveredTransition(

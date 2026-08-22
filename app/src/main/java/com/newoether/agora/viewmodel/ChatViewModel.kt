@@ -309,6 +309,9 @@ class ChatViewModel(
             clearPendingSystemPrompt = { _pendingSystemPromptId.value = null },
             clearPendingConversationSettings = { _pendingConversationSettings.value = null },
             abortRegeneration = { regenerationTransitions.abortCurrent() },
+            onTreeMutationCommitted = { conversationId ->
+                contextProjector.invalidate(conversationId)
+            },
         )
     }
 
@@ -663,20 +666,28 @@ class ChatViewModel(
             conversations = convRepo,
             requestBuilder = requestBuilder,
             generationManager = { generationManager },
-            toBranchMessage = { it.toUiChatMessage(appContext) },
             newChatSystemPromptId = { _pendingSystemPromptId.value },
         )
     }
 
-    internal suspend fun projectConversationContext(
+    internal val conversationContextProjection: StateFlow<ConversationContextProjection>
+        get() = contextProjector.projection
+
+    internal fun requestConversationContext(
         conversationId: String?,
+        selectedBranchesJson: String?,
         selectedModelId: String,
         tokenBudget: Int,
-    ): ConversationContextProjection = contextProjector.project(
-        conversationId,
-        selectedModelId,
-        tokenBudget,
-    )
+    ) {
+        viewModelScope.launch {
+            contextProjector.project(
+                conversationId,
+                selectedBranchesJson,
+                selectedModelId,
+                tokenBudget,
+            )
+        }
+    }
 
     private val generationController by lazy {
         MessageGenerationController(

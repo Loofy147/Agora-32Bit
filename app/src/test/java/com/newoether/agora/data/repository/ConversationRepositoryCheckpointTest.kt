@@ -28,7 +28,7 @@ class ConversationRepositoryCheckpointTest {
         val dao = mockk<ChatDao>()
         val captured = slot<MessageStreamCheckpoint>()
         coEvery { dao.updateMessageCheckpoint(capture(captured)) } returns 1
-        val repository = ConversationRepository(dao)
+        val repository = ConversationRepository(dao, database = null)
         val answer = "partial answer"
         val citation = requireNotNull(
             CitationPolicy.create(
@@ -96,7 +96,7 @@ class ConversationRepositoryCheckpointTest {
     fun missingPlaceholderIsNotRecreated() = runTest {
         val dao = mockk<ChatDao>()
         coEvery { dao.updateMessageCheckpoint(any()) } returns 0
-        val repository = ConversationRepository(dao)
+        val repository = ConversationRepository(dao, database = null)
 
         val updated = repository.updateStreamingMessageCheckpoint(
             ChatMessage(

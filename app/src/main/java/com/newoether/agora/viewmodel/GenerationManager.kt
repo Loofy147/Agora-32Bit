@@ -63,7 +63,10 @@ class GenerationManager(
     private val toolBatchEffects = GenerationToolBatchEffectExecutor(toolExecutor)
     private val toolRoundBuilder = GenerationToolRoundBuilder()
     private val runFinalizationExecutor = GenerationRunFinalizationExecutor(conversations)
-    private val apiPathBuilder = GenerationApiPathBuilder(conversations, toolExecutor)
+    private val apiPathBuilder = GenerationApiPathBuilder(
+        conversations = conversations,
+        toolDefinitions = toolExecutor,
+    )
     private val completionEffects = GenerationCompletionEffectsExecutor(
         isAppInForeground = { AppForegroundTracker.isInForeground },
         releaseForegroundLease = AgoraForegroundService::release,
@@ -97,6 +100,9 @@ class GenerationManager(
         systemPrompt = config.effectiveSystemPrompt,
         tools = toolExecutor.definitions(context),
         initialUserPrompt = config.initialUserPrompt,
+        codeExecutionEnabled = config.codeExecutionEnabled,
+        googleSearchEnabled = config.googleSearchEnabled,
+        openAiWebSearchEnabled = config.openAiWebSearchEnabled,
     )
 
     internal suspend fun buildApiPath(request: GenerationApiPathRequest): GenerationApiPath =
@@ -186,10 +192,9 @@ class GenerationManager(
             // controller before this coroutine runs — GenerationManager no longer touches it.
             com.newoether.agora.util.CrashReporter.note("generate provider=${config.providerName}")
             thinkingPlaceholder = context.getString(R.string.thinking_ellipsis)
-            val loadedMessages = conversations.getMessagesForConversationSnapshot(conversationId)
-            val placeholder = checkNotNull(
-                loadedMessages.find { it.id == modelMessageId }
-            ) { "Generation placeholder $modelMessageId does not exist" }
+            val placeholder = checkNotNull(conversations.getMessage(modelMessageId)) {
+                "Generation placeholder $modelMessageId does not exist"
+            }
             check(placeholder.runId == runId) {
                 "Generation placeholder $modelMessageId is not owned by Run $runId"
             }
@@ -235,10 +240,6 @@ class GenerationManager(
                     conversationId = conversationId,
                     config = config,
                     context = ctx,
-                    // The transcription stage has just persisted per-attachment metadata. Reload
-                    // that snapshot so only transcribed source images are removed; a global
-                    // image-disable would also discard fresh view_image results in later rounds.
-                    loadedMessages = loadedMessages.takeUnless { transcription.performed },
                 ),
             )
             requestTrace?.mark(

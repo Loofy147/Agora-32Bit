@@ -1,6 +1,8 @@
 package com.newoether.agora.data.repository
 
+import androidx.room.withTransaction
 import com.newoether.agora.data.local.ChatDao
+import com.newoether.agora.data.local.ChatDatabase
 import com.newoether.agora.data.local.ChatEntity
 import com.newoether.agora.data.local.ConversationDraftAttachmentReference
 import com.newoether.agora.data.local.EmbeddingEntity
@@ -10,6 +12,7 @@ import com.newoether.agora.data.local.IndexableMessage
 import com.newoether.agora.data.local.MessageAttachmentReference
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.data.local.MessageStreamCheckpoint
+import com.newoether.agora.data.local.ProviderContextTopologySnapshot
 import com.newoether.agora.data.local.RunEntity
 import com.newoether.agora.data.local.RunGraphCommit
 import com.newoether.agora.data.local.RunBranchSelectionIntegrity
@@ -80,7 +83,9 @@ internal suspend fun boundedCitationTitleMatches(
 }
 
 class ConversationRepository(
-    private val chatDao: ChatDao
+    private val chatDao: ChatDao,
+    /** Non-null in production; null is an explicit DAO-isolated unit-test seam. */
+    private val database: ChatDatabase?,
 ) {
     private val runRecoveryMutex = Mutex()
     @Volatile private var runRecoveryComplete = false
@@ -115,6 +120,7 @@ class ConversationRepository(
         id = id, title = title, systemPromptId = systemPromptId, modelId = modelId,
         taskId = taskId, origin = origin, graduated = graduated,
         hasUnreadGeneration = hasUnreadGeneration,
+        selectedBranchesJson = selectedBranchesJson,
     )
 
     fun getAllConversations(): Flow<List<ChatConversation>> = chatDao.getAllConversations()
@@ -186,6 +192,23 @@ class ConversationRepository(
 
     suspend fun getMessagesForConversationSnapshot(conversationId: String): List<MessageEntity> =
         chatDao.getMessagesForConversation(conversationId).first()
+
+    suspend fun getProviderContextTopologySnapshot(
+        conversationId: String,
+    ): ProviderContextTopologySnapshot? =
+        chatDao.getProviderContextTopologySnapshot(conversationId)
+
+    /** Keeps topology and every selected payload row on one immutable Room read snapshot. */
+    suspend fun <T> withProviderContextSnapshot(block: suspend () -> T): T =
+        database?.withTransaction { block() } ?: block()
+
+    suspend fun getMessage(messageId: String): MessageEntity? =
+        chatDao.getMessage(messageId)
+
+    suspend fun getContextMessagesByIds(ids: List<String>): List<MessageEntity> =
+        ids.chunked(CONTEXT_MESSAGE_QUERY_PAGE_SIZE).flatMap { page ->
+            chatDao.getMessagesByIds(page)
+        }
 
     suspend fun getLastMessageForConversation(conversationId: String): MessageEntity? =
         chatDao.getLastMessageForConversation(conversationId)
@@ -730,5 +753,6 @@ class ConversationRepository(
 
     private companion object {
         const val ATTACHMENT_REFERENCE_PAGE_SIZE = 128
+        const val CONTEXT_MESSAGE_QUERY_PAGE_SIZE = 64
     }
 }

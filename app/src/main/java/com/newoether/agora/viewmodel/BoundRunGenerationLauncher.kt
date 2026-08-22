@@ -140,9 +140,7 @@ internal class BoundRunGenerationLauncher(
             )
             // A pre-stream failure would otherwise strand the SENDING placeholder and overlay.
             runCatching {
-                val existing = conversations
-                    .getMessagesForConversationSnapshot(request.conversationId)
-                    .find { it.id == request.modelMessageId }
+                val existing = conversations.getMessage(request.modelMessageId)
                 if (existing != null && existing.status == MessageStatus.SENDING) {
                     terminalSettlement.finalizeBoundFailure(
                         conversationId = request.conversationId,

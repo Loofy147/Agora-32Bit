@@ -1,7 +1,9 @@
 package com.newoether.agora.viewmodel
 
 import com.newoether.agora.api.ProviderConfig
+import com.newoether.agora.data.local.MessageContextTopology
 import com.newoether.agora.data.local.MessageEntity
+import com.newoether.agora.data.local.ProviderContextTopologySnapshot
 import com.newoether.agora.data.repository.ConversationRepository
 import com.newoether.agora.data.repository.SettingsRepository
 import com.newoether.agora.model.ChatMessage
@@ -16,6 +18,8 @@ import io.mockk.slot
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -36,8 +40,8 @@ class ConversationCompactControllerTest {
             ),
         )
         coVerify(exactly = 0) {
-            conversations.getMessagesForConversationSnapshot(any())
-            conversations.restoreBranchSelections(any())
+            conversations.getProviderContextTopologySnapshot(any())
+            conversations.getContextMessagesByIds(any())
         }
     }
 
@@ -54,10 +58,11 @@ class ConversationCompactControllerTest {
         val launchRequest = slot<StandardGenerationContinuationRequest>()
         val completedJob = Job().apply { complete() }
 
-        coEvery { conversations.getMessagesForConversationSnapshot("conversation") } returns
-            listOf(source)
-        coEvery { conversations.restoreBranchSelections("conversation") } returns
-            mapOf(null to source.id)
+        stubSelectedPath(
+            conversations,
+            listOf(source),
+            mapOf(null to source.id),
+        )
         coEvery { manager.buildApiPath(capture(pathRequest)) } returns GenerationApiPath(
             messages = listOf(source.toUi()),
             providerConfig = mockk<ProviderConfig>(),
@@ -84,7 +89,7 @@ class ConversationCompactControllerTest {
 
         assertNotNull(started)
         assertEquals(source.id, pathRequest.captured.parentId)
-        assertEquals(listOf(source), pathRequest.captured.loadedMessages)
+        assertEquals(null, pathRequest.captured.loadedMessages)
         assertEquals(source.id, launchRequest.captured.parentMessageId)
         assertTrue(launchRequest.captured.modelMessageId!!.startsWith("compact_"))
         assertEquals(null, launchRequest.captured.replacementMessageId)
@@ -134,9 +139,11 @@ class ConversationCompactControllerTest {
             if (it.id == target.id) it.copy(text = "new summary", status = MessageStatus.SUCCESS)
             else it
         }
-        coEvery { conversations.getMessagesForConversationSnapshot("conversation") } returnsMany
-            listOf(before, before, settled)
-        coEvery { conversations.restoreBranchSelections("conversation") } returns selected
+        stubSelectedPath(conversations, before, selected)
+        coEvery { conversations.getMessage(target.id) } returnsMany listOf(
+            target,
+            settled.single { it.id == target.id },
+        )
         coEvery {
             requestBuilder.captureAdmissionSnapshot(
                 conversationId = "conversation",
@@ -198,10 +205,11 @@ class ConversationCompactControllerTest {
         val launcher = mockk<StandardGenerationContinuationLauncher>()
         val state = ConversationGenerationState("conversation")
         val source = sourceEntity()
-        coEvery { conversations.getMessagesForConversationSnapshot("conversation") } returns
-            listOf(source)
-        coEvery { conversations.restoreBranchSelections("conversation") } returns
-            mapOf(null to source.id)
+        stubSelectedPath(
+            conversations,
+            listOf(source),
+            mapOf(null to source.id),
+        )
         coEvery { manager.buildApiPath(any()) } returns GenerationApiPath(
             messages = emptyList(),
             providerConfig = mockk<ProviderConfig>(),
@@ -239,10 +247,11 @@ class ConversationCompactControllerTest {
         val launcher = mockk<StandardGenerationContinuationLauncher>()
         val state = ConversationGenerationState("conversation")
         val source = sourceEntity()
-        coEvery { conversations.getMessagesForConversationSnapshot("conversation") } returns
-            listOf(source)
-        coEvery { conversations.restoreBranchSelections("conversation") } returns
-            mapOf(null to source.id)
+        stubSelectedPath(
+            conversations,
+            listOf(source),
+            mapOf(null to source.id),
+        )
         coEvery { manager.buildApiPath(any()) } returns GenerationApiPath(
             messages = listOf(source.toUi()),
             providerConfig = mockk<ProviderConfig>(),
@@ -327,35 +336,37 @@ class ConversationCompactControllerTest {
         val source = sourceEntity()
         var compactMessageId: String? = null
 
-        coEvery {
-            conversations.getMessagesForConversationSnapshot("conversation")
-        } answers {
-            val settledId = compactMessageId
-            if (settledId == null) {
-                listOf(source)
+        stubSelectedPath(
+            conversations,
+            listOf(source),
+            mapOf(null to source.id),
+        )
+        coEvery { conversations.getMessage(any()) } answers {
+            val requestedId = firstArg<String>()
+            if (requestedId == source.id) {
+                source
             } else {
-                listOf(
-                    source,
-                    MessageEntity(
-                        id = settledId,
-                        conversationId = "conversation",
-                        parentId = source.id,
-                        text = "full generated compact body",
-                        status = status,
-                        participant = Participant.MODEL,
-                        timestamp = 2L,
-                        modelName = "provider:model",
-                        toolCallJson = errorSegment?.let { error ->
-                            """[{"type":"answer","content":"full generated compact body"},{"type":"error","content":"$error"}]"""
-                        },
-                        runId = "compact-run",
-                        runSequence = 0,
-                    ),
-                )
+                compactMessageId
+                    ?.takeIf { it == requestedId }
+                    ?.let { settledId ->
+                        MessageEntity(
+                            id = settledId,
+                            conversationId = "conversation",
+                            parentId = source.id,
+                            text = "full generated compact body",
+                            status = status,
+                            participant = Participant.MODEL,
+                            timestamp = 2L,
+                            modelName = "provider:model",
+                            toolCallJson = errorSegment?.let { error ->
+                                """[{"type":"answer","content":"full generated compact body"},{"type":"error","content":"$error"}]"""
+                            },
+                            runId = "compact-run",
+                            runSequence = 0,
+                        )
+                    }
             }
         }
-        coEvery { conversations.restoreBranchSelections("conversation") } returns
-            mapOf(null to source.id)
         coEvery {
             requestBuilder.captureAdmissionSnapshot(
                 conversationId = "conversation",
@@ -398,6 +409,39 @@ class ConversationCompactControllerTest {
         )
         state.dispose()
         return result
+    }
+
+    private fun stubSelectedPath(
+        conversations: ConversationRepository,
+        entities: List<MessageEntity>,
+        selections: Map<String?, String>,
+    ) {
+        val snapshot = ProviderContextTopologySnapshot(
+            selectedBranchesJson = Json.encodeToString(
+                selections.mapKeys { (key, _) -> key ?: "null" },
+            ),
+            messages = entities.map { entity ->
+                MessageContextTopology(
+                    id = entity.id,
+                    conversationId = entity.conversationId,
+                    parentId = entity.parentId,
+                    status = entity.status,
+                    participant = entity.participant,
+                    timestamp = entity.timestamp,
+                    modelName = entity.modelName,
+                    runId = entity.runId,
+                    runSequence = entity.runSequence,
+                    consumedAtPass = entity.consumedAtPass,
+                )
+            },
+        )
+        coEvery {
+            conversations.getProviderContextTopologySnapshot("conversation")
+        } returns snapshot
+        val byId = entities.associateBy(MessageEntity::id)
+        coEvery { conversations.getMessage(any()) } answers {
+            byId[firstArg<String>()]
+        }
     }
 
     private fun controller(

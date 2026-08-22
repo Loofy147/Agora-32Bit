@@ -6,7 +6,6 @@ import com.newoether.agora.api.LlmProvider
 import com.newoether.agora.api.ProviderConfig
 import com.newoether.agora.api.StreamEvent
 import com.newoether.agora.data.BuiltInPrompts
-import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.data.repository.ConversationRepository
 import com.newoether.agora.model.AttachmentMeta
 import com.newoether.agora.model.AttachmentItem
@@ -17,7 +16,6 @@ import com.newoether.agora.model.Participant
 import com.newoether.agora.model.ToolImageAttachment
 import com.newoether.agora.service.AgoraForegroundService
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
@@ -39,6 +37,8 @@ class TranscriptionManager(
     private val conversations: ConversationRepository,
     private val context: Context
 ) {
+    private val contextLoader = DurableSelectedContextLoader(conversations)
+
     data class TranscriptionTarget(
         val messageId: String,
         val imagePath: String,
@@ -52,16 +52,15 @@ class TranscriptionManager(
      */
     suspend fun collectTargets(
         conversationId: String,
-        parentId: String?
+        parentId: String?,
     ): List<TranscriptionTarget> {
-        val allMessages = conversations.getMessagesForConversationSnapshot(conversationId)
-        val pathMessages = mutableListOf<MessageEntity>()
-        var currentId = parentId
-        while (currentId != null) {
-            val msg = allMessages.find { it.id == currentId } ?: break
-            pathMessages.add(0, msg)
-            currentId = msg.parentId
-        }
+        val pathMessages = contextLoader.load(
+            DurableSelectedContextRequest(
+                conversationId = conversationId,
+                anchorMessageId = parentId,
+                includeStoredTranscriptions = true,
+            ),
+        ).entities
         val latestUserMsg = pathMessages.lastOrNull { it.participant == Participant.USER }
         val targets = mutableListOf<TranscriptionTarget>()
         for (msg in pathMessages) {
@@ -246,7 +245,7 @@ class TranscriptionManager(
             thinkingEnabled = false,
             baseUrl = baseUrl
         )
-        val placeholder = conversations.getMessagesForConversationSnapshot(conversationId).find { it.id == modelMessageId }
+        val placeholder = conversations.getMessage(modelMessageId)
         val parentId = placeholder?.parentId
         val results = mutableMapOf<String, MutableList<Pair<Int, String>>>()
         val transcriptionSegments = mutableListOf<MessageSegment>()
@@ -313,7 +312,7 @@ class TranscriptionManager(
 
         // Persist results back to message attachment metadata
         for ((messageId, updates) in results) {
-            val entity = conversations.getMessagesForConversationSnapshot(conversationId).find { it.id == messageId }
+            val entity = conversations.getMessage(messageId)
             if (entity != null) {
                 val meta = entity.attachmentMeta?.let {
                     try { Json.decodeFromString<AttachmentMeta>(it) } catch (_: Exception) { null }

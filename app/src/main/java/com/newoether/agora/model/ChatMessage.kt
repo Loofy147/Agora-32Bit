@@ -180,6 +180,7 @@ data class ChatConversation(
     val origin: String = "user",
     val graduated: Boolean = false,
     val hasUnreadGeneration: Boolean = false,
+    val selectedBranchesJson: String? = null,
 )
 
 fun ChatMessage.isContextCompact(): Boolean =

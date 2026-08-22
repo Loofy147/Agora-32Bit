@@ -2,11 +2,12 @@ package com.newoether.agora.api.util
 
 import com.newoether.agora.api.ToolDefinition
 import com.newoether.agora.model.ChatMessage
+import com.newoether.agora.model.Participant
 import com.newoether.agora.util.Constants
 import kotlin.math.ceil
 
 /**
- * Deterministic cross-provider estimate of provider-visible conversation tokens.
+ * Deterministic cross-provider estimate of Provider-visible conversation tokens.
  *
  * Exact tokenization is model-specific and unavailable offline for arbitrary custom providers.
  * This estimator intentionally leans conservative: ASCII word-like runs use roughly four
@@ -33,6 +34,9 @@ object ContextTokenEstimator {
         systemPrompt: String?,
         tools: List<ToolDefinition>,
         initialUserPrompt: String? = null,
+        codeExecutionEnabled: Boolean = false,
+        googleSearchEnabled: Boolean = false,
+        openAiWebSearchEnabled: Boolean = false,
     ): Int {
         var raw = MESSAGE_OVERHEAD.toLong() + estimateTextRaw(systemPrompt.orEmpty())
         initialUserPrompt?.takeIf(String::isNotBlank)?.let { prompt ->
@@ -52,6 +56,13 @@ object ContextTokenEstimator {
                 raw += estimateTextRaw(required)
             }
         }
+        listOfNotNull(
+            "code_execution".takeIf { codeExecutionEnabled },
+            "google_search".takeIf { googleSearchEnabled },
+            "web_search".takeIf { openAiWebSearchEnabled },
+        ).forEach { nativeTool ->
+            raw += TOOL_CALL_OVERHEAD + estimateTextRaw(nativeTool)
+        }
         return applySafetyMargin(raw.coerceAtMost(Int.MAX_VALUE.toLong()))
     }
 
@@ -64,8 +75,17 @@ object ContextTokenEstimator {
         // mirrored Room text field. Counting both made result-heavy contexts look up to 2x larger.
         var total = MESSAGE_OVERHEAD.toLong() +
             if (isToolProtocol) 0L else estimateTextRaw(message.text)
-        total += message.images.size.toLong() * IMAGE_ESTIMATE
+        if (!isToolProtocol && message.participant == Participant.USER) {
+            total += message.images.size.toLong() * IMAGE_ESTIMATE
+        }
         if (isToolProtocol) {
+            message.segments.orEmpty()
+                .asSequence()
+                .filter { it.type == "thought" }
+                .forEach { segment ->
+                    total += estimateTextRaw(segment.content)
+                    total += estimateTextRaw(segment.signature.orEmpty())
+                }
             val segments = message.segments.orEmpty().filter { it.type == "tool" }
             if (segments.isNotEmpty()) {
                 segments.forEach { segment ->
@@ -75,6 +95,12 @@ object ContextTokenEstimator {
                     total += estimateTextRaw(segment.toolResult.orEmpty())
                     total += estimateTextRaw(segment.signature.orEmpty())
                 }
+                segments.firstOrNull { it.responseOutputItems.isNotEmpty() }
+                    ?.responseOutputItems
+                    .orEmpty()
+                    .forEach { item ->
+                        total += estimateTextRaw(item.toString())
+                    }
             } else {
                 message.toolCall?.let { call ->
                     total += TOOL_CALL_OVERHEAD
@@ -82,6 +108,9 @@ object ContextTokenEstimator {
                     total += estimateTextRaw(call.arguments)
                     total += estimateTextRaw(call.result)
                     total += estimateTextRaw(call.signature.orEmpty())
+                    call.responseOutputItems.forEach { item ->
+                        total += estimateTextRaw(item.toString())
+                    }
                 }
             }
         }

@@ -4,10 +4,12 @@ import com.newoether.agora.api.util.convertToOpenAiMessages
 import com.newoether.agora.api.util.prepareMessages
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.data.repository.ConversationRepository
+import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
 import com.newoether.agora.util.Constants
 import com.newoether.agora.api.util.ContextTokenEstimator
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -87,6 +89,32 @@ class GenerationApiPathBuilderTest {
             assertEquals("context_summary_${successful.id}", prepared.first().id)
             assertTrue(prepared.none { it.id == invalid.id })
         }
+    }
+
+    @Test
+    fun `blank successful Compact still excludes every older ancestor`() = runTest {
+        val repository = mockk<ConversationRepository>(relaxed = true)
+        val builder = GenerationApiPathBuilder(repository) { emptyList() }
+        val old = message("old", null, 0, Participant.USER)
+        val compact = message(
+            "${Constants.COMPACT_MSG_PREFIX}blank",
+            old.id,
+            1,
+        ).copy(text = "")
+        val latest = message("latest", compact.id, 2, Participant.USER)
+
+        val path = builder.build(
+            GenerationApiPathRequest(
+                parentId = latest.id,
+                conversationId = "conversation",
+                config = generationConfig(),
+                context = GenerationContext(),
+                loadedMessages = listOf(old, compact, latest),
+            ),
+        )
+
+        assertEquals(listOf(compact.id, latest.id), path.messages.map { it.id })
+        assertTrue(path.messages.none { it.id == old.id })
     }
 
     @Test
@@ -200,6 +228,45 @@ class GenerationApiPathBuilderTest {
         assertTrue(path.messages.any { it.id == old.id })
         assertTrue(path.messages.any { it.id == failed.id && it.text == failed.text })
         assertEquals("user", path.messages.single { it.id == user.id }.text)
+    }
+
+    @Test
+    fun `production path delegates to the canonical selected context loader`() = runTest {
+        val repository = mockk<ConversationRepository>()
+        val contextLoader = mockk<DurableSelectedContextLoader>()
+        val providerMessage = ChatMessage(
+            id = "user",
+            text = "question",
+            participant = Participant.USER,
+            status = MessageStatus.SUCCESS,
+        )
+        coEvery { contextLoader.load(any()) } returns DurableSelectedContext(
+            messages = listOf(providerMessage),
+            entities = emptyList(),
+        )
+        val builder = GenerationApiPathBuilder(
+            conversations = repository,
+            contextLoader = contextLoader,
+            toolDefinitions = { emptyList() },
+        )
+
+        val path = builder.build(
+            GenerationApiPathRequest(
+                parentId = "user",
+                conversationId = "conversation",
+                config = generationConfig(),
+                context = GenerationContext(),
+            ),
+        )
+
+        assertEquals(listOf(providerMessage), path.messages)
+        coVerify(exactly = 1) {
+            contextLoader.load(match { request ->
+                request.anchorMessageId == "user" &&
+                    !request.followSelectedBranch
+            })
+        }
+        coVerify(exactly = 0) { repository.getMessagesForConversationSnapshot(any()) }
     }
 
     private fun generationConfig() = GenerationConfig(

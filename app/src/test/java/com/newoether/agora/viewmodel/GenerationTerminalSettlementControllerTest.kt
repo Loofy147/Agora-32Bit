@@ -93,8 +93,7 @@ class GenerationTerminalSettlementControllerTest {
     @Test
     fun noWriterRepairBypassesRuntimeButStillUsesAtomicTerminalTransaction() = runBlocking {
         val conversations = mockk<ConversationRepository>()
-        coEvery { conversations.getMessagesForConversationSnapshot("conversation") } returns
-            listOf(MESSAGE_ENTITY)
+        coEvery { conversations.getMessage("model") } returns MESSAGE_ENTITY
         val persisted = slot<ChatMessage>()
         coEvery {
             conversations.finishGeneration(

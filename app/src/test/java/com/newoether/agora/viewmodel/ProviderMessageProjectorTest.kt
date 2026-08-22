@@ -1,5 +1,6 @@
 package com.newoether.agora.viewmodel
 
+import com.newoether.agora.api.util.ContextTokenEstimator
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.model.AttachmentItem
 import com.newoether.agora.model.AttachmentMeta
@@ -122,4 +123,56 @@ class ProviderMessageProjectorTest {
         )
     }
 
+    @Test
+    fun `file text and every media page remain visible to token accounting`() {
+        val entity = MessageEntity(
+            id = "user",
+            conversationId = "conversation",
+            text = "inspect attachments",
+            images = listOf("page-1.jpg", "page-2.jpg", "video-frame.jpg"),
+            attachmentMeta = Json.encodeToString(
+                AttachmentMeta(
+                    items = listOf(
+                        AttachmentItem(
+                            type = "file",
+                            fileName = "notes.txt",
+                            textContent = "important file content ".repeat(20),
+                        ),
+                        AttachmentItem(
+                            type = "pdf",
+                            fileName = "document.pdf",
+                            imageIndex = 0,
+                            pageCount = 2,
+                        ),
+                        AttachmentItem(
+                            type = "video",
+                            fileName = "clip.mp4",
+                            imageIndex = 2,
+                            pageCount = 1,
+                        ),
+                    ),
+                ),
+            ),
+            status = MessageStatus.SUCCESS,
+            participant = Participant.USER,
+            timestamp = 1L,
+            runId = "run",
+        )
+
+        val projected = projectProviderMessages(
+            entities = listOf(entity),
+            includeStoredTranscriptions = false,
+        ).single()
+        val withoutAttachments = projected.copy(
+            text = "inspect attachments",
+            images = emptyList(),
+        )
+
+        assertTrue(projected.text.contains("important file content"))
+        assertEquals(3, projected.images.size)
+        assertTrue(
+            ContextTokenEstimator.estimate(listOf(projected)) >
+                ContextTokenEstimator.estimate(listOf(withoutAttachments)),
+        )
+    }
 }

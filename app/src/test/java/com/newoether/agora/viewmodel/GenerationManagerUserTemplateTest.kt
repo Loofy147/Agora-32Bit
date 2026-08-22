@@ -52,6 +52,34 @@ class GenerationManagerUserTemplateTest {
     }
 
     @Test
+    fun nonVisionProjectionRemovesEveryRawImageFromAccountingAndDispatch() {
+        val messages = listOf(
+            ChatMessage(
+                id = "user",
+                text = "described attachment",
+                images = listOf("attachment.png"),
+                participant = Participant.USER,
+            ),
+            ChatMessage(
+                id = Constants.RESULT_MSG_PREFIX + "result",
+                text = "tool result",
+                images = listOf("tool.png"),
+                participant = Participant.USER,
+            ),
+        )
+
+        val projected = projectGenerationInputMessages(
+            messages = messages,
+            includeImages = false,
+            userPrepend = null,
+            userPostpend = null,
+        )
+
+        assertEquals(emptyList<String>(), projected.flatMap { it.images })
+        assertEquals("described attachment", projected.first().text)
+    }
+
+    @Test
     fun compactInvocationIsAnApiOnlyFinalUserMessage() {
         val durableMessages = listOf(
             ChatMessage(id = "user", text = "question", participant = Participant.USER),

@@ -2,7 +2,6 @@ package com.newoether.agora.viewmodel
 
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageGenerationBoundaryResolver
-import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
 import com.newoether.agora.util.Constants
 
@@ -56,6 +55,65 @@ internal fun deleteSettlementTargetMessageId(
 private fun ChatMessage.isRealUserMessage(): Boolean =
     MessageGenerationBoundaryResolver.isRealUser(this)
 
+/** One selected-branch resolver shared by full UI messages and payload-free context topology. */
+internal fun <T> resolveSelectedPath(
+    allMessages: List<T>,
+    streamingMessage: T?,
+    selectedChildren: Map<String?, String>,
+    idOf: (T) -> String,
+    parentIdOf: (T) -> String?,
+    timestampOf: (T) -> Long,
+    isSynthetic: (T) -> Boolean,
+    hideWhileStreaming: (message: T, streaming: T) -> Boolean = { _, _ -> false },
+): List<T> {
+    val path = mutableListOf<T>()
+    val messagesForPath = streamingMessage?.let { streaming ->
+        allMessages.filterNot { message -> hideWhileStreaming(message, streaming) }
+    } ?: allMessages
+    val messagesByParent = messagesForPath.groupBy(parentIdOf)
+        .mapValues { (_, list) -> list.sortedBy(timestampOf) }
+    val visited = mutableSetOf<String>()
+    var cursor: String? = null
+
+    while (true) {
+        val siblings = messagesByParent[cursor].orEmpty()
+        if (siblings.isEmpty()) break
+
+        val selectedId = selectedChildren[cursor]
+        val visibleSiblings = siblings.filterNot(isSynthetic)
+        var selected = if (visibleSiblings.isNotEmpty()) {
+            visibleSiblings.find { idOf(it) == selectedId } ?: visibleSiblings.last()
+        } else {
+            siblings.find { idOf(it) == selectedId } ?: siblings.last()
+        }
+        if (streamingMessage != null && idOf(selected) == idOf(streamingMessage)) {
+            selected = streamingMessage
+        }
+        val selectedMessageId = idOf(selected)
+        check(visited.add(selectedMessageId)) { "Selected message path contains a cycle" }
+        if (!isSynthetic(selected) ||
+            (streamingMessage != null && selectedMessageId == idOf(streamingMessage))
+        ) {
+            path += selected
+        }
+        cursor = selectedMessageId
+    }
+
+    if (
+        streamingMessage != null &&
+        path.none { idOf(it) == idOf(streamingMessage) }
+    ) {
+        val lastId = path.lastOrNull()?.let(idOf)
+        if (
+            parentIdOf(streamingMessage) == lastId ||
+            (parentIdOf(streamingMessage) == null && path.isEmpty())
+        ) {
+            path += streamingMessage
+        }
+    }
+    return path
+}
+
 data class ConversationUiState(
     val path: List<ChatMessage> = emptyList(),
     val allMessages: List<ChatMessage> = emptyList(),
@@ -69,57 +127,21 @@ data class ConversationUiState(
             allMessages: List<ChatMessage>,
             streamingMsg: ChatMessage?,
             selectedChildren: Map<String?, String>
-        ): List<ChatMessage> {
-            val path = mutableListOf<ChatMessage>()
-            // An intervention is durable as soon as Send succeeds, but while the current model
-            // Pass is still on screen it belongs exclusively to the queue banner. Advancing the
-            // visible message path here would make the live model cease to be the last message,
-            // incorrectly rendering its in-flight status as a terminal warning. Once the Pass
-            // releases (or Stop/recovery clears the overlay), the durable input becomes visible.
-            val messagesForPath = if (streamingMsg != null) {
-                allMessages.filterNot { message ->
-                    isPendingVisibleIntervention(
-                        message = message,
-                        streamingRunId = streamingMsg.runId,
-                    )
-                }
-            } else {
-                allMessages
-            }
-            val messagesByParent = messagesForPath.groupBy { it.parentId }
-                .mapValues { (_, list) -> list.sortedBy { it.timestamp } }
-            var cursor: String? = null
-
-            while (true) {
-                val siblings = messagesByParent[cursor] ?: break
-                if (siblings.isEmpty()) break
-
-                val selectedId = selectedChildren[cursor]
-                val visibleSiblings = siblings.filterNot(::isSynthetic)
-                var selected = if (visibleSiblings.isNotEmpty()) {
-                    visibleSiblings.find { it.id == selectedId } ?: visibleSiblings.last()
-                } else {
-                    siblings.find { it.id == selectedId } ?: siblings.last()
-                }
-                // Substitute streaming message if it matches
-                if (streamingMsg != null && selected.id == streamingMsg.id) {
-                    selected = streamingMsg
-                }
-                val isSynthetic = isSynthetic(selected)
-                if (!isSynthetic || (streamingMsg != null && selected.id == streamingMsg.id)) {
-                    path.add(selected)
-                }
-                cursor = selected.id
-            }
-            // Append streaming message if not yet in path
-            if (streamingMsg != null && path.none { it.id == streamingMsg.id }) {
-                val lastId = path.lastOrNull()?.id
-                if (streamingMsg.parentId == lastId || (streamingMsg.parentId == null && path.isEmpty())) {
-                    path.add(streamingMsg)
-                }
-            }
-            return path
-        }
+        ): List<ChatMessage> = resolveSelectedPath(
+            allMessages = allMessages,
+            streamingMessage = streamingMsg,
+            selectedChildren = selectedChildren,
+            idOf = ChatMessage::id,
+            parentIdOf = ChatMessage::parentId,
+            timestampOf = ChatMessage::timestamp,
+            isSynthetic = ::isSynthetic,
+            hideWhileStreaming = { message, streaming ->
+                isPendingVisibleIntervention(
+                    message = message,
+                    streamingRunId = streaming.runId,
+                )
+            },
+        )
 
         /**
          * Only a real user intervention can be queue-only while a Pass is streaming. Tool-result

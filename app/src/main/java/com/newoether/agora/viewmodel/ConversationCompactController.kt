@@ -4,7 +4,6 @@ import com.newoether.agora.api.util.splitContextForCompactRetention
 import com.newoether.agora.data.BuiltInPrompts
 import com.newoether.agora.data.repository.ConversationRepository
 import com.newoether.agora.model.ChatMessage
-import com.newoether.agora.model.MessageGenerationBoundaryResolver
 import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.isContextCompact
 import com.newoether.agora.model.isSuccessfulContextCompact
@@ -112,22 +111,13 @@ internal class ConversationCompactController(
         state: ConversationGenerationState,
         awaitCompletion: Boolean,
     ): Pair<StandardCompactLaunch?, CompactResult> {
-        val loadedMessages = conversations.getMessagesForConversationSnapshot(conversationId)
-        val selectedChildren = conversations.restoreBranchSelections(conversationId)
-        val selectedPath = ConversationUiState.resolvePath(
-            allMessages = loadedMessages.map { it.toUiChatMessage { text -> text } },
-            streamingMsg = null,
-            selectedChildren = selectedChildren,
-        )
+        val topology = conversations.getProviderContextTopologySnapshot(conversationId)
+            ?: return null to CompactResult.NotNeeded
+        val selectedPathIds = selectedVisibleContextMessageIds(topology)
         val target = request.replaceMessageId?.let { targetId ->
-            val targetBoundary = MessageGenerationBoundaryResolver.containing(
-                selectedPath,
-                targetId,
-            )
-            val targetMessage = targetBoundary
-                ?.messages
-                ?.firstOrNull { it.id == targetId }
-                ?.takeIf(ChatMessage::isContextCompact)
+            targetId.takeIf { it in selectedPathIds }
+                ?.let { conversations.getMessage(it) }
+                ?.takeIf { it.id.startsWith(Constants.COMPACT_MSG_PREFIX) }
                 ?.takeIf {
                     it.status in setOf(
                         MessageStatus.SUCCESS,
@@ -135,16 +125,12 @@ internal class ConversationCompactController(
                         MessageStatus.STOPPED,
                     )
                 }
-            targetMessage
-                ?.let { loadedMessages.find { entity -> entity.id == it.id } }
                 ?: return null to CompactResult.Failed(
                     CompactFailureReason.NOT_READY_TO_RECOMPACT,
                 )
         }
-        val parent = target?.parentId
-            ?.let { parentId -> loadedMessages.find { it.id == parentId } }
-            ?: selectedPath.lastOrNull()
-                ?.let { selected -> loadedMessages.find { it.id == selected.id } }
+        val parentId = target?.parentId ?: selectedPathIds.lastOrNull()
+        val parent = parentId?.let { conversations.getMessage(it) }
             ?: return null to CompactResult.NotNeeded
         if (target != null && target.parentId != parent.id) {
             return null to CompactResult.Failed(CompactFailureReason.BOUNDARY_DISAPPEARED)
@@ -157,7 +143,6 @@ internal class ConversationCompactController(
                 conversationId = conversationId,
                 config = generationSnapshot.config,
                 context = generationSnapshot.context,
-                loadedMessages = loadedMessages,
             ),
         )
         val transform = retainedTextTransform(
@@ -192,8 +177,7 @@ internal class ConversationCompactController(
         } catch (cancelled: CancellationException) {
             throw cancelled
         }
-        val settled = conversations.getMessagesForConversationSnapshot(conversationId)
-            .find { it.id == messageId }
+        val settled = conversations.getMessage(messageId)
             ?: return compactLaunch to CompactResult.Failed(CompactFailureReason.MESSAGE_DISAPPEARED)
         val result = when (settled.status) {
             MessageStatus.SUCCESS -> CompactResult.Created(messageId)

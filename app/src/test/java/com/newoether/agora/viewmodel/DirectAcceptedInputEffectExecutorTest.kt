@@ -228,9 +228,8 @@ class DirectAcceptedInputEffectExecutorTest {
                 events += "capture-snapshot"
                 snapshot
             }
-            coEvery {
-                conversations.getMessagesForConversationSnapshot(CONVERSATION_ID)
-            } returns listOf(MODEL_ENTITY.copy(status = MessageStatus.SUCCESS))
+            coEvery { conversations.getMessage(MODEL_ID) } returns
+                MODEL_ENTITY.copy(status = MessageStatus.SUCCESS)
 
             executor = DirectAcceptedInputEffectExecutor(
                 conversations = conversations,

@@ -198,7 +198,15 @@ internal fun projectGenerationInputMessages(
         ),
         prepend = userPrepend,
         postpend = userPostpend,
-    )
+    ).let { apiMessages ->
+        if (includeImages) {
+            apiMessages
+        } else {
+            apiMessages.map { message ->
+                if (message.images.isEmpty()) message else message.copy(images = emptyList())
+            }
+        }
+    }
     val prompt = initialUserPrompt?.takeIf(String::isNotBlank) ?: return projected
     val parent = projected.lastOrNull()
     return projected + ChatMessage(

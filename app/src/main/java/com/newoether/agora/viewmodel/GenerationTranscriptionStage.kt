@@ -41,7 +41,10 @@ internal class GenerationTranscriptionStage(
             if (!context.imageTranscriptionEnabled || context.transcriptionModelId.isEmpty()) {
                 return GenerationTranscriptionStageOutcome(performed = false)
             }
-            val targets = manager.collectTargets(request.conversationId, request.parentId)
+            val targets = manager.collectTargets(
+                request.conversationId,
+                request.parentId,
+            )
             if (targets.isEmpty()) return GenerationTranscriptionStageOutcome(performed = false)
 
             val (segments, error) = manager.transcribe(

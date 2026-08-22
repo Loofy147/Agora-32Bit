@@ -740,10 +740,7 @@ internal class MessageGenerationController(
             ) ?: return@launch
             compactLaunch.job.join()
             val compactMessageId = compactLaunch.messageId
-            val compactStatus = convRepo
-                .getMessagesForConversationSnapshot(request.generationRequest.conversationId)
-                .find { it.id == compactMessageId }
-                ?.status
+            val compactStatus = convRepo.getMessage(compactMessageId)?.status
             if (!automaticCompactAllowsHandoff(compactStatus)) return@launch
 
             // Queue inspection and no-input continuation admission share the queue mutex, so

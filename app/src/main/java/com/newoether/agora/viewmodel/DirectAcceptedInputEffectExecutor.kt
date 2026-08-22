@@ -274,9 +274,7 @@ internal class DirectAcceptedInputEffectExecutor(
                     ),
                     state,
                 )
-                val lastMessage = conversations
-                    .getMessagesForConversationSnapshot(request.conversationId)
-                    .find { it.id == modelMessageId }
+                val lastMessage = conversations.getMessage(modelMessageId)
                 if (
                     request.wasNewChat &&
                     generationSnapshot.titleGenerationEnabled &&

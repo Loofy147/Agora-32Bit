@@ -4,7 +4,6 @@ import com.newoether.agora.data.local.ChatEntity
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.data.local.RunEntity
 import com.newoether.agora.data.repository.ConversationRepository
-import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
 import com.newoether.agora.model.RunEffect
@@ -54,22 +53,15 @@ internal class AcceptedInputGraphWriter(
         request: Request,
         beforeRoomCommit: () -> Unit = {},
     ): Commit {
-        val snapshot = if (request.newConversation == null) {
-            conversations.getMessagesForConversationSnapshot(request.conversationId)
+        val topology = if (request.newConversation == null) {
+            conversations.getProviderContextTopologySnapshot(request.conversationId)
         } else {
-            emptyList()
+            null
         }
-        val selectedChildren = if (request.newConversation == null) {
-            conversations.restoreBranchSelections(request.conversationId)
-        } else {
-            emptyMap()
+        val leaf = topology?.let { snapshot ->
+            val leafId = selectedVisibleContextMessageIds(snapshot).lastOrNull()
+            snapshot.messages.firstOrNull { it.id == leafId }
         }
-        val selectedPath = ConversationUiState.resolvePath(
-            allMessages = snapshot.map { it.toBranchMessage() },
-            streamingMsg = null,
-            selectedChildren = selectedChildren,
-        )
-        val leaf = selectedPath.lastOrNull()
         val modelTimestamp = request.userTimestamp + 1
         val userMessage = MessageEntity(
             id = request.userMessageId,
@@ -137,16 +129,4 @@ internal class AcceptedInputGraphWriter(
             ?: error("Accepted-input graph did not return its MODEL row")
         return Commit(committedUser, committedModel, graph.messageSelections)
     }
-
-    private fun MessageEntity.toBranchMessage() = ChatMessage(
-        id = id,
-        parentId = parentId,
-        text = text,
-        participant = participant,
-        timestamp = timestamp,
-        status = status,
-        runId = runId,
-        runSequence = runSequence,
-        consumedAtPass = consumedAtPass,
-    )
 }

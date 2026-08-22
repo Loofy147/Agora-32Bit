@@ -2,6 +2,7 @@ package com.newoether.agora.viewmodel
 
 import com.newoether.agora.automation.ConversationExecutionCoordinator
 import com.newoether.agora.data.local.MessageEntity
+import com.newoether.agora.data.local.ProviderContextTopologySnapshot
 import com.newoether.agora.data.local.RunEntity
 import com.newoether.agora.data.local.RunGraphCommit
 import com.newoether.agora.data.repository.ConversationRepository
@@ -59,11 +60,8 @@ class QueuedGuidanceDrainExecutorTest {
             )
         } returns fixture.snapshot
         coEvery {
-            fixture.conversations.getMessagesForConversationSnapshot("conversation")
-        } returns emptyList()
-        coEvery {
-            fixture.conversations.restoreBranchSelections("conversation")
-        } returns emptyMap()
+            fixture.conversations.getProviderContextTopologySnapshot("conversation")
+        } returns ProviderContextTopologySnapshot(null, emptyList())
         val createdRun = slot<RunEntity>()
         val createdMessages = slot<List<MessageEntity>>()
         coEvery {
@@ -105,6 +103,9 @@ class QueuedGuidanceDrainExecutorTest {
         assertEquals("model-message", createdMessages.captured[1].id)
         assertEquals(listOf("indexed:guidance-1:one\n\ntwo", "scroll:guidance-1"), fixture.events)
         assertFalse(state.settleGuidanceClaim(lease.id, durable = false))
+        coVerify(exactly = 0) {
+            fixture.conversations.getMessagesForConversationSnapshot(any())
+        }
         state.dispose()
         Unit
     }

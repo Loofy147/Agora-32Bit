@@ -68,8 +68,8 @@ class ConversationBranchMutationServiceTest {
                 "remove",
                 "snapshot",
                 "selections",
-                "project:user, off-path-tail",
                 "settle:null",
+                "project:user, off-path-tail",
             ),
             events,
         )
@@ -122,7 +122,7 @@ class ConversationBranchMutationServiceTest {
 
         assertEquals(1, previewCount)
         assertEquals(
-            listOf("start:true", "room-commit", "file-delete", "project:user", "settle:user"),
+            listOf("start:true", "room-commit", "file-delete", "settle:user", "project:user"),
             events,
         )
         state.dispose()

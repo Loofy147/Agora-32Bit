@@ -1,7 +1,6 @@
 package com.newoether.agora.automation
 
 import com.newoether.agora.data.local.ChatEntity
-import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.data.local.TaskEntity
 import com.newoether.agora.data.repository.ConversationRepository
 import com.newoether.agora.data.repository.TaskRepository
@@ -102,7 +101,7 @@ class TaskManager(
         val latestByConversation = messages
             .asSequence()
             .filter { it.participant == Participant.MODEL || it.participant == Participant.ERROR }
-            .filterNot(::isSyntheticToolMessage)
+            .filterNot { isSyntheticToolMessageId(it.id) }
             .groupBy { it.conversationId }
             .mapValues { (_, values) -> values.maxByOrNull { it.timestamp } }
         executions.map { conversation ->
@@ -433,13 +432,26 @@ class TaskManager(
      * process-interrupted attempts are terminal for this occurrence.
      */
     private suspend fun recoverExistingExecution(existing: ChatEntity): ExecutionResult? {
-        val messages = conversationRepository.getMessagesForConversationSnapshot(existing.id)
-        if (messages.isEmpty()) return null
-        val assistant = terminalAssistant(messages)
+        val recoverySnapshot = conversationRepository.withProviderContextSnapshot {
+            val topology =
+                conversationRepository.getProviderContextTopologySnapshot(existing.id)
+                    ?: return@withProviderContextSnapshot null
+            if (topology.messages.isEmpty()) return@withProviderContextSnapshot null
+            val assistantId = topology.messages
+                .asSequence()
+                .filter {
+                    it.participant == Participant.MODEL || it.participant == Participant.ERROR
+                }
+                .filterNot { isSyntheticToolMessageId(it.id) }
+                .maxByOrNull { it.timestamp }
+                ?.id
+            topology to assistantId?.let { conversationRepository.getMessage(it) }
+        } ?: return null
+        val (topology, assistant) = recoverySnapshot
         return when (assistant?.status) {
             MessageStatus.SUCCESS -> ExecutionResult.Success(existing.id, assistant.text)
             MessageStatus.ERROR -> {
-                if (messages.any(::isSyntheticToolMessage)) {
+                if (topology.messages.any { isSyntheticToolMessageId(it.id) }) {
                     ExecutionResult.Failure(
                         existing.id,
                         assistant.text.ifBlank { "Previous attempt failed after executing a tool" },
@@ -476,15 +488,9 @@ class TaskManager(
         }
     }
 
-    private fun terminalAssistant(messages: List<MessageEntity>): MessageEntity? = messages
-        .asSequence()
-        .filter { it.participant == Participant.MODEL || it.participant == Participant.ERROR }
-        .filterNot(::isSyntheticToolMessage)
-        .maxByOrNull { it.timestamp }
-
-    private fun isSyntheticToolMessage(message: MessageEntity): Boolean =
-        message.id.startsWith(Constants.TOOL_MSG_PREFIX) ||
-            message.id.startsWith(Constants.RESULT_MSG_PREFIX)
+    private fun isSyntheticToolMessageId(messageId: String): Boolean =
+        messageId.startsWith(Constants.TOOL_MSG_PREFIX) ||
+            messageId.startsWith(Constants.RESULT_MSG_PREFIX)
 
     private fun isRetryableFailure(reason: String): Boolean =
         !reason.startsWith("No model selected") &&

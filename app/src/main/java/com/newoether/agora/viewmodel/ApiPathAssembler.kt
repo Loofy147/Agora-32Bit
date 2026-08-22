@@ -1,8 +1,15 @@
 package com.newoether.agora.viewmodel
 
+import com.newoether.agora.data.local.MessageContextTopology
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.util.Constants
+
+internal data class ApiPathAssemblyRow<T>(
+    val row: T,
+    val inheritedModelName: String? = null,
+    val clearToolCallJson: Boolean = false,
+)
 
 /**
  * Builds the API-facing history from the selected message ancestry.
@@ -16,71 +23,120 @@ internal object ApiPathAssembler {
     fun assemble(
         ancestorPath: List<MessageEntity>,
         allMessages: List<MessageEntity>,
-    ): List<MessageEntity> {
+    ): List<MessageEntity> = assembleRows(
+        ancestorPath = ancestorPath,
+        allMessages = allMessages,
+        idOf = MessageEntity::id,
+        parentIdOf = MessageEntity::parentId,
+        runIdOf = MessageEntity::runId,
+        runSequenceOf = MessageEntity::runSequence,
+        timestampOf = MessageEntity::timestamp,
+        modelNameOf = MessageEntity::modelName,
+        statusOf = MessageEntity::status,
+    ).map { planned ->
+        val entity = planned.row
+        entity.copy(
+            modelName = entity.modelName ?: planned.inheritedModelName,
+            toolCallJson = if (planned.clearToolCallJson) null else entity.toolCallJson,
+        )
+    }
+
+    fun planTopology(
+        ancestorPath: List<MessageContextTopology>,
+        allMessages: List<MessageContextTopology>,
+    ): List<ApiPathAssemblyRow<MessageContextTopology>> = assembleRows(
+        ancestorPath = ancestorPath,
+        allMessages = allMessages,
+        idOf = MessageContextTopology::id,
+        parentIdOf = MessageContextTopology::parentId,
+        runIdOf = MessageContextTopology::runId,
+        runSequenceOf = MessageContextTopology::runSequence,
+        timestampOf = MessageContextTopology::timestamp,
+        modelNameOf = MessageContextTopology::modelName,
+        statusOf = MessageContextTopology::status,
+    )
+
+    private fun <T> assembleRows(
+        ancestorPath: List<T>,
+        allMessages: List<T>,
+        idOf: (T) -> String,
+        parentIdOf: (T) -> String?,
+        runIdOf: (T) -> String,
+        runSequenceOf: (T) -> Long,
+        timestampOf: (T) -> Long,
+        modelNameOf: (T) -> String?,
+        statusOf: (T) -> MessageStatus,
+    ): List<ApiPathAssemblyRow<T>> {
         if (ancestorPath.isEmpty()) return emptyList()
 
         val protocolChildren = allMessages
             .asSequence()
-            .filter { it.isToolProtocolRow() }
-            .groupBy(MessageEntity::parentId)
+            .filter { isToolProtocolId(idOf(it)) }
+            .groupBy(parentIdOf)
         val emittedIds = mutableSetOf<String>()
-        val result = mutableListOf<MessageEntity>()
+        val result = mutableListOf<ApiPathAssemblyRow<T>>()
+        val messageOrder = compareBy<T> { runSequenceOf(it) }
+            .thenBy { timestampOf(it) }
+            .thenBy { idOf(it) }
 
-        fun emitProtocolSubtree(root: MessageEntity, runId: String, sourceModelName: String?) {
-            if (root.runId != runId || !emittedIds.add(root.id)) return
-            val enriched = if (root.modelName == null && sourceModelName != null) {
-                root.copy(modelName = sourceModelName)
-            } else {
-                root
-            }
-            result += enriched
-            protocolChildren[root.id]
+        fun emitProtocolSubtree(
+            root: T,
+            runId: String,
+            sourceModelName: String?,
+        ) {
+            val rootId = idOf(root)
+            if (runIdOf(root) != runId || !emittedIds.add(rootId)) return
+            result += ApiPathAssemblyRow(
+                row = root,
+                inheritedModelName = sourceModelName.takeIf { modelNameOf(root) == null },
+            )
+            protocolChildren[rootId]
                 .orEmpty()
                 .asSequence()
-                .filter { it.runId == runId }
+                .filter { runIdOf(it) == runId }
                 .sortedWith(messageOrder)
                 .forEach { emitProtocolSubtree(it, runId, sourceModelName) }
         }
 
-        for (entity in ancestorPath) {
-            if (entity.isToolProtocolRow()) {
-                if (emittedIds.add(entity.id)) result += entity
+        for (row in ancestorPath) {
+            val rowId = idOf(row)
+            if (isToolProtocolId(rowId)) {
+                if (emittedIds.add(rowId)) result += ApiPathAssemblyRow(row)
                 continue
             }
 
-            val toolRoots = protocolChildren[entity.id]
+            val rowRunId = runIdOf(row)
+            val toolRoots = protocolChildren[rowId]
                 .orEmpty()
                 .asSequence()
                 .filter {
-                    it.runId == entity.runId &&
-                        it.id.startsWith(Constants.TOOL_MSG_PREFIX)
+                    runIdOf(it) == rowRunId &&
+                        idOf(it).startsWith(Constants.TOOL_MSG_PREFIX)
                 }
                 .sortedWith(messageOrder)
                 .toList()
-            toolRoots.forEach { emitProtocolSubtree(it, entity.runId, entity.modelName) }
+            toolRoots.forEach { emitProtocolSubtree(it, rowRunId, modelNameOf(row)) }
 
-            if (emittedIds.add(entity.id)) {
+            if (emittedIds.add(rowId)) {
                 // The visible model row aggregates every tool round for UI rendering. During the
                 // live tool loop that row is still the in-progress output placeholder; replaying
                 // it after the just-persisted result would make the next request end in assistant
                 // output instead of tool input. Terminal rows, however, contain the completed
                 // answer after those tool rounds and remain part of later historical requests.
-                val isInProgressToolAggregate =
-                    toolRoots.isNotEmpty() && entity.status.isGenerationInProgress()
-                if (!isInProgressToolAggregate) {
-                    result += if (toolRoots.isEmpty()) entity else entity.copy(toolCallJson = null)
+                val omitAggregate =
+                    toolRoots.isNotEmpty() && statusOf(row).isGenerationInProgress()
+                if (!omitAggregate) {
+                    result += ApiPathAssemblyRow(
+                        row = row,
+                        clearToolCallJson = toolRoots.isNotEmpty(),
+                    )
                 }
             }
         }
         return result
     }
 
-    private val messageOrder =
-        compareBy<MessageEntity> { it.runSequence }
-            .thenBy { it.timestamp }
-            .thenBy { it.id }
-
-    private fun MessageEntity.isToolProtocolRow(): Boolean =
+    private fun isToolProtocolId(id: String): Boolean =
         id.startsWith(Constants.TOOL_MSG_PREFIX) ||
             id.startsWith(Constants.RESULT_MSG_PREFIX)
 

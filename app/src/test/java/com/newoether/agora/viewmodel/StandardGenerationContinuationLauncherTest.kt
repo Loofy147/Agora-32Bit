@@ -44,9 +44,7 @@ class StandardGenerationContinuationLauncherTest {
         val launchedRequest = slot<BoundRunGenerationRequest>()
         val launched = CompletableDeferred<Unit>()
 
-        coEvery {
-            conversations.getMessagesForConversationSnapshot("conversation")
-        } returns listOf(parent)
+        coEvery { conversations.getMessage(parent.id) } returns parent
         coEvery {
             conversations.restoreBranchSelections("conversation")
         } returns emptyMap()
@@ -123,8 +121,7 @@ class StandardGenerationContinuationLauncherTest {
             runId = "origin-run",
             runSequence = 0,
         )
-        coEvery { conversations.getMessagesForConversationSnapshot("conversation") } returns
-            listOf(parent)
+        coEvery { conversations.getMessage(parent.id) } returns parent
         coEvery { conversations.restoreBranchSelections("conversation") } returns emptyMap()
         coEvery {
             conversations.createRunWithMessages(any(), any(), any(), any(), any())
@@ -191,9 +188,7 @@ class StandardGenerationContinuationLauncherTest {
             runId = "origin-run",
             runSequence = 2,
         )
-        coEvery {
-            conversations.getMessagesForConversationSnapshot("conversation")
-        } returns listOf(parent)
+        coEvery { conversations.getMessage(parent.id) } returns parent
         coEvery {
             conversations.restoreBranchSelections("conversation")
         } returns mapOf(parent.id to "queued-user")
@@ -285,9 +280,8 @@ class StandardGenerationContinuationLauncherTest {
         )
         val launchedRequest = slot<BoundRunGenerationRequest>()
         val launched = CompletableDeferred<Unit>()
-        coEvery {
-            conversations.getMessagesForConversationSnapshot("conversation")
-        } returns listOf(parent, target, suffix)
+        coEvery { conversations.getMessage(parent.id) } returns parent
+        coEvery { conversations.getMessage(target.id) } returns target
         coEvery { conversations.restoreBranchSelections("conversation") } returns selected
         coEvery {
             conversations.beginRecompactContextCompact(
@@ -460,9 +454,7 @@ class StandardGenerationContinuationLauncherTest {
             runId = "compact-run",
             runSequence = 0,
         )
-        coEvery {
-            conversations.getMessagesForConversationSnapshot("conversation")
-        } returnsMany listOf(listOf(parent), listOf(parent, terminal))
+        coEvery { conversations.getMessage(any()) } returnsMany listOf(parent, terminal)
         coEvery { conversations.restoreBranchSelections("conversation") } returns emptyMap()
         coEvery {
             conversations.createRunWithMessages(

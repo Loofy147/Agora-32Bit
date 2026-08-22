@@ -151,14 +151,13 @@ internal class QueuedGuidanceDrainExecutor(
                         runId = runId,
                         modelId = modelId,
                     )
-                    val snapshot = conversations.getMessagesForConversationSnapshot(conversationId)
-                    val selections = conversations.restoreBranchSelections(conversationId)
-                    val path = ConversationUiState.resolvePath(
-                        snapshot.map(toUiMessage),
-                        streamingMsg = null,
-                        selectedChildren = selections,
-                    )
-                    val parentId = path.lastOrNull()?.id
+                    val topology =
+                        conversations.getProviderContextTopologySnapshot(conversationId)
+                    val leaf = topology?.let { snapshot ->
+                        val leafId = selectedVisibleContextMessageIds(snapshot).lastOrNull()
+                        snapshot.messages.firstOrNull { it.id == leafId }
+                    }
+                    val parentId = leaf?.id
                     val start = clock()
                     val users = listOf(
                         MessageEntity(
@@ -200,7 +199,7 @@ internal class QueuedGuidanceDrainExecutor(
                         run = RunEntity(
                             id = runId,
                             conversationId = conversationId,
-                            parentRunId = path.lastOrNull()?.runId,
+                            parentRunId = leaf?.runId,
                             status = RunStatus.ACTIVE,
                             activeSlot = 1,
                             startedAt = start,

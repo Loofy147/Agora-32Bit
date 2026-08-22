@@ -196,20 +196,35 @@ internal fun automaticCompactNeeded(
 /** Non-destructive context compaction. Original messages remain in the graph. */
 internal class ContextCompactor(
     private val conversations: ConversationRepository,
+    private val contextLoader: DurableSelectedContextLoader =
+        DurableSelectedContextLoader(conversations),
 ) : ContextCompactOperation {
     override suspend fun automaticNeeded(
         conversationId: String,
         contextLimit: Int,
         config: AutomaticCompactConfig,
-    ): Boolean =
-        config.enabled && automaticCompactNeeded(
-            conversations.getMessagesForConversationSnapshot(conversationId),
-            conversations.restoreBranchSelections(conversationId),
-            automaticCompactTokenThreshold(contextLimit, config.thresholdPercent),
-            config.request.retainLogicalMessages,
-            config.generationContext.imageTranscriptionEnabled,
-            config.fixedTokenCost,
-            config.userPrepend,
-            config.userPostpend,
+    ): Boolean {
+        if (!config.enabled) return false
+        val threshold = automaticCompactTokenThreshold(
+            contextLimit,
+            config.thresholdPercent,
         )
+        val path = contextLoader.load(
+            DurableSelectedContextRequest(
+                conversationId = conversationId,
+                followSelectedBranch = true,
+                includeStoredTranscriptions =
+                    config.generationContext.imageTranscriptionEnabled,
+            ),
+        ).messages
+        return automaticCompactNeeded(
+            path = path,
+            contextLimit = threshold,
+            retainLogicalMessages = config.request.retainLogicalMessages,
+            fixedTokenCost = config.fixedTokenCost,
+            userPrepend = config.userPrepend,
+            userPostpend = config.userPostpend,
+            includeImages = !config.generationContext.imageTranscriptionEnabled,
+        )
+    }
 }
