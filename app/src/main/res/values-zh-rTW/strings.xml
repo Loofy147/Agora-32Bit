@@ -1058,6 +1058,7 @@
     <string name="proxy_bypass">直連清單</string>
     <string name="proxy_bypass_desc">直接連線、不經過代理的主機與 CIDR 範圍,每行一個</string>
     <string name="conversation_fork">分支對話？</string>
+    <string name="conversation_fork_menu">分支對話</string>
     <string name="conversation_fork_failed">無法分支對話：%1$s</string>
     <string name="conversation_fork_from_here">從這裡分支？</string>
     <string name="conversation_fork_confirm">建立此對話的副本。目前對話保持不變。</string>

@@ -360,7 +360,7 @@ internal fun ChatTopBar(
                                     },
                                 )
                                 DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.conversation_fork)) },
+                                    text = { Text(stringResource(R.string.conversation_fork_menu)) },
                                     leadingIcon = {
                                         Icon(Icons.Default.CallSplit, contentDescription = null)
                                     },

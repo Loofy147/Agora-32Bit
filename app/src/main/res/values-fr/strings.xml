@@ -1011,6 +1011,7 @@
     <string name="proxy_bypass">Liste de contournement</string>
     <string name="proxy_bypass_desc">Hôtes et plages CIDR connectés directement, un par ligne</string>
     <string name="conversation_fork">Créer une branche de la conversation ?</string>
+    <string name="conversation_fork_menu">Créer une branche de la conversation</string>
     <string name="conversation_fork_failed">Impossible de créer une branche de la conversation : %1$s</string>
     <string name="conversation_fork_from_here">Créer une branche à partir d’ici ?</string>
     <string name="conversation_fork_confirm">Créer une copie de cette conversation. La conversation actuelle reste inchangée.</string>

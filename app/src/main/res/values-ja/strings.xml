@@ -1011,6 +1011,7 @@
     <string name="proxy_bypass">バイパスリスト</string>
     <string name="proxy_bypass_desc">直接接続するホストと CIDR 範囲(1 行に 1 つ)</string>
     <string name="conversation_fork">会話を分岐しますか?</string>
+    <string name="conversation_fork_menu">会話を分岐しますか</string>
     <string name="conversation_fork_failed">会話を分岐できませんでした: %1$s</string>
     <string name="conversation_fork_from_here">ここから分岐しますか?</string>
     <string name="conversation_fork_confirm">この会話のコピーを作成します。現在の会話は変更されません。</string>

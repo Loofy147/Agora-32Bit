@@ -1011,6 +1011,7 @@
     <string name="proxy_bypass">Lista de exceções</string>
     <string name="proxy_bypass_desc">Hosts e faixas CIDR que conectam diretamente, um por linha</string>
     <string name="conversation_fork">Bifurcar conversa?</string>
+    <string name="conversation_fork_menu">Bifurcar conversa</string>
     <string name="conversation_fork_failed">Não foi possível bifurcar a conversa: %1$s</string>
     <string name="conversation_fork_from_here">Bifurcar daqui?</string>
     <string name="conversation_fork_confirm">Criar uma cópia desta conversa. A conversa atual permanece inalterada.</string>
