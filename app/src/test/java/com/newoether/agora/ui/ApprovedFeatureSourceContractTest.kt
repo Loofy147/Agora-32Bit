@@ -285,14 +285,34 @@ class ApprovedFeatureSourceContractTest {
     }
 
     @Test
-    fun ratingDialogContentKeepsStandardMargins() {
+    fun ratingPaddingBelongsOnlyToDialogHost() {
         val root = sourceRoot()
+        val mainActivity = source(root, "com/newoether/agora/MainActivity.kt")
         val rating = source(root, "com/newoether/agora/ui/settings/RatingForm.kt")
+        val settings = source(root, "com/newoether/agora/ui/settings/SettingsAboutPage.kt")
 
-        // The dialog content must never touch the 28 dp rounded surface edge.
-        assertTrue(rating.contains(
-            "Modifier\n            .clearFocusOnTap()\n            .padding(horizontal = 24.dp, vertical = 20.dp)"
+        assertTrue(rating.contains("Modifier.clearFocusOnTap()"))
+        assertFalse(rating.contains(".padding(horizontal = 24.dp, vertical = 20.dp)"))
+        assertTrue(mainActivity.contains(
+            "modifier = Modifier.padding(horizontal = 24.dp, vertical = 20.dp)"
         ))
+        assertTrue(settings.contains(
+            "modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)"
+        ))
+    }
+
+    @Test
+    fun expandedTimelineSegmentsKeepSpacingWithoutVisibleDividers() {
+        val root = sourceRoot()
+        val timeline = source(
+            root,
+            "com/newoether/agora/ui/chat/message/MessageItemTimeline.kt",
+        )
+
+        assertTrue(timeline.contains("if (idx < segs.lastIndex)"))
+        assertTrue(timeline.contains("modifier = Modifier.padding(vertical = 2.dp)"))
+        assertTrue(timeline.contains("color = Color.Transparent"))
+        assertFalse(timeline.contains("outlineVariant.copy(alpha = 0.2f)"))
     }
 
     @Test

@@ -598,7 +598,7 @@ internal fun CompactSegmentBlock(
                         if (idx < segs.lastIndex) {
                             HorizontalDivider(
                                 modifier = Modifier.padding(vertical = 2.dp),
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+                                color = Color.Transparent,
                             )
                         }
                        }

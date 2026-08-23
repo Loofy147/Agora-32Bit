@@ -106,13 +106,22 @@ class ConversationSwitchSafetySourceContractTest {
                 .containsMatchIn(messageList),
         )
         assertTrue(
-            "only the existing rolled-out classification may create the legacy alpha modifier",
+            "only the existing rolled-out classification may target dimmed alpha",
             messageItem.contains(
-                "val contextAlpha = if (visualizeContextRollout && !isInContext)",
+                "targetValue = if (visualizeContextRollout && !isInContext) 0.38f else 1f",
             ),
         )
         assertTrue(
-            "rolled-out rows must use the legacy whole-subtree opacity",
+            "rollout opacity must animate in both directions with the local 240 ms tween",
+            messageItem.contains("val contextAlphaValue by animateFloatAsState(") &&
+                messageItem.contains("animationSpec = tween(durationMillis = 240)"),
+        )
+        assertTrue(
+            "the animated opacity must still cover the complete legacy message subtree",
+            messageItem.contains("val contextAlpha = Modifier.alpha(contextAlphaValue)"),
+        )
+        assertFalse(
+            "rollout must not jump directly to the dimmed opacity",
             messageItem.contains("Modifier.alpha(0.38f)"),
         )
         assertFalse(

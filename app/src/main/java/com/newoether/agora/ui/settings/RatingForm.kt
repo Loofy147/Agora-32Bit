@@ -63,9 +63,7 @@ fun RatingForm(
     }
 
     Column(
-        Modifier
-            .clearFocusOnTap()
-            .padding(horizontal = 24.dp, vertical = 20.dp)
+        Modifier.clearFocusOnTap()
     ) {
         Text(
             text = stringResource(R.string.rating_title),

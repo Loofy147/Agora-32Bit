@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkOut
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.filled.Compress
@@ -265,11 +266,12 @@ internal fun MessageItem(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = alignment,
             ) {
-                val contextAlpha = if (visualizeContextRollout && !isInContext) {
-                    Modifier.alpha(0.38f)
-                } else {
-                    Modifier
-                }
+                val contextAlphaValue by animateFloatAsState(
+                    targetValue = if (visualizeContextRollout && !isInContext) 0.38f else 1f,
+                    animationSpec = tween(durationMillis = 240),
+                    label = "contextRolloutAlpha",
+                )
+                val contextAlpha = Modifier.alpha(contextAlphaValue)
                 if (message.isContextCompact()) {
                     Box(
                         modifier = Modifier

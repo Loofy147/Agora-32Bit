@@ -656,14 +656,18 @@ fun MainNavigation(
                 shape = RoundedCornerShape(28.dp),
                 color = MaterialTheme.colorScheme.surfaceContainer
             ) {
-                RatingForm(
-                    onSubmitted = {
-                        showRatingPrompt = false
-                        ratingScope.launch {
-                            settingsManager.saveRatingPromptSubmitted(true)
+                Box(
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 20.dp)
+                ) {
+                    RatingForm(
+                        onSubmitted = {
+                            showRatingPrompt = false
+                            ratingScope.launch {
+                                settingsManager.saveRatingPromptSubmitted(true)
+                            }
                         }
-                    }
-                )
+                    )
+                }
             }
         }
     }
