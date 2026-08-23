@@ -271,22 +271,40 @@ internal fun ChatDrawerContent(
                 if (search.isActive) {
                     val grouped = search.results.groupBy { it.first.conversationId }
                     val titleMap = conversations.associate { it.id to it.title }
-                    items(grouped.entries.toList(), key = { it.key }) { (convId, entries) ->
+                    items(
+                        grouped.entries.toList(),
+                        key = { "search:${it.key}" },
+                    ) { (convId, entries) ->
                         val bestScore = entries.maxOfOrNull { it.second } ?: 0f
-                        SearchResultItem(
-                            title = titleMap[convId] ?: stringResource(R.string.unknown),
-                            messages = entries.map { it.first },
-                            score = bestScore,
-                            query = search.query,
-                            customProviders = customProviders,
-                            onClick = {
-                                viewModel.selectConversation(convId)
-                                scope.launch { drawerState.closeWithMotionPolicy(motionPolicy) }
-                            }
-                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .animateItem(
+                                    fadeInSpec = tween(180),
+                                    placementSpec = null,
+                                    fadeOutSpec = null,
+                                ),
+                        ) {
+                            SearchResultItem(
+                                title = titleMap[convId] ?: stringResource(R.string.unknown),
+                                messages = entries.map { it.first },
+                                score = bestScore,
+                                query = search.query,
+                                customProviders = customProviders,
+                                onClick = {
+                                    viewModel.selectConversation(convId)
+                                    scope.launch {
+                                        drawerState.closeWithMotionPolicy(motionPolicy)
+                                    }
+                                },
+                            )
+                        }
                     }
                 } else {
-                    items(conversations, key = { it.id }) { conversation ->
+                    items(
+                        conversations,
+                        key = { "conversation:${it.id}" },
+                    ) { conversation ->
                         val isSelected = conversation.id == currentConversationId
                         val isGenerating = conversation.id in generatingConversationIds
                         val indicator = resolveDrawerConversationIndicator(
@@ -302,7 +320,13 @@ internal fun ChatDrawerContent(
                         var lastPosition by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
                         val density = LocalDensity.current
 
-                        Box {
+                        Box(
+                            modifier = Modifier.animateItem(
+                                fadeInSpec = null,
+                                placementSpec = null,
+                                fadeOutSpec = tween(180),
+                            ),
+                        ) {
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -453,8 +477,8 @@ internal fun ChatDrawerContent(
                         contentAlignment = Alignment.Center,
                     ) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(32.dp),
+                            strokeWidth = 3.dp,
                         )
                     }
                 }

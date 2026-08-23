@@ -273,6 +273,13 @@ fun SettingsProviderDetailPage(
                                         ),
                                         headlineContent = { Text(stringResource(R.string.responses_api)) },
                                         supportingContent = { Text(stringResource(R.string.responses_api_desc)) },
+                                        leadingContent = {
+                                            Icon(
+                                                Icons.Default.DataObject,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                            )
+                                        },
                                         trailingContent = {
                                             Switch(
                                                 checked = config.responsesApiEnabled,
@@ -291,6 +298,13 @@ fun SettingsProviderDetailPage(
                                     ),
                                     headlineContent = { Text(stringResource(R.string.responses_api)) },
                                     supportingContent = { Text(stringResource(R.string.responses_api_desc)) },
+                                    leadingContent = {
+                                        Icon(
+                                            Icons.Default.DataObject,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                        )
+                                    },
                                     trailingContent = {
                                         Switch(
                                             checked = openAiResponsesApiEnabled,

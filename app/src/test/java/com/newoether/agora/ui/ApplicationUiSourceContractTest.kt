@@ -562,6 +562,24 @@ class ApplicationUiSourceContractTest {
     }
 
     @Test
+    fun `Responses API rows use the API Format JSON icon`() {
+        val provider = sourceFile(
+            "app/src/main/java/com/newoether/agora/ui/settings/SettingsProviderDetailPage.kt",
+        )
+
+        assertTrue(provider.contains("SettingsIconContent(icon = Icons.Default.DataObject)"))
+        val responseRows = provider
+            .split("headlineContent = { Text(stringResource(R.string.responses_api)) },")
+            .drop(1)
+        assertEquals(2, responseRows.size)
+        responseRows.forEach { rowSource ->
+            val row = rowSource.substringBefore("trailingContent = {")
+            assertTrue(row.contains("Icons.Default.DataObject"))
+            assertTrue(row.contains("tint = MaterialTheme.colorScheme.primary"))
+        }
+    }
+
+    @Test
     fun `Settings destination rows omit redundant arrows without losing behavior`() {
         val home = sourceFile(
             "app/src/main/java/com/newoether/agora/ui/settings/SettingsScreen.kt",

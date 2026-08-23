@@ -25,6 +25,17 @@ class DrawerSearchLoadingSourceContractTest {
         assertTrue(drawer.contains("visible = isConversationListLoading"))
         assertTrue(drawer.contains("enter = fadeIn(tween(180))"))
         assertTrue(drawer.contains("exit = fadeOut(tween(180))"))
+        assertTrue(
+            drawer.contains(
+                "modifier = Modifier.size(32.dp),\n                            strokeWidth = 3.dp,",
+            ),
+        )
+        assertTrue(drawer.contains("key = { \"search:\${it.key}\" }"))
+        assertTrue(drawer.contains("key = { \"conversation:\${it.id}\" }"))
+        assertTrue(drawer.contains("fadeInSpec = tween(180)"))
+        assertTrue(drawer.contains("fadeOutSpec = tween(180)"))
+        assertTrue(drawer.contains("placementSpec = null"))
+        assertTrue(drawer.split(".animateItem(").size - 1 == 2)
         assertTrue(searchState.contains("var isSearching by mutableStateOf(false)"))
         assertTrue(searchState.contains("isSearching = true"))
         assertTrue(searchState.contains("} finally {\n            isSearching = false"))
