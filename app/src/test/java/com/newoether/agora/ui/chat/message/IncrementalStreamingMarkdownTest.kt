@@ -109,7 +109,7 @@ class IncrementalStreamingMarkdownTest {
 
     @Test
     fun temporalAlpha_usesPerAppendBirthTimesAndEventuallyBecomesSolid() {
-        val tracker = StreamingTailFadeTracker(capacity = 8)
+        val tracker = StreamingTailFadeTracker()
         tracker.update("ab", nowMs = 1_000L)
         val appended = tracker.update("abcd", nowMs = 1_100L)
 
@@ -199,7 +199,7 @@ class IncrementalStreamingMarkdownTest {
 
     @Test
     fun promotedTail_retainsOriginalGlyphAges() {
-        val tracker = StreamingTailFadeTracker(capacity = 8)
+        val tracker = StreamingTailFadeTracker()
         tracker.update("closed\n\nlive", nowMs = 1_000L)
 
         val promoted = tracker.update("live", nowMs = 1_200L)
@@ -237,53 +237,24 @@ class IncrementalStreamingMarkdownTest {
     }
 
     @Test
-    fun distributeArrivalBirths_assignsPerTokenTimesAcrossConflatedBursts() {
-        // Two tokens arrived between parses: "abc" at 1_050 and "abcd" at 1_100, while the last
-        // rendered text was "ab". The conflated parse appends 2 code points; each must receive
-        // its own token's arrival time instead of one shared timestamp.
-        val births = distributeArrivalBirths(
-            arrivals = listOf(
-                ArrivalRecord(length = 3, timeMs = 1_050L),
-                ArrivalRecord(length = 4, timeMs = 1_100L),
-            ),
-            inputContent = "abcd",
-            preparedSource = "abcd",
-            appendStart = 2,
-            keep = 2,
-            nowMs = 1_200L,
-        )
+    fun tracker_hasNoCharacterCountCapAndStampsTheFirstPublishedBatch() {
+        val tracker = StreamingTailFadeTracker()
+        val text = "x".repeat(128)
 
-        assertArrayEquals(longArrayOf(1_050L, 1_100L), births)
+        val sample = tracker.update(text, nowMs = 1_234L)
+
+        assertEquals(128, sample.birthTimesMs.size)
+        assertTrue(sample.birthTimesMs.all { it == 1_234L })
     }
 
     @Test
-    fun distributeArrivalBirths_fallsBackToUniformWhenPreparedDivergesFromInput() {
-        val births = distributeArrivalBirths(
-            arrivals = listOf(ArrivalRecord(length = 4, timeMs = 1_100L)),
-            inputContent = "a\$b\$c\$d",
-            preparedSource = "abcd",
-            appendStart = 2,
-            keep = 2,
-            nowMs = 1_200L,
-        )
+    fun tracker_prunesSolidPrefixBeforeStampingTheNextPublishedBatch() {
+        val tracker = StreamingTailFadeTracker()
+        tracker.update("abcd", nowMs = 1_000L)
 
-        assertArrayEquals(longArrayOf(1_200L, 1_200L), births)
-    }
+        val sample = tracker.update("abcde", nowMs = 1_400L)
 
-    @Test
-    fun tracker_usesPerCodePointProviderBirthsForConflatedAppends() {
-        val tracker = StreamingTailFadeTracker(capacity = 8)
-        tracker.update("ab", nowMs = 1_000L)
-
-        val appended = tracker.update("abcd", nowMs = 1_100L) { count ->
-            assertEquals(2, count)
-            longArrayOf(1_050L, 1_100L)
-        }
-
-        assertArrayEquals(
-            longArrayOf(1_000L, 1_000L, 1_050L, 1_100L),
-            appended.birthTimesMs,
-        )
+        assertArrayEquals(longArrayOf(1_400L), sample.birthTimesMs)
     }
 
     @Test

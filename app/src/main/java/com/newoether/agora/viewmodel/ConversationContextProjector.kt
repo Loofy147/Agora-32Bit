@@ -34,9 +34,11 @@ internal class ConversationContextProjector(
     val projection: StateFlow<ConversationContextProjection> = _projection.asStateFlow()
 
     fun invalidate(conversationId: String?) {
+        val previousUsage = _projection.value.usage
         requestIds.incrementAndGet()
         _projection.value = ConversationContextProjection(
             conversationId = conversationId,
+            usage = previousUsage,
             loading = true,
         )
     }
@@ -47,10 +49,12 @@ internal class ConversationContextProjector(
         selectedModelId: String,
         tokenBudget: Int,
     ): ConversationContextProjection {
+        val previousUsage = _projection.value.usage
         val requestId = requestIds.incrementAndGet()
         _projection.value = ConversationContextProjection(
             conversationId = conversationId,
             selectedBranchesJson = selectedBranchesJson,
+            usage = previousUsage,
             loading = true,
         )
         val result = try {

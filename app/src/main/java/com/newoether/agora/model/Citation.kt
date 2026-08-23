@@ -47,6 +47,14 @@ object CitationPolicy {
         RegexOption.IGNORE_CASE,
     )
     private val cjkTurnMarker = Regex("【turn\\d+[a-z]+\\d+】", RegexOption.IGNORE_CASE)
+    private val plainPrivateArtifact = Regex(
+        "cite(?:turn\\d+[a-z]+\\d+)+",
+        RegexOption.IGNORE_CASE,
+    )
+    private val trailingPlainPrivateArtifact = Regex(
+        "cite(?:turn\\d+[a-z]+\\d+)*(?:turn(?:\\d+(?:[a-z]+\\d*)?)?)$",
+        RegexOption.IGNORE_CASE,
+    )
 
     fun create(
         provider: String,
@@ -190,6 +198,8 @@ object CitationPolicy {
         .replace(privateEnvelope, "")
         .replace(barePrivateEnvelope, "")
         .replace(cjkTurnMarker, "")
+        .replace(plainPrivateArtifact, "")
+        .replace(trailingPlainPrivateArtifact, "")
         .replace("\uE200", "")
         .replace("\uE201", "")
         .replace("\uE202", "")

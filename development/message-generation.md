@@ -265,8 +265,8 @@ Markdown algorithm or switch to a different terminal renderer merely because str
 
 The implementation is only a parameterized UI variant. Its allowed inputs include Markdown
 content, streaming state, render context, font/size/color, and a generic animated empty-stream
-presentation. Every append-growing live text surface uses one bounded, age-based trailing-glyph
-fade: ordinary/timeline answer Markdown and plain/code leaves, Thinking previews/summaries in
+presentation. Every append-growing live text surface uses one age-based active trailing-glyph
+fade with no fixed character-count cap: ordinary/timeline answer Markdown and plain/code leaves, Thinking previews/summaries in
 Compact/Timeline/detail-sheet modes, Tool summaries derived from streaming arguments or live state,
 and equivalent live detail text. Static titles, terminal labels, Retry, error text, and citation
 metadata do not replay this stream animation merely because they share typography.
@@ -275,8 +275,11 @@ The fade is draw-only. One unchanged full AnnotatedString/Text layout owns shapi
 alignment, semantics, links, citations, selection mapping, search highlights, and code controls while
 only glyph paint alpha changes. Terminal settlement must not remove temporary foreground spans,
 replace the Text/Markdown implementation, reset the paint origin, or otherwise create a left jump.
-New appended code points receive their own birth time; existing glyphs keep their age and do not
-replay when another delta arrives. The finite Welcome/Onboarding typewriter may share the same
+New appended code points receive their birth time only when their snapshot is first published; input
+offer time, conflated parses, stale parses, and interaction-held snapshots cannot age them before their
+first rendered frame. Existing glyphs keep their age and do not replay when another delta arrives.
+Only the not-yet-solid suffix remains tracked, and solid prefixes are pruned without a count cap. The
+finite Welcome/Onboarding typewriter may share the same
 low-level stable glyph-paint primitive, but it is not the scope boundary. A caller must not disable
 the streaming fade merely to hide a surrounding answering-tail dot. The ordinary message list may
 own that separate dot, while Thinking and Compact Bottom Sheets omit it without changing text
@@ -561,7 +564,12 @@ citation events rather than answer `TextChunk` or tool events. The existing stre
 overlay and bounded checkpoint/terminal persistence retain accepted citation segments for the
 identified Run, while Provider history and token/context projection exclude them. Citations do not
 create a second generation lifecycle, change semantic termination, or append synthetic source text
-to the durable answer.
+to the durable answer. Presentation recognizes a plain proxy artifact formed by `cite` plus one or
+more `turn<digits><kind><digits>` Provider source IDs. Complete IDs already present in citation
+metadata become the existing adjacent native inline tokens and grouped capsule; a possible trailing
+partial artifact is withheld while streaming, and unmatched or malformed artifacts are stripped at
+terminal display and copy/export cleanup. Stored answer text, citation identity, numbering, and URL
+safety remain unchanged.
 
 A message card with visible tool segments but no real `thought` segment displays only
 `Called x tools`. Message-level thought duration is a fallback only when at least one thought segment

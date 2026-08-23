@@ -145,19 +145,34 @@ class ChatComposerState(
      */
     fun confirmPendingPdfSelection(selectedPages: Set<Int>) {
         val uri = pendingPdfUri ?: return
+        val mimeType = pendingPdfMimeType
+        val fileName = pendingPdfFileName
         val renderedPaths = pendingPdfRenderedPaths
         val keptPaths = renderedPaths.filterIndexed { index, _ -> index in selectedPages }
         val discardedPaths = renderedPaths.filterIndexed { index, _ -> index !in selectedPages }
-        selectedAttachments = selectedAttachments + SelectedAttachment(
-            uri = uri,
-            type = "pdf",
-            mimeType = pendingPdfMimeType,
-            fileName = pendingPdfFileName,
-            selectedPages = keptPaths.indices.toSet(),
-            preRenderedPaths = keptPaths,
-        )
         resetPendingPdfState()
         deleteFilesAsync(discardedPaths)
+        processingStates = processingStates + (uri to 0f)
+        scope.launch {
+            val localPath = copyToPrivate(Uri.parse(uri), "pdf")
+            if (localPath != null) {
+                selectedAttachments = selectedAttachments + SelectedAttachment(
+                    uri = uri,
+                    type = "pdf",
+                    mimeType = mimeType,
+                    fileName = fileName,
+                    selectedPages = keptPaths.indices.toSet(),
+                    preRenderedPaths = keptPaths,
+                    localPath = localPath,
+                )
+            } else {
+                deleteFilesAsync(keptPaths)
+                rejectedMessage = context.getString(
+                    com.newoether.agora.R.string.attachment_copy_failed_file,
+                )
+            }
+            processingStates = processingStates - uri
+        }
     }
 
     /**
@@ -365,7 +380,12 @@ class ChatComposerState(
     }
 
     // Start frame extraction for a video, return list of frame paths
-    suspend fun extractVideoFrames(videoUri: String, frameCount: Int, intervalMs: Long): List<String> {
+    suspend fun extractVideoFrames(
+        videoUri: String,
+        frameCount: Int,
+        intervalMs: Long,
+        progressKey: String = videoUri,
+    ): List<String> {
         return withContext(Dispatchers.IO) {
             val paths = mutableListOf<String>()
             try {
@@ -390,7 +410,7 @@ class ChatComposerState(
                     timeUs += intervalUs
                     // Snapshot-map read-modify-write must stay main-confined (see onPickImages).
                     withContext(kotlinx.coroutines.Dispatchers.Main) {
-                        processingStates = processingStates + (videoUri to (i + 1).toFloat() / frameCount)
+                        processingStates = processingStates + (progressKey to (i + 1).toFloat() / frameCount)
                     }
                 }
                 } finally { retriever.release() }
@@ -400,31 +420,23 @@ class ChatComposerState(
                 throw c
             } catch (e: Exception) { DebugLog.e("ChatComposer", "Video frame extraction failed", e) }
             withContext(kotlinx.coroutines.Dispatchers.Main) {
-                processingStates = processingStates - videoUri
+                processingStates = processingStates - progressKey
             }
             paths
         }
     }
 
-    /** Handle images picked from the photo picker. Copies each URI to app-private
-     *  storage immediately so the path is stable regardless of URI permission expiry. */
+    /** Handle images picked from the photo picker or clipboard. Copies each URI to app-private
+     *  storage before publishing the attachment so no draft can retain an expiring permission. */
     fun onPickImages(uris: List<Uri>) {
-        if (uris.isNotEmpty()) haptics.selection()
-        val newAttachments = uris.map {
-            SelectedAttachment(
-                uri = it.toString(), type = "image",
-                mimeType = null,
-            )
-        }
-        selectedAttachments = selectedAttachments + newAttachments
-        for (uriObj in uris) {
-            val uriStr = uriObj.toString()
-            processingStates = processingStates + (uriStr to 0f)
-            // Launch on the scope's Main dispatcher: copyToPrivate hops to IO internally, so every
-            // read-modify-write of the snapshot lists below runs main-confined. Launching the whole
-            // block on IO made N parallel completions race each other's list assignment (lost
-            // update → a localPath silently reverted to null → attachment dropped at send).
-            scope.launch {
+        if (uris.isEmpty()) return
+        haptics.selection()
+        val processingKeys = uris.map { it.toString() }.toSet()
+        processingStates = processingStates + processingKeys.associateWith { 0f }
+        scope.launch {
+            val copiedAttachments = mutableListOf<SelectedAttachment>()
+            var copyFailed = false
+            for (uriObj in uris) {
                 val mimeType = withContext(Dispatchers.IO) {
                     try {
                         context.contentResolver.getType(uriObj)
@@ -434,23 +446,25 @@ class ChatComposerState(
                 }
                 val localPath = copyToPrivate(uriObj, "img")
                 if (localPath != null) {
-                    selectedAttachments = selectedAttachments.map { a ->
-                        if (a.uri == uriStr) {
-                            a.copy(localPath = localPath, mimeType = mimeType)
-                        } else {
-                            a
-                        }
-                    }
+                    copiedAttachments += SelectedAttachment(
+                        uri = uriObj.toString(),
+                        type = "image",
+                        mimeType = mimeType,
+                        localPath = localPath,
+                    )
                 } else {
-                    // Copy failed -- remove the attachment and show rejection
-                    val idx = selectedAttachments.indexOfFirst { it.uri == uriStr }
-                    if (idx >= 0) {
-                        selectedAttachments = selectedAttachments.toMutableList().also { it.removeAt(idx) }
-                    }
-                    rejectedMessage = context.getString(com.newoether.agora.R.string.attachment_copy_failed_image)
+                    copyFailed = true
                 }
-                processingStates = processingStates - uriStr
             }
+            if (copiedAttachments.isNotEmpty()) {
+                selectedAttachments = selectedAttachments + copiedAttachments
+            }
+            if (copyFailed) {
+                rejectedMessage = context.getString(
+                    com.newoether.agora.R.string.attachment_copy_failed_image,
+                )
+            }
+            processingStates = processingStates - processingKeys
         }
     }
 
@@ -490,8 +504,7 @@ class ChatComposerState(
                     }
                 }
 
-                val validAttachments = mutableListOf<SelectedAttachment>()
-                val fileCopySources = mutableListOf<Pair<Uri, SelectedAttachment>>()
+                val attachmentsToCopy = mutableListOf<Pair<Uri, SelectedAttachment>>()
                 val rejectedMessages = mutableListOf<String>()
                 for (item in inspected) {
                     val validation = item.validation
@@ -543,77 +556,97 @@ class ChatComposerState(
                         mimeType = mimeType,
                         fileName = item.fileName,
                     )
-                    validAttachments.add(attachment)
-                    if (type == "file") {
-                        fileCopySources.add(item.uri to attachment)
-                    }
+                    attachmentsToCopy.add(item.uri to attachment)
                 }
                 if (rejectedMessages.isNotEmpty()) {
                     haptics.reject()
                     rejectedMessage = rejectedMessages.joinToString("\n")
                 }
-                if (validAttachments.isNotEmpty()) haptics.selection()
-                selectedAttachments = selectedAttachments + validAttachments
+                if (attachmentsToCopy.isNotEmpty()) haptics.selection()
 
-                // Copy generic files to app-private storage immediately. Main-confined mutations
-                // prevent parallel completions from losing another attachment's localPath.
-                for ((uri, attachment) in fileCopySources) {
+                // Every external source becomes composer-visible only after its private copy exists.
+                val copiedAttachments = mutableListOf<SelectedAttachment>()
+                for ((uri, attachment) in attachmentsToCopy) {
                     val uriStr = uri.toString()
-                    val ext = attachment.fileName?.substringAfterLast('.', "bin") ?: "bin"
-                    processingStates = processingStates + (uriStr to 0f)
-                    scope.launch {
-                        val localPath = copyToPrivate(uri, ext)
-                        if (localPath != null) {
-                            selectedAttachments = selectedAttachments.map { current ->
-                                if (current.uri == uriStr) {
-                                    current.copy(localPath = localPath)
-                                } else {
-                                    current
-                                }
-                            }
-                        } else {
-                            val idx = selectedAttachments.indexOfFirst { it.uri == uriStr }
-                            if (idx >= 0) {
-                                selectedAttachments = selectedAttachments
-                                    .toMutableList()
-                                    .also { it.removeAt(idx) }
-                            }
-                            rejectedMessage = context.getString(
-                                com.newoether.agora.R.string.attachment_copy_failed_file
-                            )
-                        }
-                        processingStates = processingStates - uriStr
+                    val ext = if (attachment.type == "pdf") {
+                        "pdf"
+                    } else {
+                        attachment.fileName?.substringAfterLast('.', "bin") ?: "bin"
                     }
+                    processingStates = processingStates + (uriStr to 0f)
+                    val localPath = copyToPrivate(uri, ext)
+                    if (localPath != null) {
+                        copiedAttachments += attachment.copy(localPath = localPath)
+                    } else {
+                        rejectedMessage = context.getString(
+                            com.newoether.agora.R.string.attachment_copy_failed_file,
+                        )
+                    }
+                    processingStates = processingStates - uriStr
+                }
+                if (copiedAttachments.isNotEmpty()) {
+                    selectedAttachments = selectedAttachments + copiedAttachments
                 }
             }
         }
     }
 
-    /** Add a sliced video as an attachment and start background frame extraction. */
+    /** Copy a confirmed video to private storage, publish it, then extract frames from the copy. */
     fun addSlicedVideo(vidUri: String, frameCount: Int, intervalMs: Long) {
-        val attachment = SelectedAttachment(
-            uri = vidUri, type = "video",
-            frameCount = frameCount,
-            sliceIntervalMs = intervalMs,
-            fileName = null,
-            mimeType = "video/*"
-        )
-        selectedAttachments = selectedAttachments + attachment
         processingStates = processingStates + (vidUri to 0f)
 
-        // Start frame extraction and store result paths; track job so an X-delete while
-        // extracting can cancel it (extractVideoFrames cleans up partial files on cancel).
-        // Main-launched: extraction hops to IO internally; list/map mutations stay main-confined.
+        // Track the whole copy + extraction job so removing the published attachment cancels the
+        // frame work and reclaims both the private original and partial frames through normal
+        // attachment removal.
         val job = scope.launch {
-            val fileName = withContext(Dispatchers.IO) {
-                FileValidator.resolveFileName(context, Uri.parse(vidUri))
+            val sourceUri = Uri.parse(vidUri)
+            val (fileName, mimeType) = withContext(Dispatchers.IO) {
+                FileValidator.resolveFileName(context, sourceUri) to try {
+                    context.contentResolver.getType(sourceUri)
+                } catch (_: Exception) {
+                    null
+                }
             }
-            val framePaths = extractVideoFrames(vidUri, frameCount, intervalMs)
-            selectedAttachments = selectedAttachments.map { a ->
-                if (a.uri == vidUri) {
-                    a.copy(processedFrames = framePaths, fileName = fileName)
+            val ext = fileName
+                ?.substringAfterLast('.', "")
+                ?.takeIf { it.isNotBlank() }
+                ?: when {
+                    mimeType?.contains("webm") == true -> "webm"
+                    mimeType?.contains("quicktime") == true -> "mov"
+                    else -> "mp4"
+                }
+            val localPath = copyToPrivate(sourceUri, ext)
+            if (localPath == null) {
+                rejectedMessage = context.getString(
+                    com.newoether.agora.R.string.attachment_copy_failed_file,
+                )
+                processingStates = processingStates - vidUri
+                videoExtractionJobs.remove(vidUri)
+                return@launch
+            }
+
+            val attachment = SelectedAttachment(
+                uri = vidUri,
+                type = "video",
+                frameCount = frameCount,
+                sliceIntervalMs = intervalMs,
+                fileName = fileName,
+                mimeType = mimeType ?: "video/*",
+                fileSize = java.io.File(localPath).length(),
+                localPath = localPath,
+            )
+            selectedAttachments = selectedAttachments + attachment
+            val framePaths = extractVideoFrames(
+                videoUri = Uri.fromFile(java.io.File(localPath)).toString(),
+                frameCount = frameCount,
+                intervalMs = intervalMs,
+                progressKey = vidUri,
+            )
+            selectedAttachments = selectedAttachments.map { current ->
+                if (current.localId == attachment.localId) {
+                    current.copy(processedFrames = framePaths)
                 } else {
-                    a
+                    current
                 }
             }
             videoExtractionJobs.remove(vidUri)

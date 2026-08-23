@@ -87,6 +87,46 @@ class RagManager(
         ) {
             try {
                 refreshCacheCounts()
+                val workManager = androidx.work.WorkManager.getInstance(appContext)
+                coroutineScope {
+                    settings.embeddingModels.value.forEach { model ->
+                        launch {
+                            var observedActiveWorker = false
+                            val workName =
+                                com.newoether.agora.service.EmbeddingCacheWorker.workNameFor(model.id)
+                            workManager.getWorkInfosForUniqueWorkFlow(workName).first { infos ->
+                                val activeWork = infos.lastOrNull { !it.state.isFinished }
+                                if (activeWork == null) {
+                                    if (observedActiveWorker) {
+                                        refreshCacheCounts()
+                                        if (cacheJobs[model.id]?.isActive != true) {
+                                            _cachingProgress.update { it - model.id }
+                                        }
+                                    }
+                                    true
+                                } else {
+                                    observedActiveWorker = true
+                                    refreshCacheCounts()
+                                    if (cacheJobs[model.id]?.isActive != true) {
+                                        val counts = _cacheCounts.value[model.id] ?: (0 to 0)
+                                        val cached = activeWork.progress.getInt(
+                                            com.newoether.agora.service.EmbeddingCacheWorker.KEY_CACHED,
+                                            counts.first,
+                                        )
+                                        val total = activeWork.progress.getInt(
+                                            com.newoether.agora.service.EmbeddingCacheWorker.KEY_TOTAL,
+                                            counts.second,
+                                        )
+                                        _cachingProgress.update {
+                                            it + (model.id to (cached to total))
+                                        }
+                                    }
+                                    false
+                                }
+                            }
+                        }
+                    }
+                }
             } finally {
                 clearCacheCountRefreshJob(refreshJob)
             }
@@ -210,28 +250,43 @@ class RagManager(
     // ── RAG cache ─────────────────────────────────────────────────
 
     fun cacheMessagesForModel(modelId: String, recache: Boolean = false, silent: Boolean = false) {
+        if (
+            cacheJobs[modelId]?.isActive == true ||
+            _cachingProgress.value.containsKey(modelId)
+        ) return
+        _cachingProgress.update { progress ->
+            progress + (modelId to (_cacheCounts.value[modelId] ?: (0 to 0)))
+        }
         val workManager = androidx.work.WorkManager.getInstance(appContext)
         val workName = com.newoether.agora.service.EmbeddingCacheWorker.workNameFor(modelId)
         val job = scope.launch(Dispatchers.IO) {
-            EmbeddingCacheLocks.forModel(modelId).withLock {
-                // Process-death continuation: enqueued AFTER this runner holds the lock, so
-                // the worker can never outrace it (it blocks on the same process-wide lock).
-                // It only does real work if the process dies mid-cache and WorkManager
-                // restarts it in a fresh process; every in-process exit cancels it below.
-                val workRequest = androidx.work.OneTimeWorkRequestBuilder<com.newoether.agora.service.EmbeddingCacheWorker>()
-                    .setInputData(androidx.work.Data.Builder()
-                        .putString(com.newoether.agora.service.EmbeddingCacheWorker.KEY_MODEL_ID, modelId)
-                        .build())
-                    .addTag(com.newoether.agora.service.EmbeddingCacheWorker.TAG)
-                    .build()
-                workManager.enqueueUniqueWork(workName, androidx.work.ExistingWorkPolicy.REPLACE, workRequest)
+            try {
+                EmbeddingCacheLocks.forModel(modelId).withLock {
+                    // Process-death continuation: enqueued AFTER this runner holds the lock, so
+                    // the worker can never outrace it (it blocks on the same process-wide lock).
+                    // It only does real work if the process dies mid-cache and WorkManager
+                    // restarts it in a fresh process; every in-process exit cancels it below.
+                    val workRequest = androidx.work.OneTimeWorkRequestBuilder<com.newoether.agora.service.EmbeddingCacheWorker>()
+                        .setInputData(androidx.work.Data.Builder()
+                            .putString(com.newoether.agora.service.EmbeddingCacheWorker.KEY_MODEL_ID, modelId)
+                            .build())
+                        .addTag(com.newoether.agora.service.EmbeddingCacheWorker.TAG)
+                        .build()
+                    workManager.enqueueUniqueWork(workName, androidx.work.ExistingWorkPolicy.REPLACE, workRequest)
+                    try {
+                        runCacheLoop(modelId, recache, silent)
+                    } finally {
+                        // Every in-process exit (done, early return, error, cancellation) makes the
+                        // continuation worker redundant. Process death skips finally — exactly the
+                        // one case where the worker must survive and resume.
+                        workManager.cancelUniqueWork(workName)
+                    }
+                }
+            } finally {
                 try {
-                    runCacheLoop(modelId, recache, silent)
+                    refreshCacheCounts()
                 } finally {
-                    // Every in-process exit (done, early return, error, cancellation) makes the
-                    // continuation worker redundant. Process death skips finally — exactly the
-                    // one case where the worker must survive and resume.
-                    workManager.cancelUniqueWork(workName)
+                    _cachingProgress.update { it - modelId }
                 }
             }
         }
@@ -250,13 +305,11 @@ class RagManager(
         val total = conversations.getIndexableMessageCount()
         if (total == 0) {
             if (!silent) emitSnackbar(SnackbarEvent(appContext.getString(R.string.no_messages_to_cache)))
-            refreshCacheCounts()
             return
         }
         val alreadyDone = conversations.getEmbeddingCountByModel(modelId).coerceAtMost(total)
         if (alreadyDone >= total) {
             if (!silent) emitSnackbar(SnackbarEvent(appContext.getString(R.string.all_messages_already_cached, total)))
-            refreshCacheCounts()
             return
         }
 
@@ -279,6 +332,7 @@ class RagManager(
         }
 
         _cachingProgress.update { it + (modelId to (alreadyDone to total)) }
+        _cacheCounts.update { it + (modelId to (alreadyDone to total)) }
         try {
             var afterMessageId: String? = null
             while (true) {
@@ -317,10 +371,13 @@ class RagManager(
                     }
                 }
                 val completed = (alreadyDone + attempted).coerceAtMost(total)
+                val cached = (alreadyDone + succeeded).coerceAtMost(total)
                 _cachingProgress.update { it + (modelId to (completed to total)) }
+                _cacheCounts.update { it + (modelId to (cached to total)) }
             }
         } finally {
-            _cachingProgress.update { it - modelId }
+            val cached = (alreadyDone + succeeded).coerceAtMost(total)
+            _cacheCounts.update { it + (modelId to (cached to total)) }
         }
         val failed = attempted - succeeded
         if (!silent) {
@@ -334,7 +391,6 @@ class RagManager(
             }
         }
         conversations.deleteOrphanedEmbeddings()
-        refreshCacheCounts()
     }
 
     // ── Single-message indexing ───────────────────────────────────

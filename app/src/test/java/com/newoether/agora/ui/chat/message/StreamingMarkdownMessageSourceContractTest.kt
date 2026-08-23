@@ -105,6 +105,8 @@ class StreamingMarkdownMessageSourceContractTest {
         assertFalse(citation.contains("terminalCitationMarkdownProjection"))
         assertTrue(citation.contains("val unsupported by lazy(LazyThreadSafetyMode.NONE)"))
         assertTrue(citation.contains("boundedTrailingCitationWrapperStart("))
+        assertTrue(citation.contains("PlainCitationArtifact.findAll(answerText)"))
+        assertTrue(citation.contains("CitationPolicy.stripPrivateMarkers(projection.markdown)"))
         assertFalse(citation.contains("answerText.lastIndexOf(\"([\")"))
     }
 

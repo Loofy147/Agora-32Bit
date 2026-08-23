@@ -173,7 +173,8 @@ fun ChatBottomBar(
     onRemoveQueuedSend: (String) -> Unit = {},
     isStopping: Boolean = false,
 ) {
-    val allowSpatialTransitions = LocalAgoraMotionPolicy.current.allowSpatialTransitions
+    val motionPolicy = LocalAgoraMotionPolicy.current
+    val allowSpatialTransitions = motionPolicy.allowSpatialTransitions
     val scrollState = rememberScrollState()
     BackHandler(enabled = isExpanded) { onCollapse() }
     val isModelValid = selectedModel.isNotBlank() && enabledModels.contains(selectedModel)
@@ -515,6 +516,20 @@ fun ChatBottomBar(
                 } else {
                     MaterialTheme.colorScheme.primary
                 }
+                val contextProgressTarget = if (contextTokenBudget <= 0) {
+                    0f
+                } else {
+                    (contextEstimatedTokens.toFloat() / contextTokenBudget).coerceIn(0f, 1f)
+                }
+                val contextProgress by animateFloatAsState(
+                    targetValue = contextProgressTarget,
+                    animationSpec = if (motionPolicy.allowContinuousMotion) {
+                        tween(durationMillis = 400)
+                    } else {
+                        snap()
+                    },
+                    label = "contextProgress",
+                )
                 ExposedDropdownMenuBox(
                     expanded = activeMenu == "context",
                     onExpandedChange = { },
@@ -536,11 +551,7 @@ fun ChatBottomBar(
                             ),
                     ) {
                         CircularProgressIndicator(
-                            progress = {
-                                if (contextTokenBudget <= 0) 0f else
-                                    (contextEstimatedTokens.toFloat() / contextTokenBudget)
-                                        .coerceIn(0f, 1f)
-                            },
+                            progress = { contextProgress },
                             modifier = Modifier.size(20.dp),
                             strokeWidth = 2.5.dp,
                             color = contextProgressColor,
@@ -567,11 +578,7 @@ fun ChatBottomBar(
                                 style = MaterialTheme.typography.titleSmall,
                             )
                             CircularProgressIndicator(
-                                progress = {
-                                    if (contextTokenBudget <= 0) 0f else
-                                        (contextEstimatedTokens.toFloat() / contextTokenBudget)
-                                            .coerceIn(0f, 1f)
-                                },
+                                progress = { contextProgress },
                                 modifier = Modifier.size(36.dp).align(Alignment.CenterHorizontally),
                                 strokeWidth = 4.dp,
                                 color = contextProgressColor,

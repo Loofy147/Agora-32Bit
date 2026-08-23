@@ -63,31 +63,8 @@ class MessagePayloadBuilder(
                     nextImageIndex++
                 }
                 "video" -> {
-                    // Copy video to local storage for export/playback survival
-                    val videoExt = when {
-                        att.mimeType?.contains("mp4") == true -> "mp4"
-                        att.mimeType?.contains("webm") == true -> "webm"
-                        att.mimeType?.contains("quicktime") == true -> "mov"
-                        else -> "mp4"
-                    }
-                    val videoFile = java.io.File(app.filesDir, "vid_original_${java.util.UUID.randomUUID()}.$videoExt")
-                    val localVideoUri = try {
-                        val copied = app.contentResolver.openInputStream(android.net.Uri.parse(att.uri))?.use { input ->
-                            videoFile.outputStream().use { input.copyTo(it) }
-                            true
-                        } ?: false
-                        if (copied && videoFile.isFile) {
-                            preparedOwnedPaths += videoFile.absolutePath
-                            "file://${videoFile.absolutePath}"
-                        } else {
-                            att.uri
-                        }
-                    } catch (_: Exception) {
-                        runCatching { videoFile.delete() }
-                        // Fallback: keep original content URI (may expire)
-                        att.uri
-                    }
-
+                    val source = att.localPath ?: att.uri
+                    val localVideoUri = att.localPath?.let { "file://$it" } ?: att.uri
                     if (att.processedFrames != null && att.processedFrames.isNotEmpty()) {
                         metaItems.add(AttachmentItem(
                             originalUri = localVideoUri, type = "video",
@@ -103,9 +80,9 @@ class MessagePayloadBuilder(
                             fileName = att.fileName, mimeType = att.mimeType,
                             imageIndex = nextImageIndex, pageCount = att.frameCount
                         ))
-                        mediaUris.add(att.uri)
+                        mediaUris.add(source)
                         if (att.frameCount != null && att.frameCount > 1 && att.sliceIntervalMs != null) {
-                            sliceConfigs[att.uri] = VideoSliceConfig(
+                            sliceConfigs[source] = VideoSliceConfig(
                                 intervalMicros = att.sliceIntervalMs * 1000L,
                                 frameCount = att.frameCount
                             )
@@ -136,11 +113,14 @@ class MessagePayloadBuilder(
                 "pdf" -> {
                     val preparedPages = att.preRenderedPaths.orEmpty()
                     val usesPreparedPages = preparedPages.isNotEmpty()
+                    val sourceUri = att.localPath?.let {
+                        Uri.fromFile(java.io.File(it))
+                    } ?: Uri.parse(att.uri)
                     val pagePaths = if (usesPreparedPages) {
                         val sel = att.selectedPages ?: preparedPages.indices.toSet()
                         preparedPages.filterIndexed { i, _ -> i in sel }
                     } else {
-                        PdfPageRenderer.renderAsImages(app, Uri.parse(att.uri), att.selectedPages)
+                        PdfPageRenderer.renderAsImages(app, sourceUri, att.selectedPages)
                     }
                     if (pagePaths.isEmpty()) {
                         onSnackbar(app.getString(R.string.pdf_render_failed))
@@ -148,7 +128,8 @@ class MessagePayloadBuilder(
                     }
                     if (!usesPreparedPages) preparedOwnedPaths += pagePaths
                     metaItems.add(AttachmentItem(
-                        originalUri = att.uri, type = "pdf",
+                        originalUri = att.localPath?.let { "file://$it" } ?: att.uri,
+                        type = "pdf",
                         fileName = att.fileName, mimeType = "application/pdf",
                         imageIndex = nextImageIndex, pageCount = pagePaths.size
                     ))

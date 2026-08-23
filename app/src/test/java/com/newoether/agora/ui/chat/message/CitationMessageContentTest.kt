@@ -93,6 +93,69 @@ class CitationMessageContentTest {
     }
 
     @Test
+    fun plainProviderArtifactsBecomeOneGroupedNativeCapsule() {
+        val answer = "Claim citeturn3search1turn7search1"
+        val sources = listOf(
+            requireNotNull(
+                CitationPolicy.create(
+                    provider = "openai",
+                    kind = "url",
+                    title = "First",
+                    url = "https://first.example/source",
+                    providerSourceId = "turn3search1",
+                ),
+            ),
+            requireNotNull(
+                CitationPolicy.create(
+                    provider = "openai",
+                    kind = "url",
+                    title = "Second",
+                    url = "https://second.example/source",
+                    providerSourceId = "turn7search1",
+                ),
+            ),
+        )
+
+        val projection = requireNotNull(
+            citationMarkdownProjection(answer, sources, isStreaming = false),
+        )
+        val marker = projection.markers.single()
+
+        assertEquals("Claim ${marker.token}", projection.markdown)
+        assertEquals(sources.map(CitationRecord::sourceId), marker.sources.map(CitationRecord::sourceId))
+        assertEquals(1, marker.additionalCount)
+    }
+
+    @Test
+    fun plainProviderArtifactsAreWithheldWhilePartialAndStrippedWhenUnmatchedAtTerminal() {
+        val streaming = requireNotNull(
+            citationMarkdownProjection(
+                answerText = "Claim citeturn3sear",
+                citations = emptyList(),
+                isStreaming = true,
+            ),
+        )
+        val terminalPartial = requireNotNull(
+            citationMarkdownProjection(
+                answerText = "Claim citeturn3sear",
+                citations = emptyList(),
+                isStreaming = false,
+            ),
+        )
+        val terminalComplete = requireNotNull(
+            citationMarkdownProjection(
+                answerText = "Claim citeturn9search9",
+                citations = emptyList(),
+                isStreaming = false,
+            ),
+        )
+
+        assertEquals("Claim ", streaming.markdown)
+        assertEquals("Claim ", terminalPartial.markdown)
+        assertEquals("Claim ", terminalComplete.markdown)
+    }
+
+    @Test
     fun realOpenAiItemRelativeLinkIsRelocatedAndReplacedByOneNativeCapsule() {
         val url = "https://openai.com/research/index/?utm_source=openai"
         val cited = "([openai.com]($url))"

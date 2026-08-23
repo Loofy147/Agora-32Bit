@@ -10,6 +10,7 @@ class ApprovedFeatureSourceContractTest {
     fun cacheCountsAreEagerCoalescedAndAggregated() {
         val root = sourceRoot()
         val rag = source(root, "com/newoether/agora/viewmodel/RagManager.kt")
+        val settings = source(root, "com/newoether/agora/ui/settings/SettingsSearchPage.kt")
         val dao = source(root, "com/newoether/agora/data/local/ChatDao.kt")
         val entities = source(root, "com/newoether/agora/data/local/ChatEntities.kt")
         val database = source(root, "com/newoether/agora/data/local/ChatDatabase.kt")
@@ -22,11 +23,64 @@ class ApprovedFeatureSourceContractTest {
                 .substringBefore("// ── Embedding-model CRUD")
                 .contains("getEmbeddingCountByModel"),
         )
+        val cacheLoader = rag.substringAfter("fun loadCacheCounts()")
+            .substringBefore("@Synchronized\n    private fun clearCacheCountRefreshJob")
+        assertTrue(settings.contains("LaunchedEffect(Unit) { viewModel.ragManager.loadCacheCounts() }"))
+        assertTrue(cacheLoader.contains("getWorkInfosForUniqueWorkFlow(workName).first"))
+        assertTrue(cacheLoader.contains("observedActiveWorker"))
+        assertTrue(cacheLoader.contains("cacheJobs[model.id]?.isActive != true"))
+        assertTrue(cacheLoader.contains("EmbeddingCacheWorker.KEY_CACHED"))
+        assertTrue(cacheLoader.contains("EmbeddingCacheWorker.KEY_TOTAL"))
+        assertTrue(cacheLoader.contains("_cachingProgress.update { it - model.id }"))
+        assertTrue(cacheLoader.contains("refreshCacheCounts()"))
+        val cacheRunner = rag.substringAfter("fun cacheMessagesForModel")
+            .substringBefore("/** The cache loop proper")
+        assertTrue(cacheRunner.contains("_cachingProgress.value.containsKey(modelId)"))
+        assertTrue(
+            cacheRunner.indexOf("refreshCacheCounts()") <
+                cacheRunner.indexOf("_cachingProgress.update { it - modelId }"),
+        )
+        val cacheLoop = rag.substringAfter("private suspend fun runCacheLoop")
+            .substringBefore("// ── Single-message indexing")
+        assertTrue(
+            cacheLoop.contains("_cacheCounts.update { it + (modelId to (cached to total)) }"),
+        )
+        assertFalse(cacheLoop.contains("_cachingProgress.update { it - modelId }"))
+        val modelRow = settings.substringAfter("val allCached =")
+            .substringBefore("modifier = Modifier.clickable { viewModel.ragManager.setActiveEmbeddingModel")
+        assertTrue(modelRow.contains("if (isCaching)"))
+        assertFalse(modelRow.contains("if (!isCaching)"))
+        assertTrue(modelRow.contains("} else {\n                                                TextButton"))
+        assertTrue(modelRow.contains("strokeWidth = 3.dp"))
+        assertFalse(modelRow.contains("strokeWidth = 2.dp"))
+        assertTrue(settings.contains(
+            "CircularProgressIndicator(modifier = Modifier.size(24.dp).padding(start = 16.dp), strokeWidth = 2.dp)",
+        ))
         assertTrue(dao.contains("GROUP BY e.modelId"))
         assertTrue(dao.contains("getEmbeddingCountsByModels"))
         assertTrue(entities.contains("Index(value = [\"modelId\"])"))
         assertTrue(database.contains("CURRENT_VERSION = 23"))
         assertTrue(database.contains("MIGRATION_22_23"))
+    }
+
+    @Test
+    fun contextProgressTweensLocallyAndSnapsForReducedMotion() {
+        val root = sourceRoot()
+        val bottomBar = source(
+            root,
+            "com/newoether/agora/ui/chat/bottombar/ChatBottomBar.kt",
+        )
+        val sharedProgress = source(
+            root,
+            "com/newoether/agora/ui/motion/MotionAwareProgressIndicators.kt",
+        )
+
+        assertTrue(bottomBar.contains("val contextProgress by animateFloatAsState("))
+        assertTrue(bottomBar.contains("motionPolicy.allowContinuousMotion"))
+        assertTrue(bottomBar.contains("tween(durationMillis = 400)"))
+        assertTrue(bottomBar.contains("snap()"))
+        assertTrue(bottomBar.split("progress = { contextProgress }").size - 1 == 2)
+        assertFalse(sharedProgress.contains("animateFloatAsState"))
     }
 
     @Test
@@ -40,6 +94,18 @@ class ApprovedFeatureSourceContractTest {
         val composer = source(
             root,
             "com/newoether/agora/ui/chat/bottombar/ChatBottomBar.kt",
+        )
+        val composerState = source(
+            root,
+            "com/newoether/agora/ui/chat/bottombar/ChatComposerState.kt",
+        )
+        val payload = source(
+            root,
+            "com/newoether/agora/viewmodel/MessagePayloadBuilder.kt",
+        )
+        val sendButton = source(
+            root,
+            "com/newoether/agora/ui/chat/bottombar/ComposerSendButton.kt",
         )
         val imageActions = source(
             root,
@@ -59,6 +125,39 @@ class ApprovedFeatureSourceContractTest {
         assertTrue(composer.contains("hasMediaType(MediaType.Image)"))
         assertTrue(composer.contains("composer.onPickImages(imageUris)"))
         assertTrue(composer.contains("return remaining"))
+
+        val imageIngress = composerState.substringAfter("fun onPickImages")
+            .substringBefore("fun onPickVideos")
+        val fileIngress = composerState.substringAfter("fun onPickFiles")
+            .substringBefore("fun addSlicedVideo")
+        val pdfIngress = composerState.substringAfter("fun confirmPendingPdfSelection")
+            .substringBefore("fun dismissPendingPdf")
+        val videoIngress = composerState.substringAfter("fun addSlicedVideo")
+            .substringBefore("\n}")
+        assertTrue(
+            imageIngress.indexOf("copyToPrivate(uriObj, \"img\")") <
+                imageIngress.indexOf("selectedAttachments = selectedAttachments + copiedAttachments"),
+        )
+        assertTrue(
+            fileIngress.indexOf("copyToPrivate(uri, ext)") <
+                fileIngress.indexOf("selectedAttachments = selectedAttachments + copiedAttachments"),
+        )
+        assertTrue(
+            pdfIngress.indexOf("copyToPrivate(Uri.parse(uri), \"pdf\")") <
+                pdfIngress.indexOf("selectedAttachments = selectedAttachments + SelectedAttachment"),
+        )
+        assertTrue(
+            videoIngress.indexOf("copyToPrivate(sourceUri, ext)") <
+                videoIngress.indexOf("selectedAttachments = selectedAttachments + attachment"),
+        )
+        assertTrue(videoIngress.contains("progressKey = vidUri"))
+        assertTrue(composerState.contains("localPath = file.absolutePath"))
+        assertFalse(payload.contains("vid_original_"))
+        assertTrue(payload.contains("val source = att.localPath ?: att.uri"))
+        assertTrue(payload.contains("PdfPageRenderer.renderAsImages(app, sourceUri"))
+        assertTrue(sendButton.contains(
+            "it.localPath == null && (it.type == \"image\" || it.type == \"file\")",
+        ))
     }
 
     @Test
@@ -90,12 +189,16 @@ class ApprovedFeatureSourceContractTest {
         assertFalse(assets.contains(".stableStreamingGlyphFade("))
         assertTrue(timeline.contains("StableStreamingText("))
         assertTrue(tool.contains("StableStreamingText("))
-        // Document-level birth-time tracking: state survives node restructures, block promotion,
-        // and subtree re-keying; per-token arrival history survives pipeline conflation.
+        // Document-level birth-time tracking survives node restructures, block promotion, and
+        // subtree re-keying. Births begin only when a snapshot is first published, and the tracker
+        // retains only the active not-yet-solid suffix with no fixed character-count cap.
         assertTrue(fade.contains("fadeSample: StreamingTailFadeSample?"))
         assertTrue(fade.contains("fun computeBlockFadeSpecs("))
         assertTrue(fade.contains("internal fun StreamingGlyphFadeSpec?.nodeFade("))
-        assertTrue(fade.contains("fun distributeArrivalBirths("))
+        assertTrue(fade.contains("fadeTracker.update(preparedSource, nowMs)"))
+        assertFalse(fade.contains("STREAM_TAIL_FADE_CODE_POINTS"))
+        assertFalse(fade.contains("ArrivalRecord"))
+        assertFalse(fade.contains("distributeArrivalBirths"))
         assertFalse(fade.contains("lastVisibleSourceOffset"))
         assertTrue(assets.contains("fade = nodeFade,"))
         assertFalse(assets.contains("enabled = fadeThisNode"))

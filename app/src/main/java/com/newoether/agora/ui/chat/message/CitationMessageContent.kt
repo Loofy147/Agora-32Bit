@@ -82,6 +82,9 @@ import java.net.URI
 
 private const val CitationTokenStart = 0xE300
 private const val CitationTokenEnd = 0xF8FF
+private val PlainCitationArtifact = Regex("cite(?:turn\\d+[a-z]+\\d+)+", RegexOption.IGNORE_CASE)
+private val PlainCitationSourceId = Regex("turn\\d+[a-z]+\\d+", RegexOption.IGNORE_CASE)
+private val TrailingPlainCitationArtifact = Regex("cite(?:turn\\d+[a-z]+\\d+)*(?:turn(?:\\d+(?:[a-z]+\\d*)?)?)$", RegexOption.IGNORE_CASE)
 internal const val CITATION_CAPSULE_TONAL_ELEVATION_DP = 2
 internal const val CITATION_CAPSULE_FOREGROUND_ALPHA = 0.7f
 internal const val CITATION_CAPSULE_FADE_DURATION_MS = 320
@@ -177,14 +180,14 @@ internal fun projectCitationMarkdown(
     citations: List<CitationRecord>,
 ): CitationMarkdownProjection {
     val normalized = CitationPolicy.deduplicate(citations, answerText)
-    if (answerText.isEmpty() || normalized.isEmpty()) {
+    if (answerText.isEmpty()) {
         return CitationMarkdownProjection(answerText, emptyList())
     }
     val unsupported by lazy(LazyThreadSafetyMode.NONE) {
         unsupportedMarkdownRanges(answerText)
     }
     val candidates = normalized.flatMapIndexed { sourceIndex, source ->
-        source.anchors.mapNotNull { anchor ->
+        val anchored = source.anchors.mapNotNull { anchor ->
             val exact = anchor.startIndex >= 0 &&
                 anchor.endIndex <= answerText.length &&
                 anchor.endIndex > anchor.startIndex &&
@@ -204,6 +207,19 @@ internal fun projectCitationMarkdown(
                 startIndex = anchor.startIndex,
                 endIndex = anchor.endIndex,
                 replacesPresentation = replacesPresentation,
+            )
+        }
+        val providerSourceId = source.providerSourceId ?: return@flatMapIndexed anchored
+        anchored + PlainCitationArtifact.findAll(answerText).mapNotNull { artifact ->
+            if (PlainCitationSourceId.findAll(artifact.value).none {
+                it.value.equals(providerSourceId, ignoreCase = true)
+            }) return@mapNotNull null
+            CitationProjectionCandidate(
+                sourceIndex = sourceIndex,
+                source = source,
+                startIndex = artifact.range.first,
+                endIndex = artifact.range.last + 1,
+                replacesPresentation = true,
             )
         }
     }.distinctBy { candidate ->
@@ -412,9 +428,13 @@ internal fun citationMarkdownProjection(
     if (answerText.isEmpty()) return null
     val projection = projectCitationMarkdown(answerText, citations)
     return if (isStreaming) {
-        projection.copy(markdown = withholdTrailingCitationWrapper(projection.markdown))
+        val markdown = withholdTrailingCitationWrapper(projection.markdown)
+        val partialStart = TrailingPlainCitationArtifact.find(markdown)?.range?.first
+        projection.copy(
+            markdown = partialStart?.let { markdown.substring(0, it) } ?: markdown,
+        )
     } else {
-        projection
+        projection.copy(markdown = CitationPolicy.stripPrivateMarkers(projection.markdown))
     }
 }
 

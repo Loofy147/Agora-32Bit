@@ -270,9 +270,7 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                         val typeLabel = if (model.type == com.newoether.agora.data.EmbeddingModelType.REMOTE)
                                             stringResource(R.string.embedding_type_remote)
                                         else stringResource(R.string.embedding_type_local)
-                                        val cacheLabel = if (isCaching) {
-                                            "${progress!!.second - progress!!.first} ${stringResource(R.string.not_cached)} (${progress!!.first}/${progress!!.second})"
-                                        } else if (counts != null && counts.second > 0) {
+                                        val cacheLabel = if (counts != null && counts.second > 0) {
                                             val notCached = (counts.second - counts.first).coerceAtLeast(0)
                                             if (notCached == 0) stringResource(R.string.cached)
                                             else "${notCached} ${stringResource(R.string.not_cached)} (${counts.first}/${counts.second})"
@@ -289,7 +287,18 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                     },
                                     trailingContent = {
                                         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                            if (!isCaching) {
+                                            if (isCaching) {
+                                                val ratio = if (progress.second <= 0) {
+                                                    0f
+                                                } else {
+                                                    progress.first.toFloat() / progress.second.toFloat()
+                                                }
+                                                CircularProgressIndicator(
+                                                    progress = { ratio },
+                                                    modifier = Modifier.size(24.dp),
+                                                    strokeWidth = 3.dp
+                                                )
+                                            } else {
                                                 TextButton(onClick = {
                                                     if (allCached) {
                                                         showRecacheConfirm = model.id
@@ -297,14 +306,6 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                                         viewModel.ragManager.cacheMessagesForModel(model.id)
                                                     }
                                                 }) { Text(if (allCached) stringResource(R.string.recache_action) else stringResource(R.string.cache_action)) }
-                                            }
-                                            if (isCaching) {
-                                                val ratio = progress!!.first.toFloat() / progress.second.toFloat()
-                                                CircularProgressIndicator(
-                                                    progress = { ratio },
-                                                    modifier = Modifier.size(24.dp),
-                                                    strokeWidth = 2.dp
-                                                )
                                             }
                                             Box {
                                                 IconButton(onClick = { showMenuForModel = model.id }) {

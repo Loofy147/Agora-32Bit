@@ -268,6 +268,154 @@ class ConversationContextProjectorTest {
     }
 
     @Test
+    fun loadingRecalculationRetainsUsageWithoutRetainedIdsUntilReplacement() = runTest {
+        val conversations = mockk<ConversationRepository>()
+        val requestBuilder = mockk<GenerationRequestBuilder>()
+        val generationManager = mockk<GenerationManager>()
+        val contextLoader = mockk<DurableSelectedContextLoader>()
+        val first = entity("first", null, Participant.USER, "first", 0)
+        val second = entity("second", null, Participant.USER, "second ".repeat(200), 1)
+        val secondLoad = CompletableDeferred<DurableSelectedContext>()
+        var loadIndex = 0
+        coEvery { contextLoader.load(any()) } coAnswers {
+            if (loadIndex++ == 0) {
+                DurableSelectedContext(
+                    messages = projectProviderMessages(listOf(first), false),
+                    entities = listOf(first),
+                )
+            } else {
+                secondLoad.await()
+            }
+        }
+        val admission = testGenerationAdmissionSnapshot(conversationId = "conversation")
+        val snapshot = GenerationContextProjectionSnapshot(admission.config, admission.context)
+        coEvery {
+            requestBuilder.captureContextProjectionSnapshot("conversation", "provider:model", null)
+        } returns snapshot
+        every { generationManager.fixedContextTokenCost(snapshot.config, snapshot.context) } returns 0
+        val projector = ConversationContextProjector(
+            conversations = conversations,
+            requestBuilder = requestBuilder,
+            generationManager = { generationManager },
+            contextLoader = contextLoader,
+        )
+
+        val firstProjection = projector.project(
+            "conversation",
+            "first-selection",
+            "provider:model",
+            4_096,
+        )
+        val secondJob = launch {
+            projector.project(
+                "conversation",
+                "second-selection",
+                "provider:model",
+                4_096,
+            )
+        }
+        runCurrent()
+
+        val loading = projector.projection.value
+        assertTrue(loading.loading)
+        assertFalse(loading.completed)
+        assertEquals(firstProjection.usage, loading.usage)
+        assertNull(loading.retainedMessageIds)
+
+        secondLoad.complete(
+            DurableSelectedContext(
+                messages = projectProviderMessages(listOf(second), false),
+                entities = listOf(second),
+            ),
+        )
+        secondJob.join()
+
+        val completed = projector.projection.value
+        assertTrue(completed.completed)
+        assertFalse(completed.loading)
+        assertTrue(
+            requireNotNull(completed.usage).estimatedTokenCount >
+                requireNotNull(firstProjection.usage).estimatedTokenCount,
+        )
+        assertEquals(setOf(second.id), completed.retainedMessageIds.orEmpty())
+    }
+
+    @Test
+    fun conversationSwitchAndInvalidationRetainOnlyTheDisplayedUsageWhileLoading() = runTest {
+        val conversations = mockk<ConversationRepository>()
+        val requestBuilder = mockk<GenerationRequestBuilder>()
+        val generationManager = mockk<GenerationManager>()
+        val contextLoader = mockk<DurableSelectedContextLoader>()
+        val first = entity("first", null, Participant.USER, "first", 0)
+        val second = entity("second", null, Participant.USER, "second", 1)
+        val secondLoad = CompletableDeferred<DurableSelectedContext>()
+        var loadIndex = 0
+        coEvery { contextLoader.load(any()) } coAnswers {
+            if (loadIndex++ == 0) {
+                DurableSelectedContext(
+                    messages = projectProviderMessages(listOf(first), false),
+                    entities = listOf(first),
+                )
+            } else {
+                secondLoad.await()
+            }
+        }
+        val admission = testGenerationAdmissionSnapshot(conversationId = "conversation-a")
+        val snapshot = GenerationContextProjectionSnapshot(admission.config, admission.context)
+        coEvery {
+            requestBuilder.captureContextProjectionSnapshot(any(), "provider:model", null)
+        } returns snapshot
+        every { generationManager.fixedContextTokenCost(snapshot.config, snapshot.context) } returns 0
+        val projector = ConversationContextProjector(
+            conversations = conversations,
+            requestBuilder = requestBuilder,
+            generationManager = { generationManager },
+            contextLoader = contextLoader,
+        )
+
+        val firstProjection = projector.project(
+            "conversation-a",
+            "selection-a",
+            "provider:model",
+            4_096,
+        )
+        val switchJob = launch {
+            projector.project(
+                "conversation-b",
+                "selection-b",
+                "provider:model",
+                4_096,
+            )
+        }
+        runCurrent()
+
+        val switching = projector.projection.value
+        assertEquals("conversation-b", switching.conversationId)
+        assertEquals("selection-b", switching.selectedBranchesJson)
+        assertTrue(switching.loading)
+        assertEquals(firstProjection.usage, switching.usage)
+        assertNull(switching.retainedMessageIds)
+
+        secondLoad.complete(
+            DurableSelectedContext(
+                messages = projectProviderMessages(listOf(second), false),
+                entities = listOf(second),
+            ),
+        )
+        switchJob.join()
+        val switched = projector.projection.value
+
+        projector.invalidate("conversation-c")
+
+        val invalidated = projector.projection.value
+        assertEquals("conversation-c", invalidated.conversationId)
+        assertTrue(invalidated.loading)
+        assertFalse(invalidated.completed)
+        assertEquals(switched.usage, invalidated.usage)
+        assertNull(invalidated.retainedMessageIds)
+    }
+
+    @Test
     fun staleCompletionCannotReplaceTheLatestBranchProjection() = runTest {
         val conversations = mockk<ConversationRepository>()
         val requestBuilder = mockk<GenerationRequestBuilder>()
@@ -331,7 +479,24 @@ class ConversationContextProjectorTest {
         val requestBuilder = mockk<GenerationRequestBuilder>()
         val generationManager = mockk<GenerationManager>()
         val contextLoader = mockk<DurableSelectedContextLoader>()
-        coEvery { contextLoader.load(any()) } throws IllegalStateException("load failed")
+        val first = entity("first", null, Participant.USER, "first", 0)
+        var loadIndex = 0
+        coEvery { contextLoader.load(any()) } coAnswers {
+            if (loadIndex++ == 0) {
+                DurableSelectedContext(
+                    messages = projectProviderMessages(listOf(first), false),
+                    entities = listOf(first),
+                )
+            } else {
+                throw IllegalStateException("load failed")
+            }
+        }
+        val admission = testGenerationAdmissionSnapshot(conversationId = "conversation")
+        val snapshot = GenerationContextProjectionSnapshot(admission.config, admission.context)
+        coEvery {
+            requestBuilder.captureContextProjectionSnapshot("conversation", "provider:model", null)
+        } returns snapshot
+        every { generationManager.fixedContextTokenCost(snapshot.config, snapshot.context) } returns 0
         val projector = ConversationContextProjector(
             conversations = conversations,
             requestBuilder = requestBuilder,
@@ -339,8 +504,10 @@ class ConversationContextProjectorTest {
             contextLoader = contextLoader,
         )
 
+        val previous = projector.project("conversation", "{}", "provider:model", 4_096)
         val projection = projector.project("conversation", "{}", "", 4_096)
 
+        assertTrue(requireNotNull(previous.usage).estimatedTokenCount > 0)
         assertTrue(projection.completed)
         assertTrue(projection.failed)
         assertFalse(projection.loading)

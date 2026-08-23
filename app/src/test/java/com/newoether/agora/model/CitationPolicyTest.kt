@@ -138,6 +138,15 @@ class CitationPolicyTest {
     }
 
     @Test
+    fun `plain provider markers are removed from copyable text`() {
+        val raw = "Before citeturn3search1turn7search1, after citeturn9search"
+
+        val cleaned = CitationPolicy.stripPrivateMarkers(raw)
+
+        assertEquals("Before , after ", cleaned)
+    }
+
+    @Test
     fun `copy emits portable sources without private ids or unsafe urls`() {
         val linked = CitationPolicy.create(
             provider = "openai",
