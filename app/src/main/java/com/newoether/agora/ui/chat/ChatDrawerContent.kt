@@ -1,6 +1,6 @@
 package com.newoether.agora.ui.chat
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -140,6 +140,7 @@ internal fun ChatDrawerContent(
     val isSwitching by viewModel.isSwitching.collectAsState()
     val generatingConversationIds by viewModel.generatingConversationIds.collectAsState()
     val customProviders by viewModel.settings.customProviders.collectAsState()
+    val search = rememberDrawerSearchState(viewModel)
 
     ModalDrawerSheet(
         drawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp),
@@ -157,23 +158,25 @@ internal fun ChatDrawerContent(
                 clip = true
             }
     ) {
-        val drawerListState = rememberLazyListState()
-        LaunchedEffect(viewModel, drawerListState) {
+        val conversationListState = rememberLazyListState()
+        val searchListState = rememberLazyListState()
+        val activeListState = if (search.isActive) searchListState else conversationListState
+        LaunchedEffect(viewModel, conversationListState) {
             viewModel.firstMessageCommitted.collect { conversationId ->
                 if (viewModel.currentConversationId.value == conversationId) {
-                    drawerListState.scrollToItem(0)
+                    conversationListState.scrollToItem(0)
                 }
             }
         }
-        val atTop by remember {
+        val atTop by remember(activeListState) {
             derivedStateOf {
-                drawerListState.firstVisibleItemIndex == 0 &&
-                    drawerListState.firstVisibleItemScrollOffset == 0
+                activeListState.firstVisibleItemIndex == 0 &&
+                    activeListState.firstVisibleItemScrollOffset == 0
             }
         }
-        val atBottom by remember {
+        val atBottom by remember(activeListState) {
             derivedStateOf {
-                val layoutInfo = drawerListState.layoutInfo
+                val layoutInfo = activeListState.layoutInfo
                 val totalItems = layoutInfo.totalItemsCount
                 if (totalItems == 0) {
                     true
@@ -197,8 +200,6 @@ internal fun ChatDrawerContent(
             Text(stringResource(R.string.conversations), style = ChatType.conversationsTitle)
             Spacer(modifier = Modifier.height(12.dp))
 
-            val search = rememberDrawerSearchState(viewModel)
-
             DrawerSearchBar(
                 query = search.query,
                 onQueryChange = { search.query = it },
@@ -206,280 +207,377 @@ internal fun ChatDrawerContent(
             )
             Spacer(modifier = Modifier.height(12.dp))
 
-            if (!search.isActive) {
-                FilledTonalButton(
-                    onClick = {
-                        focusManager.clearFocus()
-                        onOpenTasks()
-                        scope.launch { drawerState.closeWithMotionPolicy(motionPolicy) }
-                    },
-                    modifier = Modifier.fillMaxWidth().height(42.dp),
-                    shape = CircleShape
-                ) {
-                    Icon(Icons.Default.Repeat, null, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.tasks), style = ChatType.drawerButton)
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                val newChatDisabled = isSwitching
-                val newChatContainer by animateColorAsState(
-                    if (newChatDisabled) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
-                    else MaterialTheme.colorScheme.primary,
-                    tween(300), label = "newChatContainer"
-                )
-                val newChatContent by animateColorAsState(
-                    if (newChatDisabled) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                    else MaterialTheme.colorScheme.onPrimary,
-                    tween(300), label = "newChatContent"
-                )
-                Button(
-                    onClick = {
-                        if (!newChatDisabled) {
-                            viewModel.createNewChat()
-                            scope.launch {
-                                drawerState.closeWithMotionPolicy(motionPolicy)
-                                inputFocusRequester.requestFocus()
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().height(42.dp),
-                    enabled = true,
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = newChatContainer,
-                        contentColor = newChatContent
-                    )
-                ) {
-                    Icon(Icons.Default.Add, null, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.new_chat), style = ChatType.drawerButton)
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
-            if (search.isActive && search.results.isEmpty()) {
-                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
-                    Text(stringResource(R.string.search_no_results), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-
-            Box(modifier = Modifier.weight(1f)) {
-                LazyColumn(state = drawerListState, modifier = Modifier.fillMaxSize().verticalEdgeFade(edgeFadeDp = 40f, topWeight = stw, bottomWeight = sbw)) {
-                if (search.isActive) {
-                    val grouped = search.results.groupBy { it.first.conversationId }
-                    val titleMap = conversations.associate { it.id to it.title }
-                    items(
-                        grouped.entries.toList(),
-                        key = { "search:${it.key}" },
-                    ) { (convId, entries) ->
-                        val bestScore = entries.maxOfOrNull { it.second } ?: 0f
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .animateItem(
-                                    fadeInSpec = tween(180),
-                                    placementSpec = null,
-                                    fadeOutSpec = null,
-                                ),
+            Crossfade(
+                targetState = search.results.takeIf { search.isActive },
+                animationSpec = tween(180),
+                label = "DrawerConversationContentTransition",
+                modifier = Modifier.weight(1f),
+            ) { targetResults ->
+                if (targetResults == null) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        FilledTonalButton(
+                            onClick = {
+                                focusManager.clearFocus()
+                                onOpenTasks()
+                                scope.launch { drawerState.closeWithMotionPolicy(motionPolicy) }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(42.dp),
+                            shape = CircleShape
                         ) {
-                            SearchResultItem(
-                                title = titleMap[convId] ?: stringResource(R.string.unknown),
-                                messages = entries.map { it.first },
-                                score = bestScore,
-                                query = search.query,
-                                customProviders = customProviders,
-                                onClick = {
-                                    viewModel.selectConversation(convId)
+                            Icon(Icons.Default.Repeat, null, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.tasks), style = ChatType.drawerButton)
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        val newChatDisabled = isSwitching
+                        val newChatContainer by animateColorAsState(
+                            if (newChatDisabled) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                            else MaterialTheme.colorScheme.primary,
+                            tween(300), label = "newChatContainer"
+                        )
+                        val newChatContent by animateColorAsState(
+                            if (newChatDisabled) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            else MaterialTheme.colorScheme.onPrimary,
+                            tween(300), label = "newChatContent"
+                        )
+                        Button(
+                            onClick = {
+                                if (!newChatDisabled) {
+                                    viewModel.createNewChat()
                                     scope.launch {
                                         drawerState.closeWithMotionPolicy(motionPolicy)
+                                        inputFocusRequester.requestFocus()
                                     }
-                                },
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(42.dp),
+                            enabled = true,
+                            shape = CircleShape,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = newChatContainer,
+                                contentColor = newChatContent
                             )
-                        }
-                    }
-                } else {
-                    items(
-                        conversations,
-                        key = { "conversation:${it.id}" },
-                    ) { conversation ->
-                        val isSelected = conversation.id == currentConversationId
-                        val isGenerating = conversation.id in generatingConversationIds
-                        val indicator = resolveDrawerConversationIndicator(
-                            isGenerating = isGenerating,
-                            isSelected = isSelected,
-                            hasUnreadGeneration = conversation.hasUnreadGeneration,
-                        )
-                        val menuEnabled = !isSwitching && !isGenerating
-                        val unreadDescription =
-                            stringResource(R.string.conversation_unread_generation)
-                        var showMenu by remember { mutableStateOf(false) }
-                        var pressOffset by remember { mutableStateOf(DpOffset.Zero) }
-                        var lastPosition by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
-                        val density = LocalDensity.current
-
-                        Box(
-                            modifier = Modifier.animateItem(
-                                fadeInSpec = null,
-                                placementSpec = null,
-                                fadeOutSpec = tween(180),
-                            ),
                         ) {
-                            Surface(
+                            Icon(Icons.Default.Add, null, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.new_chat), style = ChatType.drawerButton)
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Box(modifier = Modifier.weight(1f)) {
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = !isConversationListLoading,
+                                modifier = Modifier.fillMaxSize(),
+                                enter = fadeIn(tween(180)),
+                                exit = fadeOut(tween(180)),
+                            ) {
+                                LazyColumn(
+                                    state = conversationListState,
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(44.dp)
-                                    .padding(vertical = 2.dp)
-                                    .clip(CircleShape)
-                                    .pointerInput(showMenu) {
-                                        if (!showMenu) {
-                                            awaitPointerEventScope {
-                                                while (true) {
-                                                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                                                    lastPosition = event.changes.first().position
+                                    .fillMaxSize()
+                                    .verticalEdgeFade(
+                                        edgeFadeDp = 40f,
+                                        topWeight = stw,
+                                        bottomWeight = sbw,
+                                    ),
+                            ) {
+                                items(
+                                    conversations,
+                                    key = { "conversation:${it.id}" },
+                                ) { conversation ->
+                                    val isSelected = conversation.id == currentConversationId
+                                    val isGenerating = conversation.id in generatingConversationIds
+                                    val indicator = resolveDrawerConversationIndicator(
+                                        isGenerating = isGenerating,
+                                        isSelected = isSelected,
+                                        hasUnreadGeneration = conversation.hasUnreadGeneration,
+                                    )
+                                    val menuEnabled = !isSwitching && !isGenerating
+                                    val unreadDescription =
+                                        stringResource(R.string.conversation_unread_generation)
+                                    var showMenu by remember { mutableStateOf(false) }
+                                    var pressOffset by remember { mutableStateOf(DpOffset.Zero) }
+                                    var lastPosition by remember {
+                                        mutableStateOf(androidx.compose.ui.geometry.Offset.Zero)
+                                    }
+                                    val density = LocalDensity.current
+
+                                    Box(
+                                        modifier = Modifier.animateItem(
+                                            fadeInSpec = null,
+                                            placementSpec = null,
+                                            fadeOutSpec = tween(180),
+                                        ),
+                                    ) {
+                                        Surface(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(44.dp)
+                                                .padding(vertical = 2.dp)
+                                                .clip(CircleShape)
+                                                .pointerInput(showMenu) {
+                                                    if (!showMenu) {
+                                                        awaitPointerEventScope {
+                                                            while (true) {
+                                                                val event = awaitPointerEvent(
+                                                                    PointerEventPass.Initial,
+                                                                )
+                                                                lastPosition =
+                                                                    event.changes.first().position
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                .combinedClickable(
+                                                    enabled = !isSwitching,
+                                                    hapticFeedbackEnabled = false,
+                                                    onClick = {
+                                                        viewModel.selectConversation(conversation.id)
+                                                        scope.launch {
+                                                            drawerState.closeWithMotionPolicy(
+                                                                motionPolicy,
+                                                            )
+                                                        }
+                                                    },
+                                                    onLongClick = {
+                                                        haptics.longPress()
+                                                        pressOffset = with(density) {
+                                                            val x = lastPosition.x
+                                                                .toDp()
+                                                                .coerceIn(16.dp, 200.dp)
+                                                            DpOffset(
+                                                                x,
+                                                                lastPosition.y.toDp() - 28.dp,
+                                                            )
+                                                        }
+                                                        showMenu = true
+                                                    }
+                                                ),
+                                            color = if (isSelected) {
+                                                MaterialTheme.colorScheme.secondaryContainer
+                                            } else {
+                                                Color.Transparent
+                                            },
+                                            shape = CircleShape
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .padding(horizontal = 16.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                Text(
+                                                    text = replaceCustomProviderIdsForDisplay(
+                                                        conversation.title,
+                                                        customProviders,
+                                                    ),
+                                                    modifier = Modifier.weight(1f),
+                                                    maxLines = 1,
+                                                    style = MaterialTheme.typography.bodyLarge,
+                                                    color = if (isSelected) {
+                                                        MaterialTheme.colorScheme.onSecondaryContainer
+                                                    } else {
+                                                        MaterialTheme.colorScheme.onSurface
+                                                    }
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Box(
+                                                    modifier = Modifier.size(18.dp),
+                                                    contentAlignment = Alignment.Center,
+                                                ) {
+                                                    androidx.compose.animation.AnimatedVisibility(
+                                                        visible =
+                                                            indicator ==
+                                                                DrawerConversationIndicator.GENERATING,
+                                                        enter = fadeIn(tween(200)),
+                                                        exit = fadeOut(tween(200)),
+                                                    ) {
+                                                        CircularProgressIndicator(
+                                                            modifier = Modifier.size(18.dp),
+                                                            strokeWidth = 2.dp,
+                                                            color = if (isSelected) {
+                                                                MaterialTheme.colorScheme.onSecondaryContainer
+                                                            } else {
+                                                                MaterialTheme.colorScheme.primary
+                                                            },
+                                                        )
+                                                    }
+                                                    androidx.compose.animation.AnimatedVisibility(
+                                                        visible =
+                                                            indicator ==
+                                                                DrawerConversationIndicator.UNREAD,
+                                                        enter = fadeIn(tween(200)),
+                                                        exit = fadeOut(tween(200)),
+                                                    ) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(8.dp)
+                                                                .background(
+                                                                    MaterialTheme.colorScheme.primary,
+                                                                    CircleShape,
+                                                                )
+                                                                .semantics {
+                                                                    contentDescription =
+                                                                        unreadDescription
+                                                                },
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
-                                    }
-                                    .combinedClickable(
-                                        enabled = !isSwitching,
-                                        hapticFeedbackEnabled = false,
-                                        onClick = {
-                                            viewModel.selectConversation(conversation.id)
-                                            scope.launch {
-                                                drawerState.closeWithMotionPolicy(motionPolicy)
-                                            }
-                                        },
-                                        onLongClick = {
-                                            haptics.longPress()
-                                            pressOffset = with(density) {
-                                                val x = lastPosition.x.toDp().coerceIn(16.dp, 200.dp)
-                                                DpOffset(x, lastPosition.y.toDp() - 28.dp)
-                                            }
-                                            showMenu = true
-                                        }
-                                    ),
-                                color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
-                                shape = CircleShape
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(horizontal = 16.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(
-                                        text = replaceCustomProviderIdsForDisplay(
-                                            conversation.title,
-                                            customProviders,
-                                        ),
-                                        modifier = Modifier.weight(1f),
-                                        maxLines = 1,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Box(
-                                        modifier = Modifier.size(18.dp),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        androidx.compose.animation.AnimatedVisibility(
-                                            visible =
-                                                indicator ==
-                                                    DrawerConversationIndicator.GENERATING,
-                                            enter = fadeIn(tween(200)),
-                                            exit = fadeOut(tween(200)),
+
+                                        DropdownMenu(
+                                            containerColor =
+                                                MaterialTheme.colorScheme.surfaceContainer,
+                                            tonalElevation = 16.dp,
+                                            expanded = showMenu,
+                                            onDismissRequest = { showMenu = false },
+                                            offset = pressOffset,
+                                            shape = RoundedCornerShape(12.dp)
                                         ) {
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(18.dp),
-                                                strokeWidth = 2.dp,
-                                                color = if (isSelected) {
-                                                    MaterialTheme.colorScheme.onSecondaryContainer
-                                                } else {
-                                                    MaterialTheme.colorScheme.primary
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(stringResource(R.string.generate_title))
                                                 },
-                                            )
-                                        }
-                                        androidx.compose.animation.AnimatedVisibility(
-                                            visible =
-                                                indicator ==
-                                                    DrawerConversationIndicator.UNREAD,
-                                            enter = fadeIn(tween(200)),
-                                            exit = fadeOut(tween(200)),
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(8.dp)
-                                                    .background(
-                                                        MaterialTheme.colorScheme.primary,
-                                                        CircleShape,
+                                                leadingIcon = {
+                                                    Icon(
+                                                        Icons.Default.Refresh,
+                                                        contentDescription = null,
                                                     )
-                                                    .semantics {
-                                                        contentDescription = unreadDescription
-                                                    },
+                                                },
+                                                enabled = menuEnabled,
+                                                onClick = {
+                                                    showMenu = false
+                                                    viewModel.generateTitle(conversation.id)
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.rename)) },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        Icons.Default.Edit,
+                                                        contentDescription = null,
+                                                    )
+                                                },
+                                                enabled = menuEnabled,
+                                                onClick = {
+                                                    showMenu = false
+                                                    onRequestRename(
+                                                        conversation.id,
+                                                        conversation.title,
+                                                    )
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        stringResource(R.string.delete),
+                                                        color = if (menuEnabled) {
+                                                            MaterialTheme.colorScheme.error
+                                                        } else {
+                                                            MaterialTheme.colorScheme.error.copy(
+                                                                alpha = 0.5f,
+                                                            )
+                                                        },
+                                                    )
+                                                },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        Icons.Default.Delete,
+                                                        contentDescription = null,
+                                                        tint = if (menuEnabled) {
+                                                            MaterialTheme.colorScheme.error
+                                                        } else {
+                                                            MaterialTheme.colorScheme.error.copy(
+                                                                alpha = 0.5f,
+                                                            )
+                                                        },
+                                                    )
+                                                },
+                                                enabled = menuEnabled,
+                                                onClick = {
+                                                    showMenu = false
+                                                    onRequestDelete(conversation.id)
+                                                }
                                             )
                                         }
                                     }
                                 }
                             }
+                            }
 
-                            DropdownMenu(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                                tonalElevation = 16.dp,
-                                expanded = showMenu,
-                                onDismissRequest = { showMenu = false },
-                                offset = pressOffset,
-                                shape = RoundedCornerShape(12.dp)
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = isConversationListLoading,
+                                modifier = Modifier.fillMaxSize(),
+                                enter = fadeIn(tween(180)),
+                                exit = fadeOut(tween(180)),
                             ) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.generate_title)) },
-                                    leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
-                                    enabled = menuEnabled,
-                                    onClick = {
-                                        showMenu = false
-                                        viewModel.generateTitle(conversation.id)
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(32.dp),
+                                        strokeWidth = 3.dp,
+                                    )
                                 }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.rename)) },
-                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                                enabled = menuEnabled,
-                                onClick = {
-                                    showMenu = false
-                                    onRequestRename(conversation.id, conversation.title)
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.delete), color = if (menuEnabled) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.error.copy(alpha = 0.5f)) },
-                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = if (menuEnabled) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.error.copy(alpha = 0.5f)) },
-                                enabled = menuEnabled,
-                                onClick = {
-                                    showMenu = false
-                                    onRequestDelete(conversation.id)
-                                }
-                            )
+                            }
                         }
                     }
-                }
-            }
-            }
-
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = isConversationListLoading,
-                    modifier = Modifier.fillMaxSize(),
-                    enter = fadeIn(tween(180)),
-                    exit = fadeOut(tween(180)),
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(32.dp),
-                            strokeWidth = 3.dp,
-                        )
+                } else {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        if (targetResults.isEmpty()) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.TopCenter,
+                            ) {
+                                Text(
+                                    stringResource(R.string.search_no_results),
+                                    modifier = Modifier.padding(vertical = 24.dp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        } else {
+                            val grouped = targetResults.groupBy { it.first.conversationId }
+                            val titleMap = conversations.associate { it.id to it.title }
+                            LazyColumn(
+                                state = searchListState,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalEdgeFade(
+                                        edgeFadeDp = 40f,
+                                        topWeight = stw,
+                                        bottomWeight = sbw,
+                                    ),
+                            ) {
+                                items(
+                                    grouped.entries.toList(),
+                                    key = { "search:${it.key}" },
+                                ) { (convId, entries) ->
+                                    val bestScore = entries.maxOfOrNull { it.second } ?: 0f
+                                    Box(modifier = Modifier.fillMaxWidth()) {
+                                        SearchResultItem(
+                                            title = titleMap[convId]
+                                                ?: stringResource(R.string.unknown),
+                                            messages = entries.map { it.first },
+                                            score = bestScore,
+                                            query = search.query,
+                                            customProviders = customProviders,
+                                            onClick = {
+                                                viewModel.selectConversation(convId)
+                                                scope.launch {
+                                                    drawerState.closeWithMotionPolicy(motionPolicy)
+                                                }
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
