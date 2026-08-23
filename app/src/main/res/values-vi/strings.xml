@@ -692,9 +692,9 @@
 
     <!-- Conversation list / read tools -->
     <string name="conversation_list_empty">Không tìm thấy cuộc trò chuyện nào.</string>
-    <string name="conversation_list_header">Đang hiển thị %1$d cuộc trò chuyện (tin nhắn từ %2$d-%3$d).</string>
+    <string name="conversation_list_header">Đang hiển thị %1$d cuộc trò chuyện (mục %2$d-%3$d).</string>
     <string name="conversation_list_more">Sử dụng giá trị offset lớn hơn để xem thêm cuộc trò chuyện.</string>
-    <string name="conversation_read_header">Cuộc trò chuyện: %1$s (%2$d tin nhắn)</string>
+    <string name="conversation_read_header">Cuộc trò chuyện: %1$s</string>
     <string name="conversation_read_empty">Không có tin nhắn nào trong nhánh đã chọn.</string>
     <string name="conversation_read_page">Trang: tin nhắn từ %1$d-%2$d</string>
     <string name="conversation_read_more">Sử dụng giá trị offset lớn hơn để xem thêm tin nhắn.</string>

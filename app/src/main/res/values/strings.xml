@@ -742,9 +742,9 @@
 
     <!-- Conversation list / read tools -->
     <string name="conversation_list_empty">No conversations found.</string>
-    <string name="conversation_list_header">Showing %1$d conversations (messages %2$d-%3$d).</string>
+    <string name="conversation_list_header">Showing %1$d conversations (items %2$d-%3$d).</string>
     <string name="conversation_list_more">Use a higher offset to see more conversations.</string>
-    <string name="conversation_read_header">Conversation: %1$s (%2$d messages)</string>
+    <string name="conversation_read_header">Conversation: %1$s</string>
     <string name="conversation_read_empty">No messages in the selected branch.</string>
     <string name="conversation_read_page">Page: messages %1$d-%2$d</string>
     <string name="conversation_read_more">Use a higher offset to see more messages.</string>

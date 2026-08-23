@@ -715,7 +715,7 @@
     <string name="conversation_list_empty">未找到任何对话。</string>
     <string name="conversation_list_header">显示 %1$d 条对话（第 %2$d-%3$d 条）。</string>
     <string name="conversation_list_more">使用更高的 offset 查看更多对话。</string>
-    <string name="conversation_read_header">对话：%1$s（共 %2$d 条消息）</string>
+    <string name="conversation_read_header">对话：%1$s</string>
     <string name="conversation_read_empty">所选分支中没有消息。</string>
     <string name="conversation_read_page">页面：消息 %1$d-%2$d</string>
     <string name="conversation_read_more">使用更高的 offset 查看更多消息。</string>

@@ -32,8 +32,8 @@ class SearchResultFormatterTest {
         R.string.shell_result_command -> "Command: ${args[0]}"
         R.string.shell_result_exit_code -> "Exit code: ${args[0]}"
         R.string.shell_result_error -> "Error: ${args[0]}"
-        R.string.conversation_list_header -> "Total: ${args[0]} (showing ${args[1]}-${args[2]})"
-        R.string.conversation_read_header -> "Conversation: ${args[0]} (${args[1]} messages)"
+        R.string.conversation_list_header -> "Showing ${args[0]} conversations (items ${args[1]}-${args[2]})"
+        R.string.conversation_read_header -> "Conversation: ${args[0]}"
         R.string.conversation_read_page -> "Page: ${args[0]}-${args[1]}"
         else -> "mocked_string_$resId"
     }
@@ -121,5 +121,35 @@ class SearchResultFormatterTest {
         val result = SearchResultFormatter.format(json, context)
         assertTrue(result.contains("Found 2 matches"))
         assertTrue(result.contains("## T"))
+    }
+
+    @Test
+    fun format_conversationList_usesReturnedPageCountAndRange() {
+        val json = """{"type":"list_conversations","total":99,"offset":20,"limit":2,"has_more":true,"conversations":[{"id":"a","title":"A"},{"id":"b","title":"B"}]}"""
+        val result = SearchResultFormatter.format(json, context)
+
+        assertTrue(result.startsWith("Showing 2 conversations (items 21-22)"))
+        assertFalse(result.contains("99"))
+        assertTrue(result.contains("More conversations available"))
+    }
+
+    @Test
+    fun format_conversationRead_omitsDurableTotalAndShowsReturnedRange() {
+        val json = """{"type":"read_conversation","title":"T","total_messages":99,"offset":20,"has_more":true,"messages":[{"participant":"USER","text":"a"},{"participant":"MODEL","text":"b"}]}"""
+        val result = SearchResultFormatter.format(json, context)
+
+        assertTrue(result.startsWith("Conversation: T\nPage: 21-22"))
+        assertFalse(result.contains("99"))
+        assertTrue(result.contains("More messages available"))
+    }
+
+    @Test
+    fun format_conversationRead_emptyPageOmitsRange() {
+        val json = """{"type":"read_conversation","title":"T","total_messages":99,"offset":99,"has_more":false,"messages":[]}"""
+        val result = SearchResultFormatter.format(json, context)
+
+        assertTrue(result.startsWith("Conversation: T\n\nNo messages"))
+        assertFalse(result.contains("Page:"))
+        assertFalse(result.contains("99"))
     }
 }

@@ -689,9 +689,9 @@
 
     <!-- Conversation list / read tools -->
     <string name="conversation_list_empty">会話が見つかりませんでした。</string>
-    <string name="conversation_list_header">%1$d 件の会話を表示中（メッセージ %2$d-%3$d）。</string>
+    <string name="conversation_list_header">%1$d 件の会話を表示中（項目 %2$d-%3$d）。</string>
     <string name="conversation_list_more">さらに会話を表示するには、より大きいオフセットを使用してください。</string>
-    <string name="conversation_read_header">会話: %1$s（%2$d 件のメッセージ）</string>
+    <string name="conversation_read_header">会話: %1$s</string>
     <string name="conversation_read_empty">選択したブランチにメッセージがありません。</string>
     <string name="conversation_read_page">ページ: メッセージ %1$d-%2$d</string>
     <string name="conversation_read_more">さらにメッセージを表示するには、より大きいオフセットを使用してください。</string>

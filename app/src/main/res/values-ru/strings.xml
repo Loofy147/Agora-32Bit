@@ -689,9 +689,9 @@
 
     <!-- Conversation list / read tools -->
     <string name="conversation_list_empty">Беседы не найдены.</string>
-    <string name="conversation_list_header">Показано %1$d бесед (сообщения %2$d-%3$d).</string>
+    <string name="conversation_list_header">Показано %1$d бесед (элементы %2$d-%3$d).</string>
     <string name="conversation_list_more">Используйте больший сдвиг, чтобы увидеть больше бесед.</string>
-    <string name="conversation_read_header">Беседа: %1$s (сообщений: %2$d)</string>
+    <string name="conversation_read_header">Беседа: %1$s</string>
     <string name="conversation_read_empty">Нет сообщений в выбранной ветке.</string>
     <string name="conversation_read_page">Страница: сообщения %1$d-%2$d</string>
     <string name="conversation_read_more">Используйте больший сдвиг, чтобы увидеть больше сообщений.</string>

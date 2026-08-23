@@ -689,9 +689,9 @@
 
     <!-- Conversation list / read tools -->
     <string name="conversation_list_empty">Nenhuma conversa encontrada.</string>
-    <string name="conversation_list_header">Mostrando %1$d conversas (mensagens %2$d-%3$d).</string>
+    <string name="conversation_list_header">Mostrando %1$d conversas (itens %2$d-%3$d).</string>
     <string name="conversation_list_more">Use um deslocamento maior para ver mais conversas.</string>
-    <string name="conversation_read_header">Conversa: %1$s (%2$d mensagens)</string>
+    <string name="conversation_read_header">Conversa: %1$s</string>
     <string name="conversation_read_empty">Nenhuma mensagem no ramo selecionado.</string>
     <string name="conversation_read_page">Página: mensagens %1$d-%2$d</string>
     <string name="conversation_read_more">Use um deslocamento maior para ver mais mensagens.</string>

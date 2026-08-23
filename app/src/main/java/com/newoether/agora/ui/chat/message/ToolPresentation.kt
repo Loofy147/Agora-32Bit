@@ -248,10 +248,8 @@ internal object ToolPresentationResolver {
         ToolKind.MEMORY_LIST,
         ToolKind.SKILL_LIST -> result.arraySize("files")
         ToolKind.WEB_SEARCH -> result.arraySize("results")
-        ToolKind.CONVERSATION_SEARCH -> result.int("count")
-            ?: result.arraySize("results")
-        ToolKind.CONVERSATION_LIST -> result.int("total")
-            ?: result.arraySize("conversations")
+        ToolKind.CONVERSATION_SEARCH -> result.arraySize("results")
+        ToolKind.CONVERSATION_LIST -> result.arraySize("conversations")
         ToolKind.SHELL_LIST -> result.arraySize("devices")
         ToolKind.SHELL_JOB_LIST -> result.arraySize("jobs")
         ToolKind.FILE_GLOB -> result.arraySize("files")
@@ -269,9 +267,6 @@ internal object ToolPresentationResolver {
         if (rawResult.isNullOrBlank()) return null
         val document = StreamingJsonParser.parse(rawResult)
         val root = document.root as? StreamingJsonObject ?: return null
-        val countEntry = root.entries.firstOrNull { it.key == "count" }
-        val countFromField = (countEntry?.value as? StreamingJsonScalar)?.content?.toIntOrNull()
-        if (countFromField != null) return countFromField
         val resultsEntry = root.entries.firstOrNull { it.key == "results" }
         val resultsArray = resultsEntry?.value as? StreamingJsonArray
         return resultsArray?.values?.size

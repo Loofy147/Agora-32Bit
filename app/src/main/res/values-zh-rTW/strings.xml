@@ -613,7 +613,7 @@
     <string name="conversation_list_empty">未找到任何對話。</string>
     <string name="conversation_list_header">顯示 %1$d 則對話（第 %2$d-%3$d 則）。</string>
     <string name="conversation_list_more">使用更高的 offset 檢視更多對話。</string>
-    <string name="conversation_read_header">對話：%1$s（共 %2$d 則訊息）</string>
+    <string name="conversation_read_header">對話：%1$s</string>
     <string name="conversation_read_empty">所選分支中沒有訊息。</string>
     <string name="conversation_read_page">頁面：訊息 %1$d-%2$d</string>
     <string name="conversation_read_more">使用更高的 offset 檢視更多訊息。</string>

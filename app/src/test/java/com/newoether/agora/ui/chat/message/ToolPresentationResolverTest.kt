@@ -495,7 +495,7 @@ class ToolPresentationResolverTest {
     }
 
     @Test
-    fun truncatedConversationSearchResultUsesEmittedCount() {
+    fun truncatedConversationSearchCountsCompletedResults() {
         val presentation = ToolPresentationResolver.resolve(
             MessageSegment(
                 type = "tool",
@@ -506,7 +506,7 @@ class ToolPresentationResolverTest {
             ),
         )
 
-        assertEquals(3, presentation.count)
+        assertEquals(1, presentation.count)
         assertEquals(ToolPresentationState.COMPLETED, presentation.state)
     }
 
@@ -521,5 +521,47 @@ class ToolPresentationResolverTest {
         )
 
         assertEquals(2, presentation.count)
+    }
+
+    @Test
+    fun conversationListCountUsesReturnedRowsNotDurableTotal() {
+        val presentation = ToolPresentationResolver.resolve(
+            MessageSegment(
+                type = "tool",
+                toolName = "list_conversations",
+                toolResult = """{"type":"list_conversations","total":99,"conversations":[{"id":"a"},{"id":"b"}]}""",
+            ),
+        )
+
+        assertEquals(2, presentation.count)
+        assertEquals(ToolPresentationState.COMPLETED, presentation.state)
+    }
+
+    @Test
+    fun emptyConversationListPageIsEmptyDespiteDurableTotal() {
+        val presentation = ToolPresentationResolver.resolve(
+            MessageSegment(
+                type = "tool",
+                toolName = "list_conversations",
+                toolResult = """{"type":"list_conversations","total":99,"conversations":[]}""",
+            ),
+        )
+
+        assertEquals(0, presentation.count)
+        assertEquals(ToolPresentationState.EMPTY, presentation.state)
+    }
+
+    @Test
+    fun conversationSearchCountUsesReturnedResultsWhenCountFieldDisagrees() {
+        val presentation = ToolPresentationResolver.resolve(
+            MessageSegment(
+                type = "tool",
+                toolName = "search_conversations",
+                toolResult = """{"type":"search_conversations","count":3,"results":[{"title":"A"}]}""",
+            ),
+        )
+
+        assertEquals(1, presentation.count)
+        assertEquals(ToolPresentationState.COMPLETED, presentation.state)
     }
 }

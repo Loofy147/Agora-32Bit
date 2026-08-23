@@ -689,9 +689,9 @@
 
     <!-- Conversation list / read tools -->
     <string name="conversation_list_empty">Keine Unterhaltungen gefunden.</string>
-    <string name="conversation_list_header">%1$d Unterhaltungen werden angezeigt (Nachrichten %2$d-%3$d).</string>
+    <string name="conversation_list_header">%1$d Unterhaltungen werden angezeigt (Einträge %2$d-%3$d).</string>
     <string name="conversation_list_more">Verwende einen höheren Versatz, um mehr Unterhaltungen zu sehen.</string>
-    <string name="conversation_read_header">Unterhaltung: %1$s (%2$d Nachrichten)</string>
+    <string name="conversation_read_header">Unterhaltung: %1$s</string>
     <string name="conversation_read_empty">Keine Nachrichten im ausgewählten Zweig.</string>
     <string name="conversation_read_page">Seite: Nachrichten %1$d-%2$d</string>
     <string name="conversation_read_more">Verwende einen höheren Versatz, um mehr Nachrichten zu sehen.</string>
