@@ -527,6 +527,39 @@ class ApplicationUiSourceContractTest {
     }
 
     @Test
+    fun `Stick to bottom is portable and gates only generation auto follow`() {
+        val appearance = sourceFile(
+            "app/src/main/java/com/newoether/agora/ui/settings/SettingsAppearancePage.kt",
+        )
+        val chatApp = sourceFile("app/src/main/java/com/newoether/agora/ui/chat/ChatApp.kt")
+        val settings = sourceFile(
+            "app/src/main/java/com/newoether/agora/data/SettingsManager.kt",
+        )
+        val repository = sourceFile(
+            "app/src/main/java/com/newoether/agora/data/repository/SettingsRepository.kt",
+        )
+        val archive = sourceFile(
+            "app/src/main/java/com/newoether/agora/data/PortableSettingsArchive.kt",
+        )
+        val availability = chatApp
+            .substringAfter("val streamingFollowAvailability =")
+            .substringBefore("Box(modifier = Modifier.fillMaxSize())")
+
+        assertTrue(appearance.contains("R.string.stick_to_bottom"))
+        assertTrue(appearance.contains("setStickToBottom"))
+        assertTrue(settings.contains("it[STICK_TO_BOTTOM] ?: true"))
+        assertTrue(settings.contains("saveStickToBottom"))
+        assertTrue(settings.contains("prefs.remove(STICK_TO_BOTTOM)"))
+        assertTrue(repository.contains("hot(settingsManager.stickToBottom, true)"))
+        assertTrue(archive.contains("\"stickToBottom\""))
+        assertTrue(archive.contains("saveStickToBottom"))
+        assertFalse(availability.contains("stickToBottom"))
+        assertTrue(chatApp.contains(
+            "streamingFollowAvailability.enabled && stickToBottom",
+        ))
+    }
+
+    @Test
     fun `Thinking display policy is configurable only outside Timeline and auto expands Grouped cards`() {
         val appearance = sourceFile(
             "app/src/main/java/com/newoether/agora/ui/settings/SettingsAppearancePage.kt",

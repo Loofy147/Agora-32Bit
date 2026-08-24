@@ -211,6 +211,7 @@ class SettingsRepository(
     val dynamicColor: StateFlow<Boolean> = hot(settingsManager.dynamicColor, true)
     val blurEffectsEnabled: StateFlow<Boolean> = hot(settingsManager.blurEffectsEnabled, true)
     val reduceMotion: StateFlow<Boolean> = hot(settingsManager.reduceMotion, false)
+    val stickToBottom: StateFlow<Boolean> = hot(settingsManager.stickToBottom, true)
     val parseInlineDollarMath: StateFlow<Boolean> = hot(settingsManager.parseInlineDollarMath, false)
     val hapticsEnabled: StateFlow<Boolean> = hot(settingsManager.hapticsEnabled, true)
     val detailedTokenUsage: StateFlow<Boolean> =
@@ -582,6 +583,8 @@ class SettingsRepository(
     fun setDynamicColor(enabled: Boolean) = scope.launch { settingsManager.saveDynamicColor(enabled) }
     fun setBlurEffectsEnabled(enabled: Boolean) = scope.launch { settingsManager.saveBlurEffectsEnabled(enabled) }
     fun setReduceMotion(enabled: Boolean) = scope.launch { settingsManager.saveReduceMotion(enabled) }
+    fun setStickToBottom(enabled: Boolean) =
+        scope.launch { settingsManager.saveStickToBottom(enabled) }
     fun setParseInlineDollarMath(enabled: Boolean) =
         scope.launch { settingsManager.saveParseInlineDollarMath(enabled) }
     fun setHapticsEnabled(enabled: Boolean) = scope.launch { settingsManager.saveHapticsEnabled(enabled) }

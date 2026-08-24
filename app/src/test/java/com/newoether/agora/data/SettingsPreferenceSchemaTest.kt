@@ -14,6 +14,7 @@ class SettingsPreferenceSchemaTest {
         assertEquals("context_compact_threshold_percent", CONTEXT_COMPACT_THRESHOLD_PERCENT.name)
         assertEquals("openai_responses_api_enabled", OPENAI_RESPONSES_API_ENABLED.name)
         assertEquals("mcp_servers_json", MCP_SERVERS_JSON.name)
+        assertEquals("stick_to_bottom", STICK_TO_BOTTOM.name)
         assertEquals("last_models_fetch_fingerprint", LAST_MODELS_FETCH_FINGERPRINT.name)
     }
 

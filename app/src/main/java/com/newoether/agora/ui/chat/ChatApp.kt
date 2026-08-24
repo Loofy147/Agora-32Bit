@@ -66,7 +66,6 @@ import com.newoether.agora.model.StableMessageList
 import com.newoether.agora.model.StableModelAliases
 import com.newoether.agora.viewmodel.AnimatedScrollDestination
 import com.newoether.agora.viewmodel.ChatViewModel
-import com.newoether.agora.viewmodel.RegenerationTransitionStage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -197,6 +196,7 @@ fun ChatApp(
     val contextProjectionReady = contextProjection.completed && !contextProjection.loading && !contextProjection.failed && contextProjection.conversationId == currentConversationId && contextProjection.selectedBranchesJson == currentConversation?.selectedBranchesJson
     val contextUsage = contextProjection.usage ?: com.newoether.agora.api.util.ContextWindowUsage(0, contextWindow, 0, false)
     val blurEffectsEnabled by viewModel.settings.blurEffectsEnabled.collectAsState()
+    val stickToBottom by viewModel.settings.stickToBottom.collectAsState()
     val reduceMotion = motionPolicy.reduceMotion
     val hapticsEnabled by viewModel.settings.hapticsEnabled.collectAsState()
     val haptics = rememberAgoraHaptics(hapticsEnabled)
@@ -556,7 +556,7 @@ fun ChatApp(
                                 isStopping = isStopping,
                                 isSwitching = isSwitching,
                                 streamingAutoFollowEnabled =
-                                    streamingFollowAvailability.enabled,
+                                    streamingFollowAvailability.enabled && stickToBottom,
                                 streamingAutoFollowPaused =
                                     streamingFollowAvailability.paused,
                                 streamingTailWithinAttachThreshold =
@@ -565,10 +565,6 @@ fun ChatApp(
                                     animatedScrollRequest?.conversationId ==
                                         currentConversationId,
                                 streamingTailController = streamingTailController,
-                                streamingIndicatorVisible =
-                                    isLoading &&
-                                        regenerationTransition?.stage !=
-                                            RegenerationTransitionStage.ANIMATING,
                                 regenerationTransition = regenerationTransition,
                                 onRegenerationFadeOutFinished =
                                     viewModel::acknowledgeRegenerationFade,

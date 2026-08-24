@@ -48,6 +48,7 @@ fun SettingsAppearancePage(viewModel: ChatViewModel, onBack: () -> Unit) {
     val dynamicColor by viewModel.settings.dynamicColor.collectAsState()
     val blurEffectsEnabled by viewModel.settings.blurEffectsEnabled.collectAsState()
     val reduceMotion by viewModel.settings.reduceMotion.collectAsState()
+    val stickToBottom by viewModel.settings.stickToBottom.collectAsState()
     val parseInlineDollarMath by viewModel.settings.parseInlineDollarMath.collectAsState()
     val hapticsEnabled by viewModel.settings.hapticsEnabled.collectAsState()
 
@@ -239,6 +240,21 @@ fun SettingsAppearancePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 modifier = Modifier.clickable {
                                     viewModel.settings.setReduceMotion(!reduceMotion)
                                 }
+                            )
+                        }
+                        add {
+                            SettingsItem(
+                                headlineContent = { Text(stringResource(R.string.stick_to_bottom)) },
+                                supportingContent = { Text(stringResource(R.string.stick_to_bottom_desc)) },
+                                trailingContent = {
+                                    Switch(
+                                        checked = stickToBottom,
+                                        onCheckedChange = viewModel.settings::setStickToBottom,
+                                    )
+                                },
+                                modifier = Modifier.clickable {
+                                    viewModel.settings.setStickToBottom(!stickToBottom)
+                                },
                             )
                         }
                         add {

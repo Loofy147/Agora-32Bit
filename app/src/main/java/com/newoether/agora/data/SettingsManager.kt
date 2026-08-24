@@ -197,6 +197,7 @@ class SettingsManager(private val context: Context) {
     val dynamicColor: Flow<Boolean> = context.dataStore.data.map { it[DYNAMIC_COLOR] ?: true }
     val blurEffectsEnabled: Flow<Boolean> = context.dataStore.data.map { it[BLUR_EFFECTS_ENABLED] ?: true }
     val reduceMotion: Flow<Boolean> = context.dataStore.data.map { it[REDUCE_MOTION] ?: false }
+    val stickToBottom: Flow<Boolean> = context.dataStore.data.map { it[STICK_TO_BOTTOM] ?: true }
     val parseInlineDollarMath: Flow<Boolean> =
         context.dataStore.data.map { it[PARSE_INLINE_DOLLAR_MATH] ?: false }
     val hapticsEnabled: Flow<Boolean> = context.dataStore.data.map { it[HAPTICS_ENABLED] ?: true }
@@ -687,6 +688,9 @@ class SettingsManager(private val context: Context) {
     suspend fun saveReduceMotion(enabled: Boolean) {
         context.dataStore.edit { it[REDUCE_MOTION] = enabled }
     }
+    suspend fun saveStickToBottom(enabled: Boolean) {
+        context.dataStore.edit { it[STICK_TO_BOTTOM] = enabled }
+    }
     suspend fun saveParseInlineDollarMath(enabled: Boolean) {
         context.dataStore.edit { it[PARSE_INLINE_DOLLAR_MATH] = enabled }
     }
@@ -840,6 +844,7 @@ class SettingsManager(private val context: Context) {
             prefs.remove(DYNAMIC_COLOR)
             prefs.remove(BLUR_EFFECTS_ENABLED)
             prefs.remove(REDUCE_MOTION)
+            prefs.remove(STICK_TO_BOTTOM)
             prefs.remove(PARSE_INLINE_DOLLAR_MATH)
             prefs.remove(HAPTICS_ENABLED)
             prefs.remove(DETAILED_TOKEN_USAGE)

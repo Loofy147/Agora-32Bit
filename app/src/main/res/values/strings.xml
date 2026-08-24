@@ -652,6 +652,8 @@
     <string name="reduce_motion">Reduce motion</string>
     <string name="reduce_motion_desc">Reduce continuous and large spatial motion while keeping fades, direct gestures, and useful state feedback.</string>
     <string name="interaction_feedback">Interaction Feedback</string>
+    <string name="stick_to_bottom">Stick to bottom</string>
+    <string name="stick_to_bottom_desc">Automatically follow new content while a response is generating.</string>
     <string name="haptic_feedback">Haptic Feedback</string>
     <string name="haptic_feedback_desc">Use subtle vibration for generation status and key actions.</string>
 

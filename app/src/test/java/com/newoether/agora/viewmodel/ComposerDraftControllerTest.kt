@@ -57,6 +57,47 @@ class ComposerDraftControllerTest {
     }
 
     @Test
+    fun `private clipboard image ownership survives draft persistence and restore`() = runTest {
+        val repository = mockk<ConversationRepository>()
+        val privatePath = "/private/clipboard.img"
+        val attachment = SelectedAttachment(
+            localId = "clipboard",
+            uri = "file://$privatePath",
+            type = "image",
+            mimeType = "image/png",
+            localPath = privatePath,
+        )
+        coEvery { repository.getConversation(CONVERSATION_ID) } returnsMany listOf(
+            chat(),
+            chat(attachments = listOf(attachment)),
+        )
+        coEvery { repository.updateDraft(any(), any(), any()) } returns Unit
+        val writer = ComposerDraftController(repository)
+        val loaded = writer.load(CONVERSATION_ID)
+
+        val persisted = writer.persist(
+            conversationId = CONVERSATION_ID,
+            expectedRevision = loaded.revision,
+            text = "clipboard image",
+            attachments = listOf(attachment),
+        )
+        val restored = ComposerDraftController(repository).load(CONVERSATION_ID)
+
+        assertTrue(persisted.succeeded)
+        assertEquals(listOf(attachment), restored.attachments)
+        assertEquals("file:///private/clipboard.img", restored.attachments.single().uri)
+        assertEquals(privatePath, restored.attachments.single().localPath)
+        assertFalse(restored.attachments.single().uri.startsWith("content://"))
+        coVerify(exactly = 1) {
+            repository.updateDraft(
+                CONVERSATION_ID,
+                "clipboard image",
+                Json.encodeToString(listOf(attachment)),
+            )
+        }
+    }
+
+    @Test
     fun `stale revision cannot overwrite newer snapshot and only reclaims explicit removals`() =
         runTest {
             val repository = mockk<ConversationRepository>()

@@ -52,12 +52,15 @@ import com.newoether.agora.model.StableModelAliases
 import com.newoether.agora.model.ToolCallDisplayModes
 import com.newoether.agora.model.ThinkingSegmentDisplayModes
 import com.newoether.agora.model.isContextCompact
+import com.newoether.agora.ui.chat.message.AssistantInlineActivityMode
 import com.newoether.agora.ui.chat.message.GroupedSegmentAutoExpansionController
 import com.newoether.agora.ui.chat.message.MessageItem
 import com.newoether.agora.ui.chat.message.REGENERATION_ABORT_RESTORE_DURATION_MS
 import com.newoether.agora.ui.chat.message.REGENERATION_EXIT_DURATION_MS
 import com.newoether.agora.ui.chat.message.SegmentAppearanceRegistry
-import com.newoether.agora.ui.chat.message.hasActiveAnswerSegment
+import com.newoether.agora.ui.chat.message.assistantInlineActivityMode
+import com.newoether.agora.ui.chat.message.isInfoSegment
+import com.newoether.agora.ui.chat.message.isVisibleAnswerSegment
 import com.newoether.agora.ui.motion.LocalAgoraMotionPolicy
 import com.newoether.agora.viewmodel.RegenerationTransitionRequest
 import kotlinx.coroutines.Job
@@ -93,20 +96,22 @@ internal fun compactMessageActionsEnabled(
     isStopping: Boolean,
     isCompacting: Boolean,
 ): Boolean = !isLoading && !isStopping && !isCompacting
-
 internal fun shouldShowStreamingTailIndicator(
     isLoading: Boolean,
     isStopping: Boolean,
     message: ChatMessage?,
-): Boolean =
-    isLoading &&
-        !isStopping &&
-        message?.let {
-            MessageGenerationBoundaryResolver.isOrdinaryAssistant(it) &&
-                it.status == MessageStatus.SENDING &&
-                it.hasActiveAnswerSegment()
-        } == true
-
+): Boolean = message?.let {
+    val segments = it.segments.orEmpty()
+    val generationActive = it.status == MessageStatus.SENDING || it.status == MessageStatus.THINKING || it.status == MessageStatus.TOOL_CALLING || it.status == MessageStatus.TRANSCRIBING
+    isLoading && !isStopping && generationActive &&
+        MessageGenerationBoundaryResolver.isOrdinaryAssistant(it) && (segments.lastOrNull { segment -> segment.isVisibleAnswerSegment() || segment.isInfoSegment() }?.isVisibleAnswerSegment() ?: it.text.isNotBlank()) &&
+        assistantInlineActivityMode(
+            generationActive = generationActive,
+            hasAnswer = it.text.isNotBlank() || segments.any { segment -> segment.isVisibleAnswerSegment() },
+            hasVisibleInfoSegment = segments.any { segment -> segment.isInfoSegment() },
+            retryText = it.retryText,
+        ) == AssistantInlineActivityMode.NONE
+} == true
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun MessageList(
@@ -126,7 +131,6 @@ internal fun MessageList(
     streamingTailWithinAttachThreshold: Boolean = false,
     programmaticScrollActive: Boolean = false,
     streamingTailController: StreamingTailController = rememberStreamingTailController(),
-    streamingIndicatorVisible: Boolean = isLoading,
     regenerationTransition: RegenerationTransitionRequest? = null,
     onRegenerationFadeOutFinished: (Long) -> Unit = {},
     visualizeContextRollout: Boolean = false,
@@ -976,8 +980,7 @@ internal fun MessageList(
                                     StreamingTailIndicator(
                                         // Text-bottom placement belongs only to the visual dot.
                                         // Page attachment is owned by AbsoluteBottomSentinelKey.
-                                        visible =
-                                            streamingIndicatorVisible && answeringTailVisible,
+                                        visible = answeringTailVisible,
                                     )
                                 }
                             }

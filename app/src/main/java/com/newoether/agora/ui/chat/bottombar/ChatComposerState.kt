@@ -447,7 +447,7 @@ class ChatComposerState(
                 val localPath = copyToPrivate(uriObj, "img")
                 if (localPath != null) {
                     copiedAttachments += SelectedAttachment(
-                        uri = uriObj.toString(),
+                        uri = Uri.fromFile(java.io.File(localPath)).toString(),
                         type = "image",
                         mimeType = mimeType,
                         localPath = localPath,

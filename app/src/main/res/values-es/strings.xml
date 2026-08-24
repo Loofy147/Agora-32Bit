@@ -380,6 +380,8 @@
     <string name="auto_expand_active_group_desc">Expande automáticamente el grupo actual de razonamiento y herramientas y lo contrae cuando el modelo continúa.</string>
     <string name="tool_call_display_mode_compact_desc">Agrupa los bloques de razonamiento y herramientas encima de la respuesta</string>
     <string name="interaction_feedback">Respuesta de interacción</string>
+    <string name="stick_to_bottom">Mantener al final</string>
+    <string name="stick_to_bottom_desc">Sigue automáticamente el contenido nuevo mientras se genera una respuesta.</string>
     <string name="haptic_feedback">Respuesta háptica</string>
     <string name="haptic_feedback_desc">Usa vibraciones sutiles para el estado de generación y acciones importantes.</string>
 

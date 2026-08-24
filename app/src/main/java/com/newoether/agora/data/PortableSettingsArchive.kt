@@ -130,6 +130,7 @@ internal object PortableSettingsArchive {
         put("dynamicColor", JsonPrimitive(sm.dynamicColor.first()))
         put("blurEffectsEnabled", JsonPrimitive(sm.blurEffectsEnabled.first()))
         put("reduceMotion", JsonPrimitive(sm.reduceMotion.first()))
+        put("stickToBottom", JsonPrimitive(sm.stickToBottom.first()))
         put("parseInlineDollarMath", JsonPrimitive(sm.parseInlineDollarMath.first()))
         put("hapticsEnabled", JsonPrimitive(sm.hapticsEnabled.first()))
         put("detailedTokenUsage", JsonPrimitive(sm.detailedTokenUsage.first()))
@@ -427,6 +428,7 @@ internal object PortableSettingsArchive {
         obj.boolean("dynamicColor")?.let { sm.saveDynamicColor(it) }
         obj.boolean("blurEffectsEnabled")?.let { sm.saveBlurEffectsEnabled(it) }
         obj.boolean("reduceMotion")?.let { sm.saveReduceMotion(it) }
+        obj.boolean("stickToBottom")?.let { sm.saveStickToBottom(it) }
         obj.boolean("parseInlineDollarMath")?.let { sm.saveParseInlineDollarMath(it) }
         obj.boolean("hapticsEnabled")?.let { sm.saveHapticsEnabled(it) }
         obj.boolean("detailedTokenUsage")?.let { sm.saveDetailedTokenUsage(it) }
