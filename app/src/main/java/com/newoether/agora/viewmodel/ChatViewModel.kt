@@ -541,7 +541,7 @@ class ChatViewModel(
         ForegroundAutomationBridgeController(
             currentConversationId = currentConversationId,
             send = generationController::sendMessageFromAutomationAwaitingCompletion,
-            loadMessages = convRepo::getMessagesForConversationSnapshot,
+            loadMessage = convRepo::getMessage,
             attach = taskExecutionEngine::attachForegroundSendBridge,
             detach = taskExecutionEngine::detachForegroundSendBridge,
         )

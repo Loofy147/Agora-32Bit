@@ -35,7 +35,7 @@ class ForegroundAutomationBridgeControllerTest {
 
         assertEquals(BridgeOutcome.NotDelegated, outcome)
         assertTrue(fixture.sendInputs.isEmpty())
-        assertTrue(fixture.loadedConversationIds.isEmpty())
+        assertTrue(fixture.loadedMessageIds.isEmpty())
     }
 
     @Test
@@ -47,7 +47,7 @@ class ForegroundAutomationBridgeControllerTest {
 
         assertEquals(BridgeOutcome.Busy(), outcome)
         assertEquals(listOf(Triple("conversation", "input", "model")), fixture.sendInputs)
-        assertTrue(fixture.loadedConversationIds.isEmpty())
+        assertTrue(fixture.loadedMessageIds.isEmpty())
     }
 
     @Test
@@ -64,7 +64,7 @@ class ForegroundAutomationBridgeControllerTest {
         val outcome = fixture.bridge()("conversation", "input", "model")
 
         assertEquals(BridgeOutcome.Completed("expected", "answer"), outcome)
-        assertEquals(listOf("conversation"), fixture.loadedConversationIds)
+        assertEquals(listOf("expected"), fixture.loadedMessageIds)
     }
 
     @Test
@@ -96,6 +96,26 @@ class ForegroundAutomationBridgeControllerTest {
         assertEquals(BridgeOutcome.Failed("Generation failed"), fallback)
     }
 
+    @Test
+    fun deliveredRowFromAnotherConversationIsRejected() = runTest {
+        val fixture = Fixture(
+            sendOutcome = AutomationSendOutcome.Delivered("foreign"),
+            messages = listOf(
+                modelMessage(
+                    id = "foreign",
+                    text = "answer",
+                    conversationId = "other",
+                ),
+            ),
+        )
+        fixture.controller.start()
+
+        val outcome = fixture.bridge()("conversation", "input", "model")
+
+        assertEquals(BridgeOutcome.Failed("Generation row disappeared"), outcome)
+        assertEquals(listOf("foreign"), fixture.loadedMessageIds)
+    }
+
     private class Fixture(
         currentConversationId: String? = "conversation",
         var sendOutcome: AutomationSendOutcome = AutomationSendOutcome.SlotBusy,
@@ -104,16 +124,16 @@ class ForegroundAutomationBridgeControllerTest {
         val attachments = mutableListOf<Pair<Any, ForegroundSendBridge>>()
         val detachedOwners = mutableListOf<Any>()
         val sendInputs = mutableListOf<Triple<String, String, String>>()
-        val loadedConversationIds = mutableListOf<String>()
+        val loadedMessageIds = mutableListOf<String>()
         val controller = ForegroundAutomationBridgeController(
             currentConversationId = MutableStateFlow(currentConversationId),
             send = { conversationId, text, modelId ->
                 sendInputs += Triple(conversationId, text, modelId)
                 sendOutcome
             },
-            loadMessages = { conversationId ->
-                loadedConversationIds += conversationId
-                messages
+            loadMessage = { messageId ->
+                loadedMessageIds += messageId
+                messages.find { it.id == messageId }
             },
             attach = { owner, bridge -> attachments += owner to bridge },
             detach = detachedOwners::add,
@@ -127,9 +147,10 @@ class ForegroundAutomationBridgeControllerTest {
             id: String,
             text: String,
             status: MessageStatus = MessageStatus.SUCCESS,
+            conversationId: String = "conversation",
         ) = MessageEntity(
             id = id,
-            conversationId = "conversation",
+            conversationId = conversationId,
             text = text,
             status = status,
             participant = Participant.MODEL,

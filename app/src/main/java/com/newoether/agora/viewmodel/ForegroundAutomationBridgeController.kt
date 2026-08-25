@@ -19,7 +19,7 @@ internal class ForegroundAutomationBridgeController(
         userText: String,
         modelId: String,
     ) -> AutomationSendOutcome,
-    private val loadMessages: suspend (String) -> List<MessageEntity>,
+    private val loadMessage: suspend (String) -> MessageEntity?,
     private val attach: (owner: Any, bridge: ForegroundSendBridge) -> Unit,
     private val detach: (owner: Any) -> Unit,
 ) : AutoCloseable {
@@ -56,8 +56,8 @@ internal class ForegroundAutomationBridgeController(
         }
         // Resolve the exact row created by this Send. A tail lookup can race branch changes or
         // guidance draining and incorrectly attribute an older assistant row to this Loop cycle.
-        val modelMessage = loadMessages(conversationId)
-            .find { it.id == delivered.modelMessageId }
+        val modelMessage = loadMessage(delivered.modelMessageId)
+            ?.takeIf { it.conversationId == conversationId }
             ?: return BridgeOutcome.Failed("Generation row disappeared")
         return if (modelMessage.status == MessageStatus.SUCCESS) {
             BridgeOutcome.Completed(modelMessage.id, modelMessage.text)
