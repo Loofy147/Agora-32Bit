@@ -31,7 +31,7 @@ class ExperimentalGenerationUiSourceContractTest {
         assertTrue(assistant.contains("precededByCard = terminalImmediatelyFollowsCard"))
         assertTrue(assistant.contains("lastVisibleTerminalPredecessor"))
         assertTrue(terminalBar.contains("precededByCard: Boolean = false"))
-        assertTrue(terminalBar.contains("if (precededByCard) 12.dp else 4.dp"))
+        assertTrue(terminalBar.contains("if (precededByCard) 12.dp else 8.dp"))
         assertTrue(terminalBar.contains("if (precededByCard) 12.dp"))
         assertFalse(assistant.contains("if (mode == AssistantInlineActivityMode.NONE) return"))
         assertTrue(assistant.contains("var retainedMode by remember"))
@@ -53,7 +53,7 @@ class ExperimentalGenerationUiSourceContractTest {
         assertTrue(fixedSpacerIndex >= 0)
         assertTrue(compactIndex > fixedSpacerIndex)
         assertTrue(activityIndex > compactIndex)
-        assertTrue(answerIndex > activityIndex)
+        assertTrue(activityIndex > answerIndex)
 
         assertTrue(terminalBar.contains("internal fun GenerationTerminalText("))
         assertTrue(terminalBar.contains("style = ChatType.body"))

@@ -333,11 +333,6 @@ internal fun MessageList(
             pendingEditVisualReplacement = null
         }
     }
-    val answeringTailPresentation = streamingTailPresentation(
-        isLoading = isLoading,
-        isStopping = isStopping,
-        message = messages.list.lastOrNull { it.participant == Participant.MODEL },
-    )
 
     LaunchedEffect(regenerationTransition?.id) {
         val transition = regenerationTransition
@@ -967,22 +962,9 @@ internal fun MessageList(
                                 min = if (isLastTurn) tailMinHeight else 0.dp,
                             ),
                     ) {
-                        val lastActiveMessageIndex = turn.messages.indexOfLast { message ->
-                            message.id in activeMessageIds
-                        }
-                        turn.messages.forEachIndexed { index, message ->
+                        turn.messages.forEach { message ->
                             key(stableVisualKey(message.id)) {
                                 renderMessage(message)
-                            }
-                            if (isLastTurn && index == lastActiveMessageIndex) {
-                                key("agora:streaming-tail:${turn.key}") {
-                                    StreamingTailIndicator(
-                                        // Text-bottom placement belongs only to the visual dot.
-                                        // Page attachment is owned by AbsoluteBottomSentinelKey.
-                                        visible = answeringTailPresentation.visible,
-                                        retainLayout = answeringTailPresentation.retainLayout,
-                                    )
-                                }
                             }
                         }
                     }

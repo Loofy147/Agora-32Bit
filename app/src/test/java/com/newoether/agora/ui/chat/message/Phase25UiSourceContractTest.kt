@@ -21,6 +21,7 @@ class Phase25UiSourceContractTest {
         assertFalse(follower.exists())
         assertFalse(list.contains("InlineActivityDotFollower"))
         assertFalse(list.contains("dotOverlayState"))
+        assertFalse(list.contains("StreamingTailIndicator("))
         val assistantActivity = assistant
             .substringAfter("private fun AssistantInlineActivity(")
             .substringBefore("/**")

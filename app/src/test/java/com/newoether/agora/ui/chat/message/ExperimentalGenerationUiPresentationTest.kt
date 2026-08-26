@@ -79,6 +79,7 @@ class ExperimentalGenerationUiPresentationTest {
         assertFalse(active.retainLayout)
         assertEquals(AssistantInlineActivityMode.NONE, stopping.mode)
         assertTrue(stopping.retainLayout)
+        assertTrue(stopping.retainLayout && stopping.mode == AssistantInlineActivityMode.NONE)
         assertEquals(AssistantInlineActivityMode.NONE, stopped.mode)
         assertFalse(stopped.retainLayout)
     }

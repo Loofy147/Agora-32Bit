@@ -352,7 +352,7 @@ localized content-width label. Their existing contextual outer vertical separati
 their durable ERROR versus STOPPED semantics stay distinct. When the immediately preceding visible
 Assistant content is a Thinking/Tool/Transcription card, either terminal label receives exactly 12 dp
 of top separation. When answer Markdown is the immediately preceding visible content, the established
-text-to-terminal spacing remains unchanged. Timeline mode derives adjacency from its final visible
+text-to-terminal separation is exactly 8 dp. Timeline mode derives adjacency from its final visible
 segment; the mere existence of an earlier card does not add spacing. Compact capsule error/stopped
 chrome and detail-sheet defaults are independent and unchanged.
 
@@ -376,8 +376,7 @@ draw-time motion or opacity and cannot expose a different layout path.
 Pre-output keeps the exact 11 dp dot. Visible Answer activation immediately releases the inline slot,
 and the answer-tail dot is the sole source from its first frame at the final anchor. Retry keeps the
 localized label, 8 dp gap, measured caret placement, and direct render-layer translation of the same
-dot. The answer tail keeps its fixed anchor height and lift and owns its established entrance and exit
-paint animation. Direct activity and tail exit paths retain their draw content through zero alpha
+dot. The answer-tail dot and terminal controls share the reserved 44 dp bottom action slot without a separate LazyColumn child; direct exit paths retain draw content through zero alpha
 without `AnimatedVisibility`, expand/shrink layout animation, `animateContentSize`, coordinate
 followers, or retained layout height. Their alpha-bearing graphics layers use
 `CompositingStrategy.ModulateAlpha`, set `clip = false`, and never rasterize a breathing circle into

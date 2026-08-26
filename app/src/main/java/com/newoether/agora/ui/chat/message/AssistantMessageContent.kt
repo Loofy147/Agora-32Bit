@@ -54,6 +54,7 @@ import com.newoether.agora.model.ThinkingSegmentDisplayModes
 import com.newoether.agora.model.citationRecords
 import com.newoether.agora.ui.chat.GenerationActivityDot
 import com.newoether.agora.ui.chat.StreamingTailAnchorHeight
+import com.newoether.agora.ui.chat.shouldShowStreamingTailIndicator
 import com.newoether.agora.ui.common.LocalAgoraHaptics
 import com.newoether.agora.ui.theme.ChatType
 
@@ -144,6 +145,9 @@ private fun AssistantInlineActivity(
     visibilityTransition: Transition<Boolean>,
     activityOpacity: Float,
     retainExitLayout: Boolean,
+    terminalText: String?,
+    terminalIsError: Boolean,
+    precededByCard: Boolean,
 ) {
     var retainedMode by remember {
         mutableStateOf(
@@ -161,23 +165,30 @@ private fun AssistantInlineActivity(
     val activityVisible = visibilityTransition.targetState
     val visibleMode = if (activityVisible) mode else retainedMode
     val visibleRetryText = if (activityVisible) retryText else retainedRetryText
-    if (visibilityTransition.targetState || retainExitLayout) {
-        Row(
+    if (visibilityTransition.targetState || retainExitLayout || terminalText != null) {
+        Box(
             modifier = Modifier
-                .heightIn(min = AssistantInlineActivityHeight)
-                .graphicsLayer {
-                    compositingStrategy = CompositingStrategy.ModulateAlpha
-                    alpha = activityOpacity
-                    clip = false
-                },
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(top = if (precededByCard) 12.dp else 0.dp)
+                .heightIn(min = AssistantInlineActivityHeight),
         ) {
-            if (visibleMode == AssistantInlineActivityMode.RETRY) {
-                RetryActivityIndicator(
-                    label = visibleRetryText.orEmpty() + "...",
-                )
-            } else {
-                GenerationActivityDot()
+            if (terminalText == null) {
+                Row(
+                    modifier = Modifier.graphicsLayer {
+                        compositingStrategy = CompositingStrategy.ModulateAlpha
+                        alpha = activityOpacity
+                        clip = false
+                    },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (visibleMode == AssistantInlineActivityMode.RETRY) {
+                        RetryActivityIndicator(label = visibleRetryText.orEmpty() + "...")
+                    } else {
+                        GenerationActivityDot()
+                    }
+                }
+            }
+            terminalText?.let { text ->
+                GenerationTerminalText(text, selectable = terminalIsError, fillWidth = terminalIsError, normalizeError = terminalIsError)
             }
         }
     }
@@ -503,16 +514,6 @@ internal fun AssistantMessageContent(
                     }
                 }
 
-                if (message.participant == Participant.MODEL) {
-                    AssistantInlineActivity(
-                        mode = inlineActivityMode,
-                        retryText = message.retryText,
-                        visibilityTransition = inlineActivityTransition,
-                        activityOpacity = inlineActivityOpacity,
-                        retainExitLayout = inlineActivityPresentation.retainLayout,
-                    )
-                }
-
                 val answerBodyText = errorContent?.answerText ?: renderedText.takeIf { !isError }
                 val answerProjection = remember(answerBodyText, citations, isStreaming) {
                     citationMarkdownProjection(
@@ -533,6 +534,25 @@ internal fun AssistantMessageContent(
                     lastVisibleTerminalPredecessor?.isInfoSegment() == true
                 } else {
                     compactVisible && answerContent.isEmpty()
+                }
+                val inlineTerminalText = when {
+                    hasAnswerContent -> null
+                    errorContent != null -> errorContent.errorText
+                    !isStreaming && message.status == MessageStatus.STOPPED ->
+                        stringResource(R.string.generation_stopped)
+                    else -> null
+                }
+                if (message.participant == Participant.MODEL) {
+                    AssistantInlineActivity(
+                        mode = inlineActivityMode,
+                        retryText = message.retryText,
+                        visibilityTransition = inlineActivityTransition,
+                        activityOpacity = inlineActivityOpacity,
+                        retainExitLayout = inlineActivityPresentation.retainLayout,
+                        terminalText = inlineTerminalText,
+                        terminalIsError = errorContent != null,
+                        precededByCard = terminalImmediatelyFollowsCard,
+                    )
                 }
                 Box(
                     modifier = Modifier
@@ -579,7 +599,7 @@ internal fun AssistantMessageContent(
                     errorContent?.errorText?.let { retainedErrorText = it }
                 }
                 AnimatedVisibility(
-                    visible = errorContent != null,
+                    visible = hasAnswerContent && errorContent != null,
                     enter = fadeIn(tween(durationMillis = 180, easing = LinearEasing)),
                     exit = fadeOut(tween(durationMillis = 180, easing = LinearEasing)),
                 ) {
@@ -589,7 +609,8 @@ internal fun AssistantMessageContent(
                     )
                 }
                 AnimatedVisibility(
-                    visible = !isStreaming && message.status == MessageStatus.STOPPED,
+                    visible = hasAnswerContent && !isStreaming &&
+                        message.status == MessageStatus.STOPPED,
                     enter = fadeIn(tween(durationMillis = 180, easing = LinearEasing)),
                     exit = fadeOut(tween(durationMillis = 180, easing = LinearEasing)),
                 ) {
@@ -675,16 +696,8 @@ internal fun AssistantMessageContent(
                                 .padding(top = 12.dp),
                         )
                     }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            // Reserve the terminal action row from the first Sending frame. Only
-                            // its draw alpha changes, so completion cannot grow the message item.
-                            .height(44.dp)
-                            .padding(top = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
+                    val answerTailVisible = shouldShowStreamingTailIndicator(isStreaming, isStopping, message)
+                    val actionContent: @Composable RowScope.() -> Unit = {
                         if (!actionCopyText.isNullOrBlank()) {
                             IconButton(
                                 onClick = {
@@ -854,6 +867,17 @@ internal fun AssistantMessageContent(
                                 }
                             }
                         }
+                    }
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(44.dp).padding(top = 12.dp),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        if (answerTailVisible) GenerationActivityDot()
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            content = actionContent,
+                        )
                     }
                 }
 

@@ -21,6 +21,7 @@ class Phase32DirectDotSourceContractTest {
             "rememberInlineActivityDotOverlayState",
             "dotOverlayState",
         ).forEach { symbol -> assertFalse("MessageList retains $symbol", list.contains(symbol)) }
+        assertFalse(list.contains("StreamingTailIndicator("))
 
         val assistantActivity = assistant
             .substringAfter("private fun AssistantInlineActivity(")

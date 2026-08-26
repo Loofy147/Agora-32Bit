@@ -483,6 +483,7 @@ class MessageListStreamingTailTest {
         assertFalse(active.retainLayout)
         assertFalse(stopping.visible)
         assertTrue(stopping.retainLayout)
+        assertTrue(stopping.retainLayout && !stopping.visible)
         assertFalse(stopped.visible)
         assertFalse(stopped.retainLayout)
     }

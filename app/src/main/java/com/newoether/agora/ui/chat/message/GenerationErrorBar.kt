@@ -65,7 +65,7 @@ internal fun GenerationErrorBar(
     GenerationTerminalText(
         text = errorText,
         modifier = modifier.padding(
-            top = if (precededByCard) 12.dp else 4.dp,
+            top = if (precededByCard) 12.dp else 8.dp,
             bottom = 4.dp,
         ),
         selectable = true,
@@ -81,7 +81,7 @@ internal fun StoppedGenerationBar(
     GenerationTerminalText(
         text = stringResource(R.string.generation_stopped),
         modifier = Modifier.padding(
-            top = if (precededByCard) 12.dp else 0.dp,
+            top = if (precededByCard) 12.dp else 8.dp,
         ),
     )
 }
