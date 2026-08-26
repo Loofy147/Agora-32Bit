@@ -70,6 +70,7 @@ internal class ChatScrollCoordinator internal constructor(
     private val imeBottomAnchorStateHolder: MutableState<ImeBottomAnchorState>,
     private val viewportHeightState: MutableIntState,
     val messageHeights: SnapshotStateMap<String, Int>,
+    private val hydrationRegistry: ConversationHydrationRegistry,
     val messageLifecycleAppearanceRegistry: MessageLifecycleAppearanceRegistry,
     val streamingTailController: StreamingTailController,
 ) {
@@ -84,6 +85,9 @@ internal class ChatScrollCoordinator internal constructor(
     val viewportHeightPx: Int
         get() = viewportHeightState.intValue
     fun recordViewportHeight(heightPx: Int) { viewportHeightState.intValue = heightPx }
+    fun recordMessageHydrated(conversationId: String?, messageId: String) {
+        hydrationRegistry.record(conversationId, messageId)
+    }
     fun setComposerInputFocused(focused: Boolean) {
         if (composerInputFocusedState.value != focused) {
             composerInputFocusedState.value = focused
@@ -297,6 +301,8 @@ internal class ChatScrollCoordinator internal constructor(
                         messages = messages,
                         targetMessageId = request.targetMessageId,
                         scrollToTarget = request.scrollToTarget,
+                        scrollToAbsoluteBottom =
+                            request.kind == SwitchingRequestKind.CONVERSATION,
                     )
                 ) {
                     val completed = viewModel.completeSwitchingScroll(request.id)
@@ -669,25 +675,60 @@ internal class ChatScrollCoordinator internal constructor(
         messages: State<List<ChatMessage>>,
         targetMessageId: String?,
         scrollToTarget: Boolean,
+        scrollToAbsoluteBottom: Boolean,
     ): Boolean = withTimeoutOrNull(SCROLL_SETTLE_TIMEOUT_MS) {
-        var stableSamples = 0
-        var previousSignature: List<Any>? = null
-        while (stableSamples < STABLE_LAYOUT_SAMPLES) {
+        val stability = CoveredLayoutStabilityTracker(STABLE_LAYOUT_SAMPLES)
+        while (true) {
             delay(LAYOUT_SAMPLE_INTERVAL_MS)
             val currentMessages = messages.value
-            if (currentMessages.isEmpty()) {
-                val signature = listOf(0, viewportHeightPx)
-                if (signature == previousSignature) stableSamples += 1
-                else {
-                    previousSignature = signature
-                    stableSamples = 1
+            if (scrollToAbsoluteBottom) {
+                val lastTurnMessageIds = buildMessageListTurns(currentMessages)
+                    .lastOrNull()
+                    ?.messages
+                    ?.map(ChatMessage::id)
+                    .orEmpty()
+                val layout = listState.layoutInfo
+                val sentinel = layout.visibleItemsInfo.firstOrNull { item ->
+                    item.key == AbsoluteBottomSentinelKey
                 }
+                val sample = CoveredAbsoluteBottomSample(
+                    viewportHeightPx = viewportHeightPx,
+                    totalItemsCount = layout.totalItemsCount,
+                    canScrollForward = listState.canScrollForward,
+                    sentinelIndex = sentinel?.index,
+                    sentinelKey = sentinel?.key,
+                    lastTurnHydrated = hydrationRegistry.containsAll(lastTurnMessageIds),
+                )
+                if (sample.needsScroll) {
+                    listState.scrollToItem(sample.targetIndex)
+                    stability.reset()
+                    continue
+                }
+                if (!sample.ready) {
+                    stability.reset()
+                    continue
+                }
+                val signature = listOf(
+                    currentMessages.map(ChatMessage::id),
+                    lastTurnMessageIds.map { messageId ->
+                        listOf(messageId, messageHeights[messageId] ?: 0)
+                    },
+                    listState.firstVisibleItemIndex,
+                    listState.firstVisibleItemScrollOffset,
+                    layout.totalItemsCount,
+                    layout.viewportStartOffset,
+                    layout.viewportEndOffset,
+                    layout.visibleItemsInfo.map { item ->
+                        listOf(item.index, item.key, item.offset, item.size)
+                    },
+                    viewportHeightPx,
+                )
+                if (stability.observe(ready = true, signature = signature)) break
                 continue
             }
             if (!scrollToTarget) {
                 if (viewportHeightPx <= 0) {
-                    stableSamples = 0
-                    previousSignature = null
+                    stability.reset()
                     continue
                 }
                 val layout = listState.layoutInfo
@@ -703,26 +744,20 @@ internal class ChatScrollCoordinator internal constructor(
                     },
                     viewportHeightPx,
                 )
-                if (signature == previousSignature) stableSamples += 1
-                else {
-                    previousSignature = signature
-                    stableSamples = 1
-                }
+                if (stability.observe(ready = true, signature = signature)) break
                 continue
             }
             val targetIndex = resolveScrollTargetIndex(currentMessages, targetMessageId)
             val target = resolveScrollTargetMessage(currentMessages, targetMessageId)
             if (targetIndex == -1 || target == null || viewportHeightPx <= 0) {
-                stableSamples = 0
-                previousSignature = null
+                stability.reset()
                 continue
             }
             val requestedTarget = targetMessageId?.let { id ->
                 currentMessages.firstOrNull { it.id == id }
             }
             if (targetMessageId != null && requestedTarget == null) {
-                stableSamples = 0
-                previousSignature = null
+                stability.reset()
                 continue
             }
             val requestedTargetHeight = requestedTarget?.let { messageHeights[it.id] }
@@ -730,8 +765,7 @@ internal class ChatScrollCoordinator internal constructor(
                 requestedTarget != null &&
                 (requestedTargetHeight == null || requestedTargetHeight <= 0)
             ) {
-                stableSamples = 0
-                previousSignature = null
+                stability.reset()
                 continue
             }
 
@@ -740,8 +774,7 @@ internal class ChatScrollCoordinator internal constructor(
                     listState.firstVisibleItemScrollOffset <= 2
             if (!positioned) {
                 listState.scrollToItem(targetIndex, 0)
-                stableSamples = 0
-                previousSignature = null
+                stability.reset()
                 continue
             }
 
@@ -749,8 +782,7 @@ internal class ChatScrollCoordinator internal constructor(
                 .firstOrNull { it.index == targetIndex }
             val measuredHeight = messageHeights[target.id]
             if (targetInfo == null || measuredHeight == null || measuredHeight <= 0) {
-                stableSamples = 0
-                previousSignature = null
+                stability.reset()
                 continue
             }
             val signature = listOf(
@@ -765,11 +797,7 @@ internal class ChatScrollCoordinator internal constructor(
                 requestedTarget?.id.orEmpty(),
                 requestedTargetHeight ?: 0,
             )
-            if (signature == previousSignature) stableSamples += 1
-            else {
-                previousSignature = signature
-                stableSamples = 1
-            }
+            if (stability.observe(ready = true, signature = signature)) break
         }
         true
     } == true
@@ -805,6 +833,7 @@ internal fun rememberChatScrollCoordinator(
     }
     val viewportHeightState = remember { mutableIntStateOf(0) }
     val messageHeights = remember(currentConversationId) { mutableStateMapOf<String, Int>() }
+    val hydratedMessageIds = remember(currentConversationId) { mutableStateMapOf<String, Unit>() }
     val messageLifecycleAppearanceRegistry = remember { MessageLifecycleAppearanceRegistry() }
     val streamingTailController = rememberStreamingTailController(currentConversationId)
 
@@ -819,6 +848,7 @@ internal fun rememberChatScrollCoordinator(
         imeBottomAnchorStateHolder,
         viewportHeightState,
         messageHeights,
+        hydratedMessageIds,
         messageLifecycleAppearanceRegistry,
         streamingTailController,
     ) {
@@ -834,6 +864,10 @@ internal fun rememberChatScrollCoordinator(
             imeBottomAnchorStateHolder = imeBottomAnchorStateHolder,
             viewportHeightState = viewportHeightState,
             messageHeights = messageHeights,
+            hydrationRegistry = ConversationHydrationRegistry(
+                conversationId = currentConversationId,
+                hydratedMessageIds = hydratedMessageIds,
+            ),
             messageLifecycleAppearanceRegistry = messageLifecycleAppearanceRegistry,
             streamingTailController = streamingTailController,
         )

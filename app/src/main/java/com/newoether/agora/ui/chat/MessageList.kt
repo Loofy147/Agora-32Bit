@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -52,66 +53,24 @@ import com.newoether.agora.model.StableModelAliases
 import com.newoether.agora.model.ToolCallDisplayModes
 import com.newoether.agora.model.ThinkingSegmentDisplayModes
 import com.newoether.agora.model.isContextCompact
-import com.newoether.agora.ui.chat.message.AssistantInlineActivityMode
 import com.newoether.agora.ui.chat.message.GroupedSegmentAutoExpansionController
 import com.newoether.agora.ui.chat.message.MessageItem
 import com.newoether.agora.ui.chat.message.REGENERATION_ABORT_RESTORE_DURATION_MS
 import com.newoether.agora.ui.chat.message.REGENERATION_EXIT_DURATION_MS
 import com.newoether.agora.ui.chat.message.SegmentAppearanceRegistry
-import com.newoether.agora.ui.chat.message.assistantInlineActivityMode
-import com.newoether.agora.ui.chat.message.isInfoSegment
-import com.newoether.agora.ui.chat.message.isVisibleAnswerSegment
 import com.newoether.agora.ui.motion.LocalAgoraMotionPolicy
 import com.newoether.agora.viewmodel.RegenerationTransitionRequest
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-private data class RunProjectionMessageKey(
-    val id: String,
-    val parentId: String?,
-    val participant: Participant,
-    val timestamp: Long,
-    val runId: String?,
-    val runSequence: Long?,
-)
-
-private fun ChatMessage.toRunProjectionKey(): RunProjectionMessageKey =
-    RunProjectionMessageKey(
-        id = id,
-        parentId = parentId,
-        participant = participant,
-        timestamp = timestamp,
-        runId = runId,
-        runSequence = runSequence,
-    )
-
-internal fun compactMessageActionsEnabled(
-    isLoading: Boolean,
-    isStopping: Boolean,
-    isCompacting: Boolean,
-): Boolean = !isLoading && !isStopping && !isCompacting
-internal fun shouldShowStreamingTailIndicator(
-    isLoading: Boolean,
-    isStopping: Boolean,
-    message: ChatMessage?,
-): Boolean = message?.let {
-    val segments = it.segments.orEmpty()
-    val generationActive = it.status == MessageStatus.SENDING || it.status == MessageStatus.THINKING || it.status == MessageStatus.TOOL_CALLING || it.status == MessageStatus.TRANSCRIBING
-    isLoading && !isStopping && generationActive &&
-        MessageGenerationBoundaryResolver.isOrdinaryAssistant(it) && (segments.lastOrNull { segment -> segment.isVisibleAnswerSegment() || segment.isInfoSegment() }?.isVisibleAnswerSegment() ?: it.text.isNotBlank()) &&
-        assistantInlineActivityMode(
-            generationActive = generationActive,
-            hasAnswer = it.text.isNotBlank() || segments.any { segment -> segment.isVisibleAnswerSegment() },
-            hasVisibleInfoSegment = segments.any { segment -> segment.isInfoSegment() },
-            retryText = it.retryText,
-        ) == AssistantInlineActivityMode.NONE
-} == true
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun MessageList(
@@ -126,6 +85,7 @@ internal fun MessageList(
     isCompacting: Boolean = false, compactPreview: StateFlow<String>? = null,
     isStopping: Boolean = false,
     isSwitching: Boolean = false,
+    streamingMessageId: String? = null,
     streamingAutoFollowEnabled: Boolean = isLoading && !isSwitching,
     streamingAutoFollowPaused: Boolean = false,
     streamingTailWithinAttachThreshold: Boolean = false,
@@ -145,6 +105,8 @@ internal fun MessageList(
     bottomBarHeight: androidx.compose.ui.unit.Dp = 0.dp,
     viewportHeight: Int = 0,
     messageHeights: SnapshotStateMap<String, Int> = remember { mutableStateMapOf() },
+    observeMessage: (String) -> Flow<ChatMessage?> = { flowOf(null) },
+    onMessageHydrated: (String?, String) -> Unit = { _, _ -> },
     onEditMessage: suspend (String, String) -> Boolean = { _, _ -> false },
     onSwitchBranch: (String?, String, Int) -> Unit = { _, _, _ -> },
     onRegenerate: (String) -> Boolean = { false },
@@ -195,6 +157,7 @@ internal fun MessageList(
     val mutationScope = rememberCoroutineScope()
     val pendingMutationSettles = remember(state) { mutableMapOf<String, Job>() }
     val searchMatchCentersInTurn = remember(state) { mutableStateMapOf<String, Float>() }
+    val hydratedPayloads = remember(conversationId) { HydratedMessagePayloadLru() }
     var listRootY by remember(state) { mutableFloatStateOf(0f) }
     var streamingTailFollowMode by remember(state, conversationId) {
         mutableStateOf(StreamingTailFollowMode.INACTIVE)
@@ -206,6 +169,10 @@ internal fun MessageList(
     val latestAutoFollowEnabled by rememberUpdatedState(streamingAutoFollowEnabled)
     val density = androidx.compose.ui.platform.LocalDensity.current
     val tailTolerancePx = with(density) { 2.dp.toPx() }
+
+    fun cacheHydratedPayload(message: ChatMessage) {
+        hydratedPayloads.put(message)
+    }
 
     fun cancelMutationAnchoring() {
         pendingMutationSettles.values.forEach { it.cancel() }
@@ -396,7 +363,7 @@ internal fun MessageList(
         }
 
         retainedRegenerationExitMessages = regenerationExitMessages(
-            messages = messages.list,
+            messages = messages.list.map { message -> hydratedPayloads[message.id] ?: message },
             oldMessageId = transition.oldMessageId,
         )
         regenerationExitIds =
@@ -686,27 +653,59 @@ internal fun MessageList(
         )
     }
 
-    fun restoreAnchor(anchor: MessageListViewportAnchor): Boolean {
-        val turnIndex = messageListTurnIndex(turns, anchor.messageId)
-        if (turnIndex < 0) return false
-        state.requestScrollToItem(
-            turnIndex,
-            anchor.scrollOffsetPx,
-        )
-        return true
-    }
+    val renderMessage: @Composable (ChatMessage) -> Unit = { messageStub ->
+        val isStreamingOverlay = messageStub.id == streamingMessageId
+        val cachedMessage = hydratedPayloads[messageStub.id]
+        val observedMessage by remember(messageStub.id, isStreamingOverlay, observeMessage) {
+            if (isStreamingOverlay) {
+                flowOf(messageStub)
+            } else {
+                observeMessage(messageStub.id)
+            }
+        }.collectAsState(initial = if (isStreamingOverlay) messageStub else cachedMessage)
+        val message = observedMessage ?: cachedMessage ?: messageStub
+        val hydrationPending = !isStreamingOverlay && observedMessage == null && cachedMessage == null
+        val hydrationMutationKey = "hydrate:${messageStub.id}"
 
-    val renderMessage: @Composable (ChatMessage) -> Unit = { message ->
+        LaunchedEffect(messageStub.id, observedMessage, cachedMessage, isStreamingOverlay) {
+            val hydrated = observedMessage ?: cachedMessage
+            if (isStreamingOverlay || hydrated != null) {
+                hydrated?.let(::cacheHydratedPayload)
+                onMessageHydrated(conversationId, messageStub.id)
+                if (mutationAnchorLock.isActive(hydrationMutationKey)) {
+                    withFrameNanos { }
+                    withFrameNanos { }
+                    mutationAnchorLock.finish(hydrationMutationKey)?.let { anchor ->
+                        state.restoreMessageListViewportAnchor(turns, anchor)
+                    }
+                }
+            } else if (
+                messageListLayoutMode(
+                    isSwitching = isSwitching,
+                    isScrollInProgress = state.isScrollInProgress || programmaticScrollActive,
+                ) == MessageListLayoutMode.STABLE
+            ) {
+                val anchor = mutationAnchorLock.begin(
+                    key = hydrationMutationKey,
+                    candidate = state.captureMessageListViewportAnchor(turns),
+                )
+                if (anchor != null) state.restoreMessageListViewportAnchor(turns, anchor)
+            }
+        }
+        DisposableEffect(hydrationMutationKey) {
+            onDispose { mutationAnchorLock.finish(hydrationMutationKey) }
+        }
+
         val isRetainedRegenerationExit =
             message.id in regenerationExitIds && message.id !in activeMessageIds
-        val messageIsStreaming =
+        val messageIsStreaming = isStreamingOverlay &&
             message.participant == Participant.MODEL &&
-                message.status in setOf(
-                    MessageStatus.SENDING,
-                    MessageStatus.THINKING,
-                    MessageStatus.TOOL_CALLING,
-                    MessageStatus.TRANSCRIBING,
-                )
+            message.status in setOf(
+                MessageStatus.SENDING,
+                MessageStatus.THINKING,
+                MessageStatus.TOOL_CALLING,
+                MessageStatus.TRANSCRIBING,
+            )
         val isInContext =
             messageIsStreaming ||
                 (!isRetainedRegenerationExit && message.id in inContextIds)
@@ -735,16 +734,23 @@ internal fun MessageList(
             lifecycleAppearanceRegistry.markKnown(message.id)
         }
 
+        val reservedHydrationHeight = messageHeights[message.id]
+            ?.takeIf { hydrationPending && it > 0 }
+            ?.let { heightPx -> with(density) { heightPx.toDp() } }
+        val hydrationHeightModifier = reservedHydrationHeight
+            ?.let { height -> Modifier.heightIn(min = height) }
+            ?: Modifier
+
         MessageItem(
             message = message,
             segmentAppearanceRegistry = segmentAppearanceRegistry,
-            modifier = if (message.id in regenerationExitIds) {
+            modifier = (if (message.id in regenerationExitIds) {
                 Modifier.graphicsLayer {
                     alpha = regenerationExitAlpha.value
                 }
             } else {
                 Modifier
-            },
+            }).then(hydrationHeightModifier),
             animateEntrance = animateLifecycleEntrance,
             onEdit = { id, text ->
                 if (!isRetainedRegenerationExit && pendingEditMessageId == null) {
@@ -889,7 +895,7 @@ internal fun MessageList(
                     ) {
                         val lockedAnchor = mutationAnchorLock.anchor
                         if (lockedAnchor != null) {
-                            restoreAnchor(lockedAnchor)
+                            state.restoreMessageListViewportAnchor(turns, lockedAnchor)
                         }
                     }
                 }
@@ -904,22 +910,13 @@ internal fun MessageList(
                             state.isScrollInProgress || programmaticScrollActive,
                     ) == MessageListLayoutMode.STABLE
                 ) {
-                    val anchorMessage = turns
-                        .getOrNull(state.firstVisibleItemIndex)
-                        ?.messages
-                        ?.firstOrNull()
                     val anchor = mutationAnchorLock.begin(
                         key = mutationKey,
-                        candidate = anchorMessage?.let {
-                            MessageListViewportAnchor(
-                                messageId = it.id,
-                                scrollOffsetPx = state.firstVisibleItemScrollOffset,
-                            )
-                        },
+                        candidate = state.captureMessageListViewportAnchor(turns),
                     )
                     // Pre-arm the very first remeasure. Waiting for onSizeChanged is one frame
                     // too late when an AnimatedVisibility reverses under rapid taps.
-                    if (anchor != null) restoreAnchor(anchor)
+                    if (anchor != null) state.restoreMessageListViewportAnchor(turns, anchor)
                 }
             },
             onLayoutMutationSettled = { mutationKey ->
