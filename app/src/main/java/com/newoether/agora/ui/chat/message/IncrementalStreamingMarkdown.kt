@@ -93,34 +93,6 @@ private data class StreamingMarkdownInput(
     val textDeltas: List<StreamingTextDelta>,
 )
 
-/**
- * Latest-value commit gate used while an embedded code block owns a horizontal gesture.
- *
- * Parsing continues and conflates normally, but Compose keeps the currently measured tree until
- * every active interaction ends. The newest completed snapshot is then committed exactly once.
- */
-internal class StreamingInteractionCommitGate<T : Any> {
-    private val activeOwners = mutableSetOf<Any>()
-    private var pending: T? = null
-
-    fun offer(value: T): T? {
-        if (activeOwners.isNotEmpty()) {
-            pending = value
-            return null
-        }
-        return value
-    }
-
-    fun setActive(owner: Any, active: Boolean): T? {
-        if (active) {
-            activeOwners += owner
-            return null
-        }
-        activeOwners -= owner
-        if (activeOwners.isNotEmpty()) return null
-        return pending.also { pending = null }
-    }
-}
 
 @Stable
 internal interface StreamingMarkdownInteractionController {
@@ -527,13 +499,13 @@ private class StreamingMarkdownRenderState(
     initialContent: String,
     initialIsStreaming: Boolean,
     initialTextDeltas: List<StreamingTextDelta>,
+    private val fadeTracker: StreamingTailFadeTracker,
 ) : StreamingMarkdownInteractionController {
     private val document = IncrementalMarkdownDocument(flavour)
     private val inputs = Channel<StreamingMarkdownInput>(Channel.CONFLATED)
     private val offeredRevision = AtomicLong(0L)
     private val interactionCommitGate =
         StreamingInteractionCommitGate<StreamingMarkdownSnapshot>()
-    private val fadeTracker = StreamingTailFadeTracker()
     private val _snapshot = MutableStateFlow(
         StreamingMarkdownSnapshot(
             inputContent = initialContent,
@@ -639,6 +611,7 @@ internal fun IncrementalStreamingMarkdownContent(
     modifier: Modifier = Modifier,
     selectionEnabled: Boolean = !isStreaming,
     textDeltas: List<StreamingTextDelta> = emptyList(),
+    fadeTracker: StreamingTailFadeTracker = remember { StreamingTailFadeTracker() },
 ) {
     var hasStreamed by remember { mutableStateOf(isStreaming || textDeltas.isNotEmpty()) }
     SideEffect {
@@ -667,6 +640,7 @@ internal fun IncrementalStreamingMarkdownContent(
             initialContent = content,
             initialIsStreaming = isStreaming,
             initialTextDeltas = textDeltas,
+            fadeTracker = fadeTracker,
         )
     }
     LaunchedEffect(state) {

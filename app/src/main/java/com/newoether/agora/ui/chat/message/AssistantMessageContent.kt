@@ -332,6 +332,8 @@ internal fun AssistantMessageContent(
             .filter { it.isVisibleAnswerSegment() }
             .flatMap { it.streamingTextDeltas }
     }
+    val answerFadeTracker =
+        segmentAppearanceRegistry.streamingFadeTracker("${message.id}:answer")
     val generationActive = message.participant == Participant.MODEL &&
         (
             isStreaming ||
@@ -555,6 +557,7 @@ internal fun AssistantMessageContent(
                                         modifier = Modifier.fillMaxWidth(),
                                         selectionEnabled = !isStreaming,
                                         textDeltas = answerTextDeltas,
+                                        fadeTracker = answerFadeTracker,
                                     )
                                 }
                             } else {
@@ -565,6 +568,7 @@ internal fun AssistantMessageContent(
                                     modifier = Modifier.fillMaxWidth(),
                                     selectionEnabled = !isStreaming,
                                     textDeltas = answerTextDeltas,
+                                    fadeTracker = answerFadeTracker,
                                 )
                             }
                         }

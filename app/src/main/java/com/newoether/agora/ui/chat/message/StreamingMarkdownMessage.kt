@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -32,6 +33,7 @@ internal fun StreamingMarkdownMessage(
     modifier: Modifier = Modifier,
     selectionEnabled: Boolean = !isStreaming,
     textDeltas: List<StreamingTextDelta> = emptyList(),
+    fadeTracker: StreamingTailFadeTracker = remember { StreamingTailFadeTracker() },
     emptyStreamingText: String? = null,
     emptyStreamingTextColor: Color = Color.Unspecified,
     emptyStreamingTextStyle: TextStyle = renderContext.plainTextStyle,
@@ -50,6 +52,7 @@ internal fun StreamingMarkdownMessage(
                 modifier = Modifier.fillMaxWidth(),
                 selectionEnabled = selectionEnabled,
                 textDeltas = textDeltas,
+                fadeTracker = fadeTracker,
             )
         }
         AnimatedVisibility(

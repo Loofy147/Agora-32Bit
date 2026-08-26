@@ -15,6 +15,8 @@ class StreamingMarkdownMessageSourceContractTest {
         val assistant = source(root, "AssistantMessageContent.kt")
         val timeline = source(root, "MessageItemTimeline.kt")
         val detail = source(root, "SegmentDetailSheet.kt")
+        val segments = source(root, "MessageItemSegments.kt")
+        val interaction = source(root, "StreamingMarkdownInteractionCommitGate.kt")
 
         assertTrue(wrapper.contains("internal fun StreamingMarkdownMessage("))
         assertTrue(wrapper.contains("IncrementalStreamingMarkdownContent("))
@@ -40,6 +42,18 @@ class StreamingMarkdownMessageSourceContractTest {
             Regex("textDeltas = answerTextDeltas,").findAll(assistant).count(),
         )
         assertTrue(timeline.contains("textDeltas = seg.streamingTextDeltas,"))
+        assertEquals(
+            2,
+            Regex("fadeTracker = answerFadeTracker,").findAll(assistant).count(),
+        )
+        assertTrue(timeline.contains("fadeTracker = answerFadeTracker,"))
+        assertTrue(segments.contains("streamingFadeTrackers.getOrPut(key)"))
+        assertTrue(wrapper.contains("fadeTracker: StreamingTailFadeTracker"))
+        assertTrue(wrapper.contains("fadeTracker = fadeTracker,"))
+        assertTrue(incremental.contains("private val fadeTracker: StreamingTailFadeTracker"))
+        assertFalse(incremental.contains("private val fadeTracker = StreamingTailFadeTracker()"))
+        assertFalse(incremental.contains("internal class StreamingInteractionCommitGate"))
+        assertTrue(interaction.contains("internal class StreamingInteractionCommitGate"))
         assertTrue(wrapper.contains("emptyStreamingTextStyle: TextStyle"))
         assertTrue(wrapper.contains("AnimatedVisibility("))
         assertTrue(wrapper.contains(".padding(top = 8.dp)"))

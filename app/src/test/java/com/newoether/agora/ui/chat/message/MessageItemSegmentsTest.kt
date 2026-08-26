@@ -7,9 +7,12 @@ import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
 import com.newoether.agora.model.ThinkingSegmentDisplayModes
 import com.newoether.agora.model.ToolCallDisplayModes
+import com.newoether.agora.model.StreamingTextDelta
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -207,6 +210,34 @@ class MessageItemSegmentsTest {
         assertTrue(registry.shouldAnimate(key, isStreaming = true))
         registry.markSeen(key)
         assertFalse(registry.shouldAnimate(key, isStreaming = true))
+    }
+
+    @Test
+    fun streamingFadeTimelineSurvivesLazyItemDisposal() {
+        val registry = SegmentAppearanceRegistry()
+        val key = "message:answer"
+        val first = registry.streamingFadeTracker(key)
+        first.update(
+            text = "old",
+            nowMs = 1_000L,
+            textDeltas = listOf(StreamingTextDelta(sequence = 0L, codePointCount = 3)),
+        )
+
+        val recreated = registry.streamingFadeTracker(key)
+        val sample = recreated.update(
+            text = "oldnew",
+            nowMs = 1_200L,
+            textDeltas = listOf(
+                StreamingTextDelta(sequence = 0L, codePointCount = 3),
+                StreamingTextDelta(sequence = 1L, codePointCount = 3),
+            ),
+        )
+
+        assertSame(first, recreated)
+        assertArrayEquals(
+            longArrayOf(1_000L, 1_000L, 1_000L, 1_200L, 1_200L, 1_200L),
+            sample.birthTimesMs,
+        )
     }
 
     @Test

@@ -310,6 +310,10 @@ internal fun buildTimelineBlockKeys(
 @Stable
 internal class SegmentAppearanceRegistry {
     private val seenKeys = HashSet<String>()
+    private val streamingFadeTrackers = HashMap<String, StreamingTailFadeTracker>()
+
+    fun streamingFadeTracker(key: String): StreamingTailFadeTracker =
+        streamingFadeTrackers.getOrPut(key) { StreamingTailFadeTracker() }
 
     fun shouldAnimate(key: String, isStreaming: Boolean): Boolean =
         isStreaming && key !in seenKeys

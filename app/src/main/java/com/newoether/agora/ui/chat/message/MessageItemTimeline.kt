@@ -702,6 +702,8 @@ internal fun TimelineSegmentsContent(
                         val answerContent = citationProjection?.markdown ?: seg.content
                         val answerAppearanceKey =
                             "${segmentAppearanceKey(message.id, index, seg)}:timeline"
+                        val answerFadeTracker =
+                            segmentAppearanceRegistry.streamingFadeTracker("$answerAppearanceKey:fade")
                         AnimatedTimelineBlockAppearance(
                             animationKey = answerAppearanceKey,
                             appearanceRegistry = segmentAppearanceRegistry,
@@ -725,6 +727,7 @@ internal fun TimelineSegmentsContent(
                                             .noOpBringIntoView(),
                                         selectionEnabled = !answerIsStreaming,
                                         textDeltas = seg.streamingTextDeltas,
+                                        fadeTracker = answerFadeTracker,
                                     )
                                 }
                             }
