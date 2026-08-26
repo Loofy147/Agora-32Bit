@@ -7,7 +7,7 @@ import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
 import com.newoether.agora.model.ThinkingSegmentDisplayModes
 import com.newoether.agora.model.ToolCallDisplayModes
-import com.newoether.agora.model.StreamingTextDelta
+
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -220,17 +220,12 @@ class MessageItemSegmentsTest {
         first.update(
             text = "old",
             nowMs = 1_000L,
-            textDeltas = listOf(StreamingTextDelta(sequence = 0L, codePointCount = 3)),
         )
 
         val recreated = registry.streamingFadeTracker(key)
         val sample = recreated.update(
             text = "oldnew",
             nowMs = 1_200L,
-            textDeltas = listOf(
-                StreamingTextDelta(sequence = 0L, codePointCount = 3),
-                StreamingTextDelta(sequence = 1L, codePointCount = 3),
-            ),
         )
 
         assertSame(first, recreated)

@@ -125,7 +125,7 @@ internal fun buildLiveSegments(
             MessageSegment(
                 type = "answer",
                 content = answer.toString(),
-                streamingTextDeltas = answerDeltas,
+                streamingTextDeltas = answerDeltas.toList(),
             ),
         )
     }

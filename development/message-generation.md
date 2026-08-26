@@ -264,9 +264,9 @@ cadence, and stream-to-terminal renderer continuity. A caller must not keep a se
 Markdown algorithm or switch to a different terminal renderer merely because streaming ended.
 
 The implementation is only a parameterized UI variant. Its allowed inputs include Markdown
-content, streaming state, render context, font/size/color, a published-delta glyph timeline, and a
+content, streaming state, render context, font/size/color, a publication birth-time glyph timeline, and a
 generic animated empty-stream presentation. Every append-growing live text surface uses one
-age-and-delta-position active glyph fade with no fixed character-count cap: ordinary/timeline answer
+time-only active glyph fade with no fixed character-count cap: ordinary/timeline answer
 Markdown and plain/code leaves, Thinking previews/summaries in Compact/Timeline/detail-sheet modes,
 Tool summaries derived from streaming arguments or live state, and equivalent live detail text.
 Static titles, terminal labels, Retry, error text, and citation metadata do not replay this stream
@@ -277,23 +277,22 @@ alignment, semantics, links, citations, selection mapping, search highlights, an
 only glyph paint alpha changes. Terminal settlement must not remove temporary foreground spans,
 replace the Text/Markdown implementation, reset the paint origin, or otherwise create a left jump.
 
-Every newly published Unicode code point has an original delta identity, its code-point ordinal and
-code-point count within that delta, and a birth timestamp assigned only when the glyph is first
-published to a visible render snapshot. Input offer time, conflated parses, stale parses, and
-interaction-held snapshots cannot age a glyph before its first visible frame. If one frame publishes
-several original deltas, their position domains remain independent and every new glyph still starts
+Every newly published Unicode code point receives a birth timestamp only on its first visible render
+snapshot. Code points published together have the same initial alpha regardless of Provider delta,
+ordinal, or position. Input offers, conflated/stale parses, and interaction-held snapshots cannot age
+glyphs before their first visible frame. Every new glyph starts
 at output alpha zero. Existing glyphs retain their metadata and never replay when another delta
 arrives, Markdown is reparsed or promoted, Compose recomposes, LazyColumn evicts or rehydrates a row,
 the row scrolls off-screen and back, or generation becomes terminal.
 
-For code point `i` in original delta `D` with `N` code points, the approved constants are
-`k = 2.0 s^-1` and `W = 0.12 s`. The renderer computes
-`position_i(D) = i / max(N - 1, 1) * W`,
-`rawAlpha_i(t) = k * (elapsed_i(t) - position_i(D))`, and
-`alpha_i(t) = clamp(rawAlpha_i(t), 0, 1)`. Position resets for each original delta and never derives
-from the whole message or document. Negative raw alpha is retained only as a calculation; paint alpha
-is always clamped to `[0, 1]`. Spatial alpha bands, a positive newest-glyph starting alpha,
-large-delta shortcuts, long-document bypasses, and count-based fade disabling are forbidden.
+The approved constant is `k = 2.0 s^-1`: `rawAlpha(t) = k * elapsed(t)` and
+`alpha(t) = clamp(rawAlpha(t), 0, 1)`. Alpha is zero at birth, 0.2 at 100 ms, 0.5 at 250 ms, and one
+at 500 ms. Delta identity and all position encoding, delay fields, spatial bands, positive starting
+alpha, count caps, and large/long-document bypasses are forbidden.
+
+Delta metadata may only select the persistent incremental path at renderer entry; it must not reach
+the parser worker, tracker, fade samples/specs, or paint. Active generation publishes each answer-delta
+list as a point-in-time copy, never an alias of the mutating Provider accumulator.
 
 Only glyphs that have reached output alpha one may be pruned from the tracker, without a count cap and
 without changing later output. The finite Welcome/Onboarding typewriter may share the same low-level

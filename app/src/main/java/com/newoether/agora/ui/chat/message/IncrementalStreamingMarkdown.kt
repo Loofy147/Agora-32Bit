@@ -44,7 +44,6 @@ import kotlin.math.max
 import kotlin.math.min
 
 private const val STREAM_TAIL_ALPHA_PER_SECOND = 2f
-private const val STREAM_DELTA_POSITION_WINDOW_MS = 120L
 private const val STREAM_TAIL_FADE_TICK_MS = 40L
 private const val LONG_DOCUMENT_THRESHOLD_CHARS = 8_000
 private const val LONG_DOCUMENT_RENDER_INTERVAL_MS = 120L
@@ -82,7 +81,6 @@ internal data class StreamingMarkdownSnapshot(
     val tail: String,
     val liveBlock: LiveMarkdownBlock?,
     val isStreaming: Boolean,
-    val textDeltas: List<StreamingTextDelta> = emptyList(),
     val fadeSample: StreamingTailFadeSample? = null,
 )
 
@@ -90,7 +88,6 @@ private data class StreamingMarkdownInput(
     val revision: Long,
     val content: String,
     val isStreaming: Boolean,
-    val textDeltas: List<StreamingTextDelta>,
 )
 
 
@@ -107,7 +104,6 @@ internal val LocalStreamingMarkdownInteractionController =
 internal data class StreamingGlyphFadeSpec(
     val tailCodePoints: Int,
     val birthTimesMs: LongArray,
-    val positionDelaysMs: LongArray,
 )
 
 internal val LocalStreamingGlyphFadeSpec =
@@ -118,7 +114,6 @@ internal val LocalStreamingGlyphFadeSpec =
 internal data class StreamingGlyphNodeFade(
     val tailCodePoints: Int,
     val birthTimesMs: LongArray,
-    val positionDelaysMs: LongArray,
 )
 
 /** Maps a block timeline to the overlapping code-point range of one text node. */
@@ -138,10 +133,6 @@ internal fun StreamingGlyphFadeSpec?.nodeFade(
     return StreamingGlyphNodeFade(
         tailCodePoints = overlapCount,
         birthTimesMs = birthTimesMs.copyOfRange(sliceStart, sliceStart + overlapCount),
-        positionDelaysMs = positionDelaysMs.copyOfRange(
-            sliceStart,
-            sliceStart + overlapCount,
-        ),
     )
 }
 
@@ -150,8 +141,7 @@ internal fun computeBlockFadeSpecs(
     snapshot: StreamingMarkdownSnapshot,
 ): List<StreamingGlyphFadeSpec?> {
     val births = snapshot.fadeSample?.birthTimesMs ?: LongArray(0)
-    val delays = snapshot.fadeSample?.positionDelaysMs ?: LongArray(0)
-    if (births.isEmpty() || births.size != delays.size) return emptyList()
+    if (births.isEmpty()) return emptyList()
     val blocks = snapshot.stableBlocks
     val live = snapshot.liveBlock
     val blockCount = blocks.size + (if (live != null) 1 else 0)
@@ -181,7 +171,6 @@ internal fun computeBlockFadeSpecs(
             StreamingGlyphFadeSpec(
                 tailCodePoints = tailCp,
                 birthTimesMs = births.copyOfRange(sliceStart, sliceStart + tailCp),
-                positionDelaysMs = delays.copyOfRange(sliceStart, sliceStart + tailCp),
             )
         )
     }
@@ -192,24 +181,20 @@ internal fun computeBlockFadeSpecs(
 internal data class StreamingTailFadeSample(
     val observedAtMs: Long,
     val birthTimesMs: LongArray,
-    val positionDelaysMs: LongArray,
 )
 
 private data class StreamingFadingGlyph(
     val birthTimeMs: Long,
-    val positionDelayMs: Long,
 )
 
 /** Owns published glyph timing; conflated inputs cannot age unpublished deltas. */
 internal class StreamingTailFadeTracker {
     private var previousText = ""
     private val fadingGlyphs = java.util.ArrayDeque<StreamingFadingGlyph>()
-    private val publishedDeltaSequences = hashSetOf<Long>()
 
     fun update(
         text: String,
         nowMs: Long,
-        textDeltas: List<StreamingTextDelta> = emptyList(),
     ): StreamingTailFadeSample {
         require(nowMs >= 0L)
         pruneSolidPrefix(nowMs)
@@ -219,7 +204,7 @@ internal class StreamingTailFadeTracker {
             text.startsWith(previousText) -> {
                 val appendedCodePoints =
                     text.codePointCount(previousText.length, text.length)
-                appendPublishedGlyphs(appendedCodePoints, nowMs, textDeltas)
+                appendPublishedGlyphs(appendedCodePoints, nowMs)
             }
             previousText.endsWith(text) -> {
                 // A closed Markdown block was promoted out of the live tail. The remaining text is
@@ -234,7 +219,6 @@ internal class StreamingTailFadeTracker {
                 appendPublishedGlyphs(
                     codePointCount = text.codePointCount(0, text.length),
                     nowMs = nowMs,
-                    textDeltas = textDeltas,
                 )
             }
         }
@@ -242,7 +226,6 @@ internal class StreamingTailFadeTracker {
         return StreamingTailFadeSample(
             observedAtMs = nowMs,
             birthTimesMs = fadingGlyphs.map { it.birthTimeMs }.toLongArray(),
-            positionDelaysMs = fadingGlyphs.map { it.positionDelayMs }.toLongArray(),
         )
     }
 
@@ -254,74 +237,15 @@ internal class StreamingTailFadeTracker {
         }
     }
 
-    private fun appendPublishedGlyphs(
-        codePointCount: Int,
-        nowMs: Long,
-        textDeltas: List<StreamingTextDelta>,
-    ) {
-        if (codePointCount <= 0) return
-        val newDeltas = textDeltas.filter { delta ->
-            delta.codePointCount > 0 && delta.sequence !in publishedDeltaSequences
-        }
-        if (newDeltas.isEmpty()) {
-            repeat(codePointCount) { index ->
-                fadingGlyphs.addLast(
-                    StreamingFadingGlyph(
-                        birthTimeMs = nowMs,
-                        positionDelayMs = deltaPositionDelayMs(index, codePointCount),
-                    ),
-                )
-            }
-            return
-        }
-
-        val declaredTotal = newDeltas.sumOf { it.codePointCount.toLong() }
-        repeat(codePointCount) { publishedIndex ->
-            val declaredIndex = (
-                publishedIndex.toDouble() /
-                    codePointCount.toDouble() *
-                    declaredTotal.toDouble()
-                ).toLong().coerceIn(0L, declaredTotal - 1L)
-            var groupStart = 0L
-            var owningDelta = newDeltas.last()
-            for (delta in newDeltas) {
-                val groupEnd = groupStart + delta.codePointCount
-                if (declaredIndex < groupEnd) {
-                    owningDelta = delta
-                    break
-                }
-                groupStart = groupEnd
-            }
-            val localIndex = (declaredIndex - groupStart)
-                .toInt()
-                .coerceIn(0, owningDelta.codePointCount - 1)
-            fadingGlyphs.addLast(
-                StreamingFadingGlyph(
-                    birthTimeMs = nowMs,
-                    positionDelayMs = deltaPositionDelayMs(
-                        index = localIndex,
-                        count = owningDelta.codePointCount,
-                    ),
-                ),
-            )
-        }
-        newDeltas.forEach { delta -> publishedDeltaSequences += delta.sequence }
+    private fun appendPublishedGlyphs(codePointCount: Int, nowMs: Long) {
+        repeat(codePointCount.coerceAtLeast(0)) { fadingGlyphs.addLast(StreamingFadingGlyph(nowMs)) }
     }
 
     private fun streamingGlyphAlpha(glyph: StreamingFadingGlyph, nowMs: Long): Float {
         val elapsedSeconds = (nowMs - glyph.birthTimeMs).coerceAtLeast(0L) / 1_000f
-        val positionSeconds = glyph.positionDelayMs / 1_000f
-        return (STREAM_TAIL_ALPHA_PER_SECOND * (elapsedSeconds - positionSeconds))
-            .coerceIn(0f, 1f)
+        return (STREAM_TAIL_ALPHA_PER_SECOND * elapsedSeconds).coerceIn(0f, 1f)
     }
 }
-
-private fun deltaPositionDelayMs(index: Int, count: Int): Long =
-    if (count <= 1) {
-        0L
-    } else {
-        index.toLong() * STREAM_DELTA_POSITION_WINDOW_MS / (count - 1).toLong()
-    }
 
 private data class MarkdownFence(
     val marker: Char,
@@ -498,7 +422,6 @@ private class StreamingMarkdownRenderState(
     private val parseInlineDollarMath: Boolean,
     initialContent: String,
     initialIsStreaming: Boolean,
-    initialTextDeltas: List<StreamingTextDelta>,
     private val fadeTracker: StreamingTailFadeTracker,
 ) : StreamingMarkdownInteractionController {
     private val document = IncrementalMarkdownDocument(flavour)
@@ -513,7 +436,6 @@ private class StreamingMarkdownRenderState(
             tail = initialContent,
             liveBlock = null,
             isStreaming = initialIsStreaming,
-            textDeltas = initialTextDeltas,
         )
     )
     val snapshot: StateFlow<StreamingMarkdownSnapshot> = _snapshot.asStateFlow()
@@ -521,10 +443,9 @@ private class StreamingMarkdownRenderState(
     fun offer(
         content: String,
         isStreaming: Boolean,
-        textDeltas: List<StreamingTextDelta>,
     ) {
         val revision = offeredRevision.incrementAndGet()
-        inputs.trySend(StreamingMarkdownInput(revision, content, isStreaming, textDeltas))
+        inputs.trySend(StreamingMarkdownInput(revision, content, isStreaming))
     }
 
     override fun setCodeBlockScrolling(owner: Any, active: Boolean) {
@@ -536,7 +457,6 @@ private class StreamingMarkdownRenderState(
                 fadeSample = fadeTracker.update(
                     text = preparedSource,
                     nowMs = nowMs,
-                    textDeltas = pending.textDeltas,
                 ),
             )
         }
@@ -576,7 +496,7 @@ private class StreamingMarkdownRenderState(
                     preparedSource = preparedSource,
                     inputContent = input.content,
                     isStreaming = input.isStreaming,
-                ).copy(textDeltas = input.textDeltas)
+                )
                 next to preparedSource
             }
             // Parsing is not cooperatively cancellable. A revision gate provides mapLatest
@@ -589,7 +509,6 @@ private class StreamingMarkdownRenderState(
                         fadeSample = fadeTracker.update(
                             text = preparedSource,
                             nowMs = nowMs,
-                            textDeltas = published.textDeltas,
                         ),
                     )
                 }
@@ -639,17 +558,16 @@ internal fun IncrementalStreamingMarkdownContent(
             parseInlineDollarMath = renderContext.parseInlineDollarMath,
             initialContent = content,
             initialIsStreaming = isStreaming,
-            initialTextDeltas = textDeltas,
             fadeTracker = fadeTracker,
         )
     }
     LaunchedEffect(state) {
         state.run()
     }
-    LaunchedEffect(state, content, isStreaming, textDeltas) {
+    LaunchedEffect(state, content, isStreaming) {
         // One offer per actual input snapshot. A SideEffect here also ran after fade-clock
         // recompositions and needlessly woke the parser worker for unchanged text.
-        state.offer(content, isStreaming, textDeltas)
+        state.offer(content, isStreaming)
     }
     DisposableEffect(state) {
         onDispose(state::close)
@@ -763,13 +681,12 @@ private fun ParsedMarkdownBlockContent(
     )
 }
 
-/** Applies clamp(k * (elapsed - deltaPosition), 0, 1) without changing layout. */
+/** Applies clamp(k * elapsed, 0, 1) without changing layout. */
 internal fun streamingTailAnnotatedString(
     text: String,
     color: Color,
     fadeCodePoints: Int? = null,
     birthTimesMs: LongArray? = null,
-    positionDelaysMs: LongArray? = null,
     nowMs: Long = 0L,
     alphaPerSecond: Float = STREAM_TAIL_ALPHA_PER_SECOND,
 ): AnnotatedString = streamingTailAnnotatedString(
@@ -777,7 +694,6 @@ internal fun streamingTailAnnotatedString(
     color = color,
     fadeCodePoints = fadeCodePoints,
     birthTimesMs = birthTimesMs,
-    positionDelaysMs = positionDelaysMs,
     nowMs = nowMs,
     alphaPerSecond = alphaPerSecond,
 )
@@ -791,14 +707,12 @@ internal fun streamingTailAnnotatedString(
     color: Color,
     fadeCodePoints: Int? = null,
     birthTimesMs: LongArray? = null,
-    positionDelaysMs: LongArray? = null,
     nowMs: Long = 0L,
     alphaPerSecond: Float = STREAM_TAIL_ALPHA_PER_SECOND,
 ): AnnotatedString {
     if (text.isEmpty()) return text
     val births = birthTimesMs ?: return text
-    val delays = positionDelaysMs ?: return text
-    if (births.isEmpty() || births.size != delays.size) return text
+    if (births.isEmpty()) return text
 
     val rawText = text.text
     val codePointCount = rawText.codePointCount(0, rawText.length)
@@ -828,11 +742,8 @@ internal fun streamingTailAnnotatedString(
         val metadataIndex = metadataStart + suffixIndex
         val elapsedSeconds =
             (nowMs - births[metadataIndex]).coerceAtLeast(0L) / 1_000f
-        val positionSeconds = delays[metadataIndex].coerceAtLeast(0L) / 1_000f
-        val alpha = (
-            alphaPerSecond.coerceAtLeast(0f) *
-                (elapsedSeconds - positionSeconds)
-            ).coerceIn(0f, 1f)
+        val alpha = (alphaPerSecond.coerceAtLeast(0f) * elapsedSeconds)
+            .coerceIn(0f, 1f)
         if (rangeAlpha == null) {
             rangeAlpha = alpha
         } else if (kotlin.math.abs(checkNotNull(rangeAlpha) - alpha) > 0.0001f) {
@@ -873,10 +784,6 @@ internal fun rememberStreamingGlyphFade(
                         fade.birthTimesMs.size - fadedCount,
                         fade.birthTimesMs.size,
                     ),
-                    positionDelaysMs = fade.positionDelaysMs.copyOfRange(
-                        fade.positionDelaysMs.size - fadedCount,
-                        fade.positionDelaysMs.size,
-                    ),
                 )
             }
         }
@@ -889,7 +796,6 @@ internal fun rememberStreamingGlyphFade(
         while (
             streamingTailFadeActive(
                 birthTimesMs = effective.birthTimesMs,
-                positionDelaysMs = effective.positionDelaysMs,
                 nowMs = fadeClockMs,
             )
         ) {
@@ -903,7 +809,6 @@ internal fun rememberStreamingGlyphFade(
             color = color,
             fadeCodePoints = effective.tailCodePoints,
             birthTimesMs = effective.birthTimesMs,
-            positionDelaysMs = effective.positionDelaysMs,
             nowMs = fadeClockMs,
         )
     }
@@ -932,7 +837,6 @@ internal fun rememberStreamingGlyphFade(
         while (
             streamingTailFadeActive(
                 birthTimesMs = fadeSample.birthTimesMs,
-                positionDelaysMs = fadeSample.positionDelaysMs,
                 nowMs = fadeClockMs,
             )
         ) {
@@ -945,7 +849,6 @@ internal fun rememberStreamingGlyphFade(
             text = content,
             color = color,
             birthTimesMs = fadeSample.birthTimesMs,
-            positionDelaysMs = fadeSample.positionDelaysMs,
             nowMs = fadeClockMs,
         )
     }
@@ -953,21 +856,12 @@ internal fun rememberStreamingGlyphFade(
 
 internal fun streamingTailFadeActive(
     birthTimesMs: LongArray,
-    positionDelaysMs: LongArray,
     nowMs: Long,
     alphaPerSecond: Float = STREAM_TAIL_ALPHA_PER_SECOND,
 ): Boolean {
-    if (
-        birthTimesMs.isEmpty() ||
-        birthTimesMs.size != positionDelaysMs.size ||
-        alphaPerSecond <= 0f
-    ) {
-        return false
-    }
-    return birthTimesMs.indices.any { index ->
-        val elapsedSeconds =
-            (nowMs - birthTimesMs[index]).coerceAtLeast(0L) / 1_000f
-        val positionSeconds = positionDelaysMs[index].coerceAtLeast(0L) / 1_000f
-        alphaPerSecond * (elapsedSeconds - positionSeconds) < 0.999f
+    if (birthTimesMs.isEmpty() || alphaPerSecond <= 0f) return false
+    return birthTimesMs.any { birthTimeMs ->
+        val elapsedSeconds = (nowMs - birthTimeMs).coerceAtLeast(0L) / 1_000f
+        alphaPerSecond * elapsedSeconds < 0.999f
     }
 }

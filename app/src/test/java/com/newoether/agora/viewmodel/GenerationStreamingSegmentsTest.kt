@@ -6,6 +6,7 @@ import com.newoether.agora.model.CitationPolicy
 import com.newoether.agora.model.MessagePersistenceGuard
 import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.MessageStatus
+import com.newoether.agora.model.StreamingTextDelta
 import com.newoether.agora.model.citationRecords
 import com.newoether.agora.model.toMessageSegment
 import org.junit.Assert.assertEquals
@@ -34,6 +35,15 @@ class GenerationStreamingSegmentsTest {
         )
         assertEquals(2, signed.size)
         assertNull(buildLiveSegments(emptyList(), "", ""))
+    }
+
+    @Test
+    fun `live answer delta metadata is an immutable publication snapshot`() {
+        val deltas = mutableListOf(StreamingTextDelta(sequence = 0L, codePointCount = 3))
+        val published = checkNotNull(buildLiveSegments(emptyList(), "abc", "", answerDeltas = deltas))
+            .single().streamingTextDeltas
+        deltas += StreamingTextDelta(sequence = 1L, codePointCount = 2)
+        assertEquals(listOf(StreamingTextDelta(0L, 3)), published)
     }
 
     @Test
