@@ -195,6 +195,7 @@ internal class StreamingTailFadeTracker {
     private var previousText = ""
     private val fadingGlyphs = java.util.ArrayDeque<StreamingFadingGlyph>()
 
+    @Synchronized
     fun update(
         text: String,
         nowMs: Long,

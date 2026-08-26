@@ -14,6 +14,9 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class IncrementalStreamingMarkdownTest {
     private val flavour = GFMFlavourDescriptor()
@@ -361,6 +364,28 @@ class IncrementalStreamingMarkdownTest {
 
         // Node entirely outside the window.
         assertNull(spec.nodeFade(blockContent = "0123456789", nodeStart = 0, nodeEnd = 4))
+    }
+
+    @Test
+    fun tracker_serializesWorkerAndInteractionUpdates() {
+        val tracker = StreamingTailFadeTracker()
+        val executor = Executors.newFixedThreadPool(2)
+        val start = CountDownLatch(1)
+        val texts = listOf("x".repeat(4_096), "x".repeat(32))
+        try {
+            val futures = (0..1).map { lane ->
+                executor.submit {
+                    start.await()
+                    repeat(500) { index ->
+                        tracker.update(texts[(index + lane) % 2], (index + 1).toLong())
+                    }
+                }
+            }
+            start.countDown()
+            futures.forEach { it.get(10, TimeUnit.SECONDS) }
+        } finally {
+            executor.shutdownNow()
+        }
     }
 
     private fun Int.splitsSurrogatePair(text: String): Boolean =
