@@ -29,11 +29,11 @@ class Phase32DirectDotSourceContractTest {
         assertTrue(assistantActivity.contains("GenerationActivityDot()"))
         assertTrue(assistantActivity.contains("visibilityTransition.targetState ||"))
         assertTrue(assistantActivity.contains(
-            "retainExitLayout && visibilityTransition.currentState"
+            "visibilityTransition.targetState || retainExitLayout"
         ))
-        assertTrue(assistant.contains("retainExitLayout = !hasAnswerContent"))
+        assertTrue(assistant.contains("retainExitLayout = inlineActivityPresentation.retainLayout"))
         assertTrue(assistantActivity.contains("alpha = activityOpacity"))
-        assertTrue(assistant.contains("AssistantInlineActivityHeight * activityLayoutProgress"))
+        assertTrue(assistant.contains(".heightIn(min = AssistantInlineActivityHeight)"))
         assertTrue(assistant.contains("import androidx.compose.ui.graphics.CompositingStrategy"))
         assertTrue(assistantActivity.contains(
             "compositingStrategy = CompositingStrategy.ModulateAlpha"

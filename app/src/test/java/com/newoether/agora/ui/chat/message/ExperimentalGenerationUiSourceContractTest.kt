@@ -37,10 +37,10 @@ class ExperimentalGenerationUiSourceContractTest {
         assertTrue(assistant.contains("var retainedMode by remember"))
         assertTrue(assistant.contains("visibilityTransition.targetState ||"))
         assertTrue(assistant.contains(
-            "retainExitLayout && visibilityTransition.currentState"
+            "visibilityTransition.targetState || retainExitLayout"
         ))
         assertTrue(assistant.contains("alpha = activityOpacity"))
-        assertTrue(assistant.contains("retainExitLayout = !hasAnswerContent"))
+        assertTrue(assistant.contains("retainExitLayout = inlineActivityPresentation.retainLayout"))
         assertTrue(assistant.contains("clip = false"))
         assertTrue(assistant.contains("GenerationActivityDot()"))
         val messageContent = assistant.substringAfter("internal fun AssistantMessageContent(")

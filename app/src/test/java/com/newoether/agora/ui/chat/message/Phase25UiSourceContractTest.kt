@@ -29,11 +29,11 @@ class Phase25UiSourceContractTest {
             "visibilityTransition.targetState ||"
         ))
         assertTrue(assistantActivity.contains(
-            "retainExitLayout && visibilityTransition.currentState"
+            "visibilityTransition.targetState || retainExitLayout"
         ))
-        assertTrue(assistant.contains("retainExitLayout = !hasAnswerContent"))
+        assertTrue(assistant.contains("retainExitLayout = inlineActivityPresentation.retainLayout"))
         assertTrue(assistantActivity.contains("alpha = activityOpacity"))
-        assertTrue(assistant.contains("AssistantInlineActivityHeight * activityLayoutProgress"))
+        assertTrue(assistant.contains(".heightIn(min = AssistantInlineActivityHeight)"))
         assertTrue(assistantActivity.contains("clip = false"))
         assertTrue(assistantActivity.contains("GenerationActivityDot()"))
                 assertTrue(retry.contains("GenerationActivityDot("))
