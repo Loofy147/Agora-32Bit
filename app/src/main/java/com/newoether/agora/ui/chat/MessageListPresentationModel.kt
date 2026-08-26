@@ -34,6 +34,17 @@ internal fun compactMessageActionsEnabled(
     isCompacting: Boolean,
 ): Boolean = !isLoading && !isStopping && !isCompacting
 
+internal fun resolveMessagePayloadForRender(
+    messageStub: ChatMessage,
+    streamingMessageId: String?,
+    observedMessage: ChatMessage?,
+    cachedMessage: ChatMessage?,
+): ChatMessage = if (messageStub.id == streamingMessageId) {
+    messageStub
+} else {
+    observedMessage ?: cachedMessage ?: messageStub
+}
+
 internal fun shouldShowStreamingTailIndicator(
     isLoading: Boolean,
     isStopping: Boolean,

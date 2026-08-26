@@ -656,14 +656,14 @@ internal fun MessageList(
     val renderMessage: @Composable (ChatMessage) -> Unit = { messageStub ->
         val isStreamingOverlay = messageStub.id == streamingMessageId
         val cachedMessage = hydratedPayloads[messageStub.id]
-        val observedMessage by remember(messageStub.id, isStreamingOverlay, observeMessage) {
-            if (isStreamingOverlay) {
-                flowOf(messageStub)
-            } else {
-                observeMessage(messageStub.id)
-            }
-        }.collectAsState(initial = if (isStreamingOverlay) messageStub else cachedMessage)
-        val message = observedMessage ?: cachedMessage ?: messageStub
+        val observedMessage = if (isStreamingOverlay) {
+            null
+        } else {
+            remember(messageStub.id, observeMessage) { observeMessage(messageStub.id) }
+                .collectAsState(initial = cachedMessage)
+                .value
+        }
+        val message = resolveMessagePayloadForRender(messageStub, streamingMessageId, observedMessage, cachedMessage)
         val hydrationPending = !isStreamingOverlay && observedMessage == null && cachedMessage == null
         val hydrationMutationKey = "hydrate:${messageStub.id}"
 

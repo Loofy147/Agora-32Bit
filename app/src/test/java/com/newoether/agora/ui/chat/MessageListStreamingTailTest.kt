@@ -9,6 +9,7 @@ import com.newoether.agora.ui.chat.message.AssistantInlineActivityMode
 import com.newoether.agora.ui.chat.message.assistantInlineActivityMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -440,6 +441,33 @@ class MessageListStreamingTailTest {
         )
 
         assertEquals(StreamingTailFollowMode.DETACHED, mode)
+    }
+
+    @Test
+    fun activeStreamingPayloadAlwaysUsesLatestSnapshot() {
+        val latest = ChatMessage(
+            id = "active",
+            text = "new delta",
+            participant = Participant.MODEL,
+            status = MessageStatus.SENDING,
+        )
+        val stale = latest.copy(text = "old delta")
+
+        assertSame(
+            latest,
+            resolveMessagePayloadForRender(latest, "active", stale, stale),
+        )
+    }
+
+    @Test
+    fun historicalPayloadRetainsLazyHydrationPriority() {
+        val stub = ChatMessage(id = "history", text = "stub", participant = Participant.MODEL)
+        val cached = stub.copy(text = "cached")
+        val observed = stub.copy(text = "observed")
+
+        assertSame(observed, resolveMessagePayloadForRender(stub, null, observed, cached))
+        assertSame(cached, resolveMessagePayloadForRender(stub, null, null, cached))
+        assertSame(stub, resolveMessagePayloadForRender(stub, null, null, null))
     }
 
     @Test
