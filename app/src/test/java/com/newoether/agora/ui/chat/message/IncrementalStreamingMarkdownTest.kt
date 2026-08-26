@@ -135,6 +135,17 @@ class IncrementalStreamingMarkdownTest {
     }
 
     @Test
+    fun toolSummaryUsesOnlyTheFixedUnicodeSafeTailWindow() {
+        val text = "x" + "🙂".repeat(42)
+        val faded = toolSummaryTailAnnotatedString(AnnotatedString(text), Color.White)
+
+        assertEquals(TOOL_SUMMARY_TAIL_CODE_POINTS, faded.spanStyles.size)
+        assertEquals(1, faded.spanStyles.first().start)
+        assertEquals(0.38f, faded.spanStyles.last().item.color.alpha, 0.002f)
+        faded.spanStyles.forEach { assertFalse(it.start.splitsSurrogatePair(text) || it.end.splitsSurrogatePair(text)) }
+    }
+
+    @Test
     fun temporalAlphaUsesOnlyBirthTimeThenBecomesSolid() {
         val tracker = StreamingTailFadeTracker()
         tracker.update("ab", nowMs = 1_000L)

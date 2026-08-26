@@ -266,9 +266,9 @@ Markdown algorithm or switch to a different terminal renderer merely because str
 The implementation is only a parameterized UI variant. Its allowed inputs include Markdown
 content, streaming state, render context, font/size/color, a publication birth-time glyph timeline, and a
 generic animated empty-stream presentation. Every append-growing live text surface uses one
-time-only active glyph fade with no fixed character-count cap: ordinary/timeline answer
+of two rules: a time-only fade with no character-count cap for ordinary/timeline answer
 Markdown and plain/code leaves, Thinking previews/summaries in Compact/Timeline/detail-sheet modes,
-Tool summaries derived from streaming arguments or live state, and equivalent live detail text.
+and equivalent live detail text; active Tool summaries instead fade their last 42 code points in six bands to alpha 0.38.
 Static titles, terminal labels, Retry, error text, and citation metadata do not replay this stream
 animation merely because they share typography.
 

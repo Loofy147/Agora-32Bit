@@ -592,6 +592,7 @@ internal fun CompactSegmentBlock(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
+                                    useToolSummaryTailFade = true,
                                 )
                             }
                         }
@@ -928,6 +929,7 @@ internal fun TimelineInfoSegmentCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
+                            useToolSummaryTailFade = seg.type == "tool",
                         )
                     }
                 }

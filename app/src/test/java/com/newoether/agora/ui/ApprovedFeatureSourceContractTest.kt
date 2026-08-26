@@ -195,6 +195,9 @@ class ApprovedFeatureSourceContractTest {
         assertFalse(assets.contains(".stableStreamingGlyphFade("))
         assertTrue(timeline.contains("StableStreamingText("))
         assertTrue(tool.contains("StableStreamingText("))
+        assertTrue(Regex("useToolSummaryTailFade =").findAll(timeline).count() == 2)
+        assertTrue(tool.contains("useToolSummaryTailFade = true"))
+        assertTrue(fade.contains("TOOL_SUMMARY_TAIL_CODE_POINTS = 42"))
         // Document-level birth-time tracking survives node restructures, block promotion, and
         // subtree re-keying. Births begin only when a snapshot is first published, and the tracker
         // retains only the active not-yet-solid suffix with no fixed character-count cap.

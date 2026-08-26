@@ -44,6 +44,9 @@ import kotlin.math.max
 import kotlin.math.min
 
 private const val STREAM_TAIL_ALPHA_PER_SECOND = 2f
+internal const val TOOL_SUMMARY_TAIL_CODE_POINTS = 42
+private const val TOOL_SUMMARY_TAIL_BANDS = 6
+private const val TOOL_SUMMARY_NEWEST_ALPHA = 0.38f
 private const val STREAM_TAIL_FADE_TICK_MS = 40L
 private const val LONG_DOCUMENT_THRESHOLD_CHARS = 8_000
 private const val LONG_DOCUMENT_RENDER_INTERVAL_MS = 120L
@@ -679,6 +682,24 @@ private fun ParsedMarkdownBlockContent(
             }
         },
     )
+}
+
+/** Fixed spatial tail used only by live Tool summaries; Markdown remains time-only. */
+internal fun toolSummaryTailAnnotatedString(text: AnnotatedString, color: Color): AnnotatedString {
+    val raw = text.text
+    val total = raw.codePointCount(0, raw.length)
+    val faded = min(total, TOOL_SUMMARY_TAIL_CODE_POINTS)
+    if (faded == 0) return text
+    val bands = min(TOOL_SUMMARY_TAIL_BANDS, faded)
+    return AnnotatedString.Builder().apply {
+        append(text)
+        repeat(faded) { index ->
+            val alpha = 1f - ((index * bands / faded + 1f) / bands) * (1f - TOOL_SUMMARY_NEWEST_ALPHA)
+            val start = total - faded + index
+            addStyle(SpanStyle(color.copy(alpha = color.alpha * alpha)),
+                raw.offsetByCodePoints(0, start), raw.offsetByCodePoints(0, start + 1))
+        }
+    }.toAnnotatedString()
 }
 
 /** Applies clamp(k * elapsed, 0, 1) without changing layout. */
