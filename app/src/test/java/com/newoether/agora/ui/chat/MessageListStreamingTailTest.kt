@@ -444,6 +444,31 @@ class MessageListStreamingTailTest {
     }
 
     @Test
+    fun stoppingHidesTheAnswerTailWhileRetainingOnlyItsStatusSlot() {
+        val answer = ChatMessage(
+            id = "answer-tail",
+            text = "Answer",
+            status = MessageStatus.SENDING,
+            participant = Participant.MODEL,
+            segments = listOf(MessageSegment(type = "answer", content = "Answer")),
+        )
+        val active = streamingTailPresentation(true, false, answer)
+        val stopping = streamingTailPresentation(false, true, answer)
+        val stopped = streamingTailPresentation(
+            isLoading = false,
+            isStopping = false,
+            message = answer.copy(status = MessageStatus.STOPPED),
+        )
+
+        assertTrue(active.visible)
+        assertFalse(active.retainLayout)
+        assertFalse(stopping.visible)
+        assertTrue(stopping.retainLayout)
+        assertFalse(stopped.visible)
+        assertFalse(stopped.retainLayout)
+    }
+
+    @Test
     fun activeStreamingPayloadAlwaysUsesLatestSnapshot() {
         val latest = ChatMessage(
             id = "active",

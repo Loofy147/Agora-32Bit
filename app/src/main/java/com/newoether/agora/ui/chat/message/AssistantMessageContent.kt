@@ -1,7 +1,6 @@
 package com.newoether.agora.ui.chat.message
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.LinearEasing
@@ -54,14 +53,13 @@ import com.newoether.agora.model.ToolCallDisplayModes
 import com.newoether.agora.model.ThinkingSegmentDisplayModes
 import com.newoether.agora.model.citationRecords
 import com.newoether.agora.ui.chat.GenerationActivityDot
-import com.newoether.agora.ui.chat.GenerationActivityDotSize
-import com.newoether.agora.ui.motion.LocalAgoraMotionPolicy
+import com.newoether.agora.ui.chat.StreamingTailAnchorHeight
 import com.newoether.agora.ui.common.LocalAgoraHaptics
 import com.newoether.agora.ui.theme.ChatType
 
 internal val AssistantMessageHorizontalInset = 8.dp
 private val FormerAssistantStatusSpacerHeight = 6.dp
-private val AssistantInlineActivityHeight = GenerationActivityDotSize + 6.dp
+private val AssistantInlineActivityHeight = StreamingTailAnchorHeight
 
 internal data class TokenUsagePresentation(
     val input: Int?,
@@ -115,13 +113,36 @@ internal fun assistantInlineActivityMode(
     else -> AssistantInlineActivityMode.NONE
 }
 
+internal data class AssistantInlineActivityPresentation(
+    val mode: AssistantInlineActivityMode,
+    val retainLayout: Boolean,
+)
+
+internal fun assistantInlineActivityPresentation(
+    generationActive: Boolean,
+    isStopping: Boolean,
+    hasAnswer: Boolean,
+    hasVisibleInfoSegment: Boolean,
+    retryText: String?,
+): AssistantInlineActivityPresentation {
+    val ownedMode = assistantInlineActivityMode(
+        generationActive,
+        hasAnswer,
+        hasVisibleInfoSegment,
+        retryText,
+    )
+    return AssistantInlineActivityPresentation(
+        mode = if (isStopping) AssistantInlineActivityMode.NONE else ownedMode,
+        retainLayout = isStopping && ownedMode != AssistantInlineActivityMode.NONE,
+    )
+}
+
 @Composable
 private fun AssistantInlineActivity(
     mode: AssistantInlineActivityMode,
     retryText: String?,
     visibilityTransition: Transition<Boolean>,
     activityOpacity: Float,
-    activityLayoutProgress: Float,
     retainExitLayout: Boolean,
 ) {
     var retainedMode by remember {
@@ -140,19 +161,10 @@ private fun AssistantInlineActivity(
     val activityVisible = visibilityTransition.targetState
     val visibleMode = if (activityVisible) mode else retainedMode
     val visibleRetryText = if (activityVisible) retryText else retainedRetryText
-    if (
-        visibilityTransition.targetState ||
-        (retainExitLayout && visibilityTransition.currentState)
-    ) {
+    if (visibilityTransition.targetState || retainExitLayout) {
         Row(
             modifier = Modifier
-                .then(
-                    if (visibleMode == AssistantInlineActivityMode.RETRY) {
-                        Modifier
-                    } else {
-                        Modifier.height(AssistantInlineActivityHeight * activityLayoutProgress)
-                    },
-                )
+                .heightIn(min = AssistantInlineActivityHeight)
                 .graphicsLayer {
                     compositingStrategy = CompositingStrategy.ModulateAlpha
                     alpha = activityOpacity
@@ -189,6 +201,7 @@ internal fun AssistantMessageContent(
     contextAlpha: Modifier,
     isStreaming: Boolean,
     isLoading: Boolean,
+    isStopping: Boolean,
     isRegenerationExiting: Boolean,
     isEditingAllowed: Boolean,
     showActions: Boolean,
@@ -324,43 +337,21 @@ internal fun AssistantMessageContent(
         )
     val hasAnswerContent =
         message.text.isNotBlank() || mergedSegments.any { it.isVisibleAnswerSegment() }
-    val inlineActivityMode = if (message.participant == Participant.MODEL) {
-        assistantInlineActivityMode(
-            generationActive = generationActive,
-            hasAnswer = hasAnswerContent,
-            hasVisibleInfoSegment = mergedSegments.any { it.isInfoSegment() },
-            retryText = message.retryText,
-        )
-    } else {
-        AssistantInlineActivityMode.NONE
-    }
-    val inlineActivityVisible = inlineActivityMode != AssistantInlineActivityMode.NONE
+    val inlineActivityPresentation = assistantInlineActivityPresentation(
+        generationActive = generationActive,
+        isStopping = isStopping,
+        hasAnswer = hasAnswerContent,
+        hasVisibleInfoSegment = mergedSegments.any { it.isInfoSegment() },
+        retryText = message.retryText,
+    )
+    val inlineActivityMode = inlineActivityPresentation.mode
     val inlineActivityTransition = updateTransition(
-        targetState = inlineActivityVisible,
+        targetState = inlineActivityMode != AssistantInlineActivityMode.NONE,
         label = "AssistantInlineActivityVisibility",
     )
-    val allowSpatialTransitions = LocalAgoraMotionPolicy.current.allowSpatialTransitions
     val inlineActivityOpacity by inlineActivityTransition.animateFloat(
-        transitionSpec = {
-            if (targetState) {
-                snap()
-            } else {
-                tween(durationMillis = 320, easing = FastOutSlowInEasing)
-            }
-        },
+        transitionSpec = { snap() },
         label = "AssistantInlineActivityOpacity",
-    ) { visible ->
-        if (visible) 1f else 0f
-    }
-    val activityLayoutProgress by inlineActivityTransition.animateFloat(
-        transitionSpec = {
-            if (targetState || !allowSpatialTransitions) {
-                snap()
-            } else {
-                tween(durationMillis = 320, easing = FastOutSlowInEasing)
-            }
-        },
-        label = "AssistantInlineActivityLayoutProgress",
     ) { visible ->
         if (visible) 1f else 0f
     }
@@ -511,8 +502,7 @@ internal fun AssistantMessageContent(
                         retryText = message.retryText,
                         visibilityTransition = inlineActivityTransition,
                         activityOpacity = inlineActivityOpacity,
-                        activityLayoutProgress = activityLayoutProgress,
-                        retainExitLayout = !hasAnswerContent,
+                        retainExitLayout = inlineActivityPresentation.retainLayout,
                     )
                 }
 
@@ -593,7 +583,6 @@ internal fun AssistantMessageContent(
                     exit = fadeOut(tween(durationMillis = 180, easing = LinearEasing)),
                 ) {
                     StoppedGenerationBar(
-                        hasBodyContent = renderedText.isNotEmpty(),
                         precededByCard = terminalImmediatelyFollowsCard,
                     )
                 }

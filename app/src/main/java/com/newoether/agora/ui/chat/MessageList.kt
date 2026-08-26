@@ -333,7 +333,7 @@ internal fun MessageList(
             pendingEditVisualReplacement = null
         }
     }
-    val answeringTailVisible = shouldShowStreamingTailIndicator(
+    val answeringTailPresentation = streamingTailPresentation(
         isLoading = isLoading,
         isStopping = isStopping,
         message = messages.list.lastOrNull { it.participant == Participant.MODEL },
@@ -795,6 +795,7 @@ internal fun MessageList(
                     message.status in setOf(MessageStatus.SENDING, MessageStatus.THINKING)
             },
             isLoading = isLoading || pendingEditMessageId == message.id,
+            isStopping = isStopping,
             compactActionsEnabled = compactMessageActionsEnabled(
                 isLoading = isLoading,
                 isStopping = isStopping,
@@ -977,7 +978,8 @@ internal fun MessageList(
                                     StreamingTailIndicator(
                                         // Text-bottom placement belongs only to the visual dot.
                                         // Page attachment is owned by AbsoluteBottomSentinelKey.
-                                        visible = answeringTailVisible,
+                                        visible = answeringTailPresentation.visible,
+                                        retainLayout = answeringTailPresentation.retainLayout,
                                     )
                                 }
                             }

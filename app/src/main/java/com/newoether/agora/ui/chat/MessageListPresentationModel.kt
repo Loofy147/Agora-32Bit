@@ -45,26 +45,43 @@ internal fun resolveMessagePayloadForRender(
     observedMessage ?: cachedMessage ?: messageStub
 }
 
+internal data class StreamingTailPresentation(
+    val visible: Boolean,
+    val retainLayout: Boolean,
+)
+
+internal fun streamingTailPresentation(
+    isLoading: Boolean,
+    isStopping: Boolean,
+    message: ChatMessage?,
+): StreamingTailPresentation {
+    val ownsTail = message?.let {
+        val segments = it.segments.orEmpty()
+        val generationActive = it.status == MessageStatus.SENDING ||
+            it.status == MessageStatus.THINKING ||
+            it.status == MessageStatus.TOOL_CALLING ||
+            it.status == MessageStatus.TRANSCRIBING
+        (isLoading || isStopping) && generationActive &&
+            MessageGenerationBoundaryResolver.isOrdinaryAssistant(it) &&
+            (segments.lastOrNull { segment ->
+                segment.isVisibleAnswerSegment() || segment.isInfoSegment()
+            }?.isVisibleAnswerSegment() ?: it.text.isNotBlank()) &&
+            assistantInlineActivityMode(
+                generationActive = generationActive,
+                hasAnswer = it.text.isNotBlank() ||
+                    segments.any { segment -> segment.isVisibleAnswerSegment() },
+                hasVisibleInfoSegment = segments.any { segment -> segment.isInfoSegment() },
+                retryText = it.retryText,
+            ) == AssistantInlineActivityMode.NONE
+    } == true
+    return StreamingTailPresentation(
+        visible = ownsTail && !isStopping,
+        retainLayout = ownsTail && isStopping,
+    )
+}
+
 internal fun shouldShowStreamingTailIndicator(
     isLoading: Boolean,
     isStopping: Boolean,
     message: ChatMessage?,
-): Boolean = message?.let {
-    val segments = it.segments.orEmpty()
-    val generationActive = it.status == MessageStatus.SENDING ||
-        it.status == MessageStatus.THINKING ||
-        it.status == MessageStatus.TOOL_CALLING ||
-        it.status == MessageStatus.TRANSCRIBING
-    isLoading && !isStopping && generationActive &&
-        MessageGenerationBoundaryResolver.isOrdinaryAssistant(it) &&
-        (segments.lastOrNull { segment ->
-            segment.isVisibleAnswerSegment() || segment.isInfoSegment()
-        }?.isVisibleAnswerSegment() ?: it.text.isNotBlank()) &&
-        assistantInlineActivityMode(
-            generationActive = generationActive,
-            hasAnswer = it.text.isNotBlank() ||
-                segments.any { segment -> segment.isVisibleAnswerSegment() },
-            hasVisibleInfoSegment = segments.any { segment -> segment.isInfoSegment() },
-            retryText = it.retryText,
-        ) == AssistantInlineActivityMode.NONE
-} == true
+): Boolean = streamingTailPresentation(isLoading, isStopping, message).visible
