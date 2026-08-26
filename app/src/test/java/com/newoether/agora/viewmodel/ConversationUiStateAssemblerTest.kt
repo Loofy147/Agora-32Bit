@@ -1,9 +1,8 @@
 package com.newoether.agora.viewmodel
 
-import android.content.Context
 import com.newoether.agora.automation.ConversationExecutionCoordinator
 import com.newoether.agora.data.local.ChatEntity
-import com.newoether.agora.data.local.MessageEntity
+import com.newoether.agora.data.local.MessageContextTopology
 import com.newoether.agora.data.repository.ConversationRepository
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageStatus
@@ -35,7 +34,7 @@ class ConversationUiStateAssemblerTest {
         val registry = mockk<ConversationStateRegistry>()
         val executionCoordinator = mockk<ConversationExecutionCoordinator>()
         val state = generationState(isLoading = true, generating = false)
-        val roomMessages = MutableSharedFlow<List<MessageEntity>>(replay = 1)
+        val roomMessages = MutableSharedFlow<List<MessageContextTopology>>(replay = 1)
         coEvery { conversations.ensureRunRecovery() } returns Unit
         coEvery { conversations.fixStuckMessages(CONVERSATION_ID) } returns Unit
         coEvery { conversations.getConversation(CONVERSATION_ID) } returns ChatEntity(
@@ -43,7 +42,7 @@ class ConversationUiStateAssemblerTest {
             title = "Conversation",
             selectedBranchesJson = "{\"null\":\"root\"}",
         )
-        every { conversations.getUiMessagesForConversation(CONVERSATION_ID, null) } returns
+        every { conversations.observeMessageTopology(CONVERSATION_ID) } returns
             roomMessages
         every { registry.getOrCreate(CONVERSATION_ID) } returns state
         every { executionCoordinator.activeAutomationConversationIds } returns
@@ -54,7 +53,6 @@ class ConversationUiStateAssemblerTest {
             registry = registry,
             executionCoordinator = executionCoordinator,
             currentConversationId = currentConversationId,
-            appContext = mockk<Context>(relaxed = true),
             scope = backgroundScope,
             projectionDispatcher = StandardTestDispatcher(testScheduler),
         )
@@ -94,7 +92,7 @@ class ConversationUiStateAssemblerTest {
             id = CONVERSATION_ID,
             title = "Conversation",
         )
-        every { conversations.getUiMessagesForConversation(CONVERSATION_ID, null) } returns
+        every { conversations.observeMessageTopology(CONVERSATION_ID) } returns
             MutableStateFlow(emptyList())
         every { registry.getOrCreate(CONVERSATION_ID) } returns state
         every { executionCoordinator.activeAutomationConversationIds } returns
@@ -105,7 +103,6 @@ class ConversationUiStateAssemblerTest {
             registry = registry,
             executionCoordinator = executionCoordinator,
             currentConversationId = currentConversationId,
-            appContext = mockk<Context>(relaxed = true),
             scope = backgroundScope,
             projectionDispatcher = StandardTestDispatcher(testScheduler),
         )
@@ -125,7 +122,6 @@ class ConversationUiStateAssemblerTest {
             registry = mockk(),
             executionCoordinator = mockk(),
             currentConversationId = currentConversationId,
-            appContext = mockk(relaxed = true),
             scope = backgroundScope,
             projectionDispatcher = StandardTestDispatcher(testScheduler),
         )
@@ -153,7 +149,6 @@ class ConversationUiStateAssemblerTest {
                 registry = mockk(),
                 executionCoordinator = mockk(),
                 currentConversationId = MutableStateFlow(CONVERSATION_ID),
-                appContext = mockk(relaxed = true),
                 scope = backgroundScope,
                 projectionDispatcher = StandardTestDispatcher(testScheduler),
                 onConversationLoadFailed = failedIds::add,

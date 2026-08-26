@@ -45,7 +45,6 @@ class GenerationApiPathBuilderTest {
                 ContextTokenEstimator.estimateFixed("system", emptyList()),
             path.providerConfig.maxContextWindow,
         )
-        coVerify(exactly = 0) { repository.getMessagesForConversationSnapshot(any()) }
     }
 
     @Test
@@ -266,7 +265,6 @@ class GenerationApiPathBuilderTest {
                     !request.followSelectedBranch
             })
         }
-        coVerify(exactly = 0) { repository.getMessagesForConversationSnapshot(any()) }
     }
 
     private fun generationConfig() = GenerationConfig(

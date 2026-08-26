@@ -1,6 +1,5 @@
 package com.newoether.agora.viewmodel
 
-import android.content.Context
 import com.newoether.agora.automation.ConversationExecutionCoordinator
 import com.newoether.agora.data.repository.ConversationRepository
 import com.newoether.agora.model.ChatMessage
@@ -16,7 +15,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,7 +36,6 @@ internal class ConversationUiStateAssembler(
     private val registry: ConversationStateRegistry,
     private val executionCoordinator: ConversationExecutionCoordinator,
     private val currentConversationId: StateFlow<String?>,
-    private val appContext: Context,
     private val scope: CoroutineScope,
     private val projectionDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val onConversationLoadFailed: (String) -> Unit = {},
@@ -175,16 +172,11 @@ internal class ConversationUiStateAssembler(
             }.orEmpty()
         }
         var generationMirrorStarted = false
-        state.streamingMessage
-            .map { message -> message?.id }
+        conversations.observeMessageTopology(id)
             .distinctUntilChanged()
-            .flatMapLatest { streamingMessageId ->
-                conversations.getUiMessagesForConversation(id, streamingMessageId)
-            }
-            .distinctUntilChanged()
-            .mapLatest { entities ->
+            .mapLatest { topology ->
                 withContext(projectionDispatcher) {
-                    entities.map { entity -> entity.toUiChatMessage(appContext) }
+                    topology.map { message -> message.toUiChatMessageStub() }
                 }
             }
             .collect { mapped ->

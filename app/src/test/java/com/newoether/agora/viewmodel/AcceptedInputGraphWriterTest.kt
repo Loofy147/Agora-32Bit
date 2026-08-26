@@ -68,7 +68,6 @@ class AcceptedInputGraphWriterTest {
         assertEquals("OpenAI:model", insertedConversationModelId)
         assertEquals(insertedSelections, result.messageSelections)
         assertEquals(true, beforeCommitCalled)
-        coVerify(exactly = 0) { repository.getMessagesForConversationSnapshot(any()) }
     }
 
     @Test
