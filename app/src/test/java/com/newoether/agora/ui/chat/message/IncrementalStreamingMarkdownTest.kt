@@ -120,6 +120,35 @@ class IncrementalStreamingMarkdownTest {
     }
 
     @Test
+    fun onePublishedSnapshotRetainsEveryOriginalDeltaPositionWindow() {
+        val text = "abcdefgh"
+        val tracker = StreamingTailFadeTracker()
+        val sample = tracker.update(
+            text = text,
+            nowMs = 1_500L,
+            textDeltas = listOf(
+                StreamingTextDelta(sequence = 0L, codePointCount = 3),
+                StreamingTextDelta(sequence = 1L, codePointCount = 1),
+                StreamingTextDelta(sequence = 2L, codePointCount = 4),
+            ),
+        )
+
+        assertArrayEquals(LongArray(8) { 1_500L }, sample.birthTimesMs)
+        assertArrayEquals(
+            longArrayOf(0L, 60L, 120L, 0L, 0L, 40L, 80L, 120L),
+            sample.positionDelaysMs,
+        )
+        val initial = streamingTailAnnotatedString(
+            text = text,
+            color = Color.White,
+            birthTimesMs = sample.birthTimesMs,
+            positionDelaysMs = sample.positionDelaysMs,
+            nowMs = 1_500L,
+        )
+        assertTrue(initial.spanStyles.all { range -> range.item.color.alpha == 0f })
+    }
+
+    @Test
     fun temporalAlphaUsesBirthAndDeltaPositionThenBecomesSolid() {
         val tracker = StreamingTailFadeTracker()
         tracker.update("ab", nowMs = 1_000L)
@@ -262,11 +291,11 @@ class IncrementalStreamingMarkdownTest {
     @Test
     fun tracker_hasNoCharacterCountCapAndStampsTheFirstPublishedBatch() {
         val tracker = StreamingTailFadeTracker()
-        val text = "x".repeat(128)
+        val text = "x".repeat(4_096)
 
         val sample = tracker.update(text, nowMs = 1_234L)
 
-        assertEquals(128, sample.birthTimesMs.size)
+        assertEquals(4_096, sample.birthTimesMs.size)
         assertTrue(sample.birthTimesMs.all { it == 1_234L })
     }
 

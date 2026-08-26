@@ -640,9 +640,9 @@ internal fun IncrementalStreamingMarkdownContent(
     selectionEnabled: Boolean = !isStreaming,
     textDeltas: List<StreamingTextDelta> = emptyList(),
 ) {
-    var hasStreamed by remember { mutableStateOf(isStreaming) }
+    var hasStreamed by remember { mutableStateOf(isStreaming || textDeltas.isNotEmpty()) }
     SideEffect {
-        if (isStreaming) hasStreamed = true
+        if (isStreaming || textDeltas.isNotEmpty()) hasStreamed = true
     }
 
     // A historical message can use the library's normal full-document path. A message that was

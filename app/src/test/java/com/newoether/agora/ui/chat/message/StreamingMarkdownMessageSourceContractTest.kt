@@ -25,6 +25,21 @@ class StreamingMarkdownMessageSourceContractTest {
             Regex("LocalStreamingGlyphFadeSpec provides ").findAll(incremental).count(),
         )
         assertFalse(incremental.contains("takeIf { showStreamingIndicator }"))
+        assertTrue(
+            incremental.contains(
+                "mutableStateOf(isStreaming || textDeltas.isNotEmpty())",
+            ),
+        )
+        assertTrue(
+            incremental.contains(
+                "if (isStreaming || textDeltas.isNotEmpty()) hasStreamed = true",
+            ),
+        )
+        assertEquals(
+            2,
+            Regex("textDeltas = answerTextDeltas,").findAll(assistant).count(),
+        )
+        assertTrue(timeline.contains("textDeltas = seg.streamingTextDeltas,"))
         assertTrue(wrapper.contains("emptyStreamingTextStyle: TextStyle"))
         assertTrue(wrapper.contains("AnimatedVisibility("))
         assertTrue(wrapper.contains(".padding(top = 8.dp)"))

@@ -724,6 +724,7 @@ internal fun TimelineSegmentsContent(
                                             .fillMaxWidth()
                                             .noOpBringIntoView(),
                                         selectionEnabled = !answerIsStreaming,
+                                        textDeltas = seg.streamingTextDeltas,
                                     )
                                 }
                             }

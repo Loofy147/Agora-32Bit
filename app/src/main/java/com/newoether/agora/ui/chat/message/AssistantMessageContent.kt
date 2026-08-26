@@ -327,6 +327,11 @@ internal fun AssistantMessageContent(
     val mergedSegments = remember(segmentsOrNull) {
         mergeAdjacentSegments(segmentsOrNull.orEmpty())
     }
+    val answerTextDeltas = remember(mergedSegments) {
+        mergedSegments
+            .filter { it.isVisibleAnswerSegment() }
+            .flatMap { it.streamingTextDeltas }
+    }
     val generationActive = message.participant == Participant.MODEL &&
         (
             isStreaming ||
@@ -549,6 +554,7 @@ internal fun AssistantMessageContent(
                                         renderContext = renderContext,
                                         modifier = Modifier.fillMaxWidth(),
                                         selectionEnabled = !isStreaming,
+                                        textDeltas = answerTextDeltas,
                                     )
                                 }
                             } else {
@@ -558,6 +564,7 @@ internal fun AssistantMessageContent(
                                     renderContext = renderContext,
                                     modifier = Modifier.fillMaxWidth(),
                                     selectionEnabled = !isStreaming,
+                                    textDeltas = answerTextDeltas,
                                 )
                             }
                         }
