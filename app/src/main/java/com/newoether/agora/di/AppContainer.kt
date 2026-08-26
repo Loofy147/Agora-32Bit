@@ -29,7 +29,7 @@ import com.newoether.agora.viewmodel.ConversationStateRegistry
 import com.newoether.agora.viewmodel.ProviderRegistry
 import com.newoether.agora.viewmodel.ShellConfirmationController
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Centralized dependency container (manual DI).
@@ -76,11 +76,9 @@ class AppContainer(
      * Starts process services behind the durable Run-recovery barrier. Scheduling before recovery
      * lets an overdue Worker race the orphan cleanup and inspect an impossible half-live graph.
      */
-    fun startProcessServices() {
-        appScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            conversationRepository.ensureRunRecovery()
-            automationScheduler.start()
-        }
+    suspend fun startProcessServices() = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        conversationRepository.ensureRunRecovery()
+        automationScheduler.start()
     }
     val taskRepository: TaskRepository by lazy {
         TaskRepository(chatDao)

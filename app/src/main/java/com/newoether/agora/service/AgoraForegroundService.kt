@@ -73,7 +73,7 @@ internal class ForegroundOwnerLeases {
 
     /**
      * Rolls back only the owner whose synchronous platform start request failed. Other owners stay
-     * registered and can continue without an FGS; a later acquire may safely retry from STOPPED.
+     * registered so their existing lifecycle state remains intact.
      */
     fun startRequestFailed(ownerToRollback: String? = null) = synchronized(lock) {
         if (lifecycleState != ForegroundServiceLifecycleState.STARTING) return@synchronized
@@ -194,14 +194,11 @@ class AgoraForegroundService : Service() {
                 ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
             }
             CrashReporter.note("FGS.start api=${Build.VERSION.SDK_INT} importance=$importance trim=${info.lastTrimLevel}")
-            // Fail-closed (the 5s-timeout crash is the alternative): starting a foreground service
-            // while the process is already backgrounded is exactly what triggers
-            // ForegroundServiceDidNotStartInTimeException — the system defers Service instantiation
-            // and onCreate's startForeground can't run within 5s (#60, 140 crashes). The generation
-            // that requested the lease keeps running on its existing coroutine without a persistent
-            // notification; a possible later OS kill under memory pressure is a far better failure
-            // mode than an immediate crash. Foreground owners (importance <= FOREGROUND_SERVICE)
-            // always proceed.
+            // Fail closed: starting a foreground service after the process is backgrounded risks
+            // ForegroundServiceDidNotStartInTimeException because the system may defer Service
+            // instantiation beyond the five-second promotion deadline (#60, 140 crashes). Returning
+            // false requires the generation caller to terminalize before provider or tool work begins.
+            // Foreground owners (importance <= FOREGROUND_SERVICE) always proceed.
             if (importance > ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE) {
                 CrashReporter.note("FGS.start skipped importance=$importance not-foreground")
                 DebugLog.w(TAG, "Skipping FGS start: process not foreground (importance=$importance)")

@@ -456,12 +456,13 @@ object HttpClient {
         url: String,
         bodyText: String,
         headers: Map<String, String> = emptyMap(),
+        callTimeoutMillis: Long? = null,
     ): TextResponse {
         guardCleartextCredentials(url, headers)
         val body = bodyText.toRequestBody(JSON)
         val requestBuilder = Request.Builder().url(url).post(body)
         headers.forEach { (key, value) -> requestBuilder.addHeader(key, value) }
-        return client.newCall(requestBuilder.build()).execute().use { response ->
+        return newCall(requestBuilder.build(), callTimeoutMillis).execute().use { response ->
             TextResponse(
                 code = response.code,
                 body = response.body?.string().orEmpty(),

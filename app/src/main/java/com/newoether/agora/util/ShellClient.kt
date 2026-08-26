@@ -20,7 +20,8 @@ internal fun describeConchRequestFailure(
             "Cannot resolve Conch host for $serverUrl: ${error.message ?: "unknown host"}"
         is java.net.ConnectException ->
             "Cannot connect to Conch at $serverUrl: ${error.message ?: "connection refused"}"
-        is java.net.SocketTimeoutException ->
+        is java.net.SocketTimeoutException,
+        is java.io.InterruptedIOException ->
             "Conch $operation timed out at $serverUrl"
         is javax.net.ssl.SSLException ->
             "TLS connection to Conch at $serverUrl failed: ${error.message ?: "SSL error"}"
@@ -194,13 +195,18 @@ class ShellClient(
         val content: String
     )
 
-    private suspend fun encryptedPost(path: String, payload: String): String {
+    private suspend fun encryptedPost(
+        path: String,
+        payload: String,
+        callTimeoutMillis: Long? = null,
+    ): String {
         if (apiKey.isBlank()) {
             val response = try {
                 com.newoether.agora.api.HttpClient.postTextResponse(
                     "$serverUrl$path",
                     payload,
                     mapOf("Content-Type" to "application/json"),
+                    callTimeoutMillis,
                 )
             } catch (e: Exception) {
                 throw IllegalStateException(
@@ -246,7 +252,10 @@ class ShellClient(
 
         val response = try {
             com.newoether.agora.api.HttpClient.postTextResponse(
-                "$serverUrl$path", encryptedBody, headers
+                "$serverUrl$path",
+                encryptedBody,
+                headers,
+                callTimeoutMillis,
             )
         } catch (e: Exception) {
             throw IllegalStateException(
@@ -386,8 +395,14 @@ class ShellClient(
     suspend fun getJob(jobId: String): String =
         encryptedPost("/jobs/get", buildJsonObject { put("job_id", jobId) }.toString())
 
-    suspend fun stopJob(jobId: String): String =
-        encryptedPost("/jobs/stop", buildJsonObject { put("job_id", jobId) }.toString())
+    suspend fun stopJob(
+        jobId: String,
+        callTimeoutMillis: Long? = null,
+    ): String = encryptedPost(
+        "/jobs/stop",
+        buildJsonObject { put("job_id", jobId) }.toString(),
+        callTimeoutMillis,
+    )
 
     suspend fun acknowledgeJob(jobId: String): String =
         encryptedPost("/jobs/ack", buildJsonObject { put("job_id", jobId) }.toString())

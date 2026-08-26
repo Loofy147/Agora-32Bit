@@ -152,7 +152,10 @@ internal class ConchBackend(override val device: ShellDeviceConfig) : Backend {
 
     suspend fun getJob(jobId: String): String = client.getJob(jobId)
 
-    suspend fun stopJob(jobId: String): String = client.stopJob(jobId)
+    suspend fun stopJob(
+        jobId: String,
+        callTimeoutMillis: Long? = null,
+    ): String = client.stopJob(jobId, callTimeoutMillis)
 
     suspend fun acknowledgeJob(jobId: String): String = client.acknowledgeJob(jobId)
 

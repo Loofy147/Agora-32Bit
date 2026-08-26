@@ -40,7 +40,7 @@ internal class DatabaseStartupGate<T : Any>(
     private val openResource: suspend () -> T,
     private val closeResource: (T) -> Unit,
     private val deleteDatabase: suspend () -> Boolean,
-    private val startProcessServices: (T) -> Unit,
+    private val startProcessServices: suspend (T) -> Unit,
     private val reportFailure: (Throwable) -> Unit,
 ) {
     private val lifecycleMutex = Mutex()

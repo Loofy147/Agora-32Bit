@@ -4,11 +4,16 @@ import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
 import com.newoether.agora.model.RunEndReason
 import com.newoether.agora.model.RunStatus
+import com.newoether.agora.model.ToolExecutionStates
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -94,6 +99,44 @@ class ChatDaoRunRecoveryTest {
         assertEquals(MessageStatus.STOPPED, checkpoint.captured.status)
     }
 
+    @Test
+    fun recoveryPreservesUnknownToolFieldsWhileStoppingLiveTools() = runTest {
+        val dao = mockk<ChatDao>()
+        val raw =
+            """[{"type":"tool","toolName":"shell","toolState":"running","future":{"v":1}},""" +
+                """{"type":"tool","toolName":"background","toolState":"background_running","futureFlag":true}]"""
+        val message = MessageEntity(
+            id = "message-with-future-fields",
+            conversationId = CONVERSATION_ID,
+            text = "partial",
+            status = MessageStatus.STOPPED,
+            participant = Participant.MODEL,
+            timestamp = 2L,
+            toolCallJson = raw,
+            runId = RUN_ID,
+            runSequence = 0,
+        )
+        val checkpoint = slot<MessageStreamCheckpoint>()
+        coEvery { dao.recoverOrphanedRuns(any()) } coAnswers { callOriginal() }
+        coEvery { dao.getOrphanedLiveRuns() } returns listOf(liveRun(RunStatus.ACTIVE))
+        coEvery { dao.getMessagesForRuns(listOf(RUN_ID)) } returns listOf(message)
+        coEvery { dao.updateMessageCheckpoint(capture(checkpoint)) } returns 1
+        coEvery { dao.terminalizeLiveRun(any(), any(), any(), any()) } returns 1
+        assertEquals(1, dao.recoverOrphanedRuns(99L))
+        val segments = Json.parseToJsonElement(
+            requireNotNull(checkpoint.captured.toolCallJson)
+        ).jsonArray
+        assertEquals(
+            ToolExecutionStates.STOPPED,
+            segments[0].jsonObject["toolState"]?.jsonPrimitive?.content,
+        )
+        assertEquals("{\"v\":1}", segments[0].jsonObject["future"]?.toString())
+        assertEquals(
+            ToolExecutionStates.BACKGROUND_RUNNING,
+            segments[1].jsonObject["toolState"]?.jsonPrimitive?.content,
+        )
+        assertEquals("true", segments[1].jsonObject["futureFlag"]?.toString())
+    }
     private fun liveRun(status: RunStatus) = RunEntity(
         id = RUN_ID,
         conversationId = CONVERSATION_ID,

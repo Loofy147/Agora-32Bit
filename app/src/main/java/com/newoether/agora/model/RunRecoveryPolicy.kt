@@ -1,4 +1,9 @@
 package com.newoether.agora.model
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 /**
  * Pure process-death recovery rules for content stored inside a model message.
@@ -36,4 +41,26 @@ object RunRecoveryPolicy {
                 segment
             }
         }
+    fun stopIncompleteToolsJson(raw: String): String? {
+        val root = runCatching { Json.parseToJsonElement(raw) }.getOrNull()
+        val segments = root as? JsonArray ?: return null
+        var changed = false
+        val recovered = JsonArray(
+            segments.map { element ->
+                val segment = element as? JsonObject ?: return@map element
+                val type = (segment["type"] as? JsonPrimitive)?.contentOrNull
+                val state = (segment["toolState"] as? JsonPrimitive)?.contentOrNull
+                if (type == "tool" && state !in ToolExecutionStates.TERMINAL) {
+                    changed = true
+                    JsonObject(
+                        segment +
+                            ("toolState" to JsonPrimitive(ToolExecutionStates.STOPPED))
+                    )
+                } else {
+                    element
+                }
+            }
+        )
+        return if (changed) recovered.toString() else raw
+    }
 }

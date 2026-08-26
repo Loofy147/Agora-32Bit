@@ -2,6 +2,7 @@ package com.newoether.agora
 
 import com.newoether.agora.data.local.DatabaseCompatibility
 import java.io.IOException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
@@ -126,6 +127,29 @@ class DatabaseStartupGateTest {
         assertEquals(DatabaseStartupState.Ready, gate.state.value)
     }
 
+    @Test
+    fun `ready waits for process services to finish`() = runTest {
+        val servicesStarted = CompletableDeferred<Unit>()
+        val releaseServices = CompletableDeferred<Unit>()
+        val gate = DatabaseStartupGate(
+            inspectDatabase = { DatabaseCompatibility.Supported(22) },
+            openResource = { "database" },
+            closeResource = {},
+            deleteDatabase = { true },
+            startProcessServices = {
+                servicesStarted.complete(Unit)
+                releaseServices.await()
+            },
+            reportFailure = {},
+        )
+        val initialization = async { gate.initialize() }
+        servicesStarted.await()
+        assertEquals(DatabaseStartupState.Checking, gate.state.value)
+        assertFalse(initialization.isCompleted)
+        releaseServices.complete(Unit)
+        assertEquals(DatabaseStartupState.Ready, initialization.await())
+        assertEquals(DatabaseStartupState.Ready, gate.state.value)
+    }
     @Test
     fun `service start failure closes resource and remains blocked`() = runTest {
         val failure = IllegalStateException("start failed")

@@ -5,11 +5,15 @@ import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.model.AttachmentMeta
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageSegment
+import com.newoether.agora.model.MessageStatus
+import com.newoether.agora.model.Participant
+import com.newoether.agora.model.RunRecoveryPolicy
 import com.newoether.agora.model.TokenUsage
 import com.newoether.agora.model.ToolCallData
 import com.newoether.agora.util.Constants
 import com.newoether.agora.util.SearchResultFormatter
 import kotlinx.serialization.json.Json
+private val persistedSegmentJson = Json { ignoreUnknownKeys = true }
 
 /**
  * The single projection from a durable message row into UI state.
@@ -35,15 +39,22 @@ internal fun MessageEntity.toUiChatMessage(
     } else {
         toolCallJson?.let { raw ->
             runCatching {
-                Json.decodeFromString<List<MessageSegment>>(raw)
+                persistedSegmentJson.decodeFromString<List<MessageSegment>>(raw)
             }.getOrNull()
         }
+    }
+    val terminalSegments = if (
+        participant == Participant.MODEL && status == MessageStatus.STOPPED
+    ) {
+        decodedSegments?.let(RunRecoveryPolicy::stopIncompleteTools)
+    } else {
+        decodedSegments
     }
     val recovered = recoverPersistedThinkingBoundary(
         participant = participant,
         text = text,
         thoughts = thoughts,
-        segments = decodedSegments,
+        segments = terminalSegments,
     )
     return ChatMessage(
         id = id,

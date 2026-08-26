@@ -561,11 +561,7 @@ interface ChatDao : ChatAutomationDao, ChatContextCompactDao, ChatProviderContex
                     message.status,
                 )
                 val recoveredToolJson = message.toolCallJson?.let { raw ->
-                    runCatching {
-                        val segments = Json.decodeFromString<List<MessageSegment>>(raw)
-                        val recovered = RunRecoveryPolicy.stopIncompleteTools(segments)
-                        if (recovered == segments) raw else Json.encodeToString(recovered)
-                    }.getOrDefault(raw)
+                    RunRecoveryPolicy.stopIncompleteToolsJson(raw) ?: raw
                 }
                 if (recoveredStatus != message.status || recoveredToolJson != message.toolCallJson) {
                     updateMessageCheckpoint(

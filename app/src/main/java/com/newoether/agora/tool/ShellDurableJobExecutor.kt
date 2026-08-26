@@ -48,6 +48,7 @@ internal fun interface ShellJobPoller {
     suspend fun getJob(): String
 }
 
+internal const val DURABLE_JOB_CANCELLATION_STOP_TIMEOUT_MS = 5_000L
 internal class ShellDurableJobExecutor {
     suspend fun executeDurableForeground(
         backend: ConchBackend,
@@ -166,7 +167,11 @@ internal class ShellDurableJobExecutor {
         } catch (cancelled: CancellationException) {
             // A wait expiry intentionally leaves the durable job running. An explicit generation
             // Stop is different: it revokes this tool execution and stops the remote process tree.
-            withContext(NonCancellable) { runCatching { backend.stopJob(jobId) } }
+            withContext(NonCancellable) {
+                runCatching {
+                    backend.stopJob(jobId, DURABLE_JOB_CANCELLATION_STOP_TIMEOUT_MS)
+                }
+            }
             throw cancelled
         }
         return jsonError(

@@ -4,7 +4,9 @@ import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.model.CitationAnchor
 import com.newoether.agora.model.CitationPolicy
 import com.newoether.agora.model.MessageSegment
+import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
+import com.newoether.agora.model.ToolExecutionStates
 import com.newoether.agora.model.citationRecords
 import com.newoether.agora.model.toMessageSegment
 import com.newoether.agora.util.Constants
@@ -95,11 +97,39 @@ class UiMessageProjectionTest {
         assertNull(projected.toolCall)
     }
 
+    @Test
+    fun stoppedModelProjectionStopsLiveToolsAndIgnoresUnknownFields() {
+        val raw =
+            """[{"type":"tool","toolName":"shell","toolState":"running","future":{"v":1}},""" +
+                """{"type":"tool","toolName":"background","toolState":"background_running","futureFlag":true}]"""
+        val projected = messageEntity(
+            id = "stopped-assistant",
+            text = "",
+            toolCallJson = raw,
+            status = MessageStatus.STOPPED,
+        ).toUiChatMessage { it }
+        assertEquals(
+            listOf(ToolExecutionStates.STOPPED, ToolExecutionStates.BACKGROUND_RUNNING),
+            projected.segments?.map { it.toolState },
+        )
+    }
+    @Test
+    fun malformedPersistedSegmentsFailClosed() {
+        val projected = messageEntity(
+            id = "malformed-assistant",
+            text = "partial",
+            toolCallJson = "{not-json",
+            status = MessageStatus.STOPPED,
+        ).toUiChatMessage { it }
+        assertNull(projected.segments)
+        assertNull(projected.toolCall)
+    }
     private fun messageEntity(
         id: String,
         text: String,
         toolCallJson: String?,
         thoughts: String? = null,
+        status: MessageStatus = MessageStatus.SUCCESS,
     ) = MessageEntity(
         id = id,
         conversationId = "conversation",
@@ -107,6 +137,7 @@ class UiMessageProjectionTest {
         text = text,
         images = listOf("image"),
         thoughts = thoughts,
+        status = status,
         participant = Participant.MODEL,
         timestamp = 1L,
         toolCallJson = toolCallJson,
