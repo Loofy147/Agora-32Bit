@@ -35,7 +35,8 @@ internal fun mergeAdjacentSegments(segs: List<MessageSegment>): List<MessageSegm
         if (last != null && last.type == seg.type && (seg.type == "answer" || seg.type == "thought")) {
             merged[merged.lastIndex] = last.copy(
                 content = last.content + seg.content,
-                durationMs = mergeDurationMs(last.durationMs, seg.durationMs)
+                durationMs = mergeDurationMs(last.durationMs, seg.durationMs),
+                streamingTextDeltas = last.streamingTextDeltas + seg.streamingTextDeltas,
             )
         } else {
             merged.add(seg)

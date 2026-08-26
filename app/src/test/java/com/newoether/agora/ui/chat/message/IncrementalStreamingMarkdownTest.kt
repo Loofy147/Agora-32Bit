@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
+import com.newoether.agora.model.StreamingTextDelta
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import org.intellij.markdown.parser.MarkdownParser
 import org.junit.Assert.assertArrayEquals
@@ -84,31 +85,42 @@ class IncrementalStreamingMarkdownTest {
     }
 
     @Test
-    fun directGlyphAlpha_isBoundedMonotonicAndUnicodeSafe() {
+    fun publishedDeltaStartsTransparentAndUsesUnicodeSafePositionDelay() {
         val text = "older text 😀 最新文字"
-        val annotated = streamingTailAnnotatedString(
+        val codePoints = text.codePointCount(0, text.length)
+        val tracker = StreamingTailFadeTracker()
+        val sample = tracker.update(
+            text = text,
+            nowMs = 1_000L,
+            textDeltas = listOf(StreamingTextDelta(sequence = 0L, codePointCount = codePoints)),
+        )
+
+        val initial = streamingTailAnnotatedString(
             text = text,
             color = Color.White,
-            fadeCodePoints = 8,
-            bands = 4,
-            newestAlpha = 0.4f,
+            birthTimesMs = sample.birthTimesMs,
+            positionDelaysMs = sample.positionDelaysMs,
+            nowMs = 1_000L,
         )
-        val styles = annotated.spanStyles
+        assertEquals(1, initial.spanStyles.size)
+        assertEquals(0f, initial.spanStyles.single().item.color.alpha, 0.0001f)
 
-        assertEquals(4, styles.size)
-        assertEquals(text.length, styles.last().end)
-        assertEquals(0.4f, styles.last().item.color.alpha, 0.0001f)
-        styles.zipWithNext().forEach { (older, newer) ->
-            assertTrue(older.item.color.alpha > newer.item.color.alpha)
-        }
-        styles.forEach { range ->
+        val elapsed = streamingTailAnnotatedString(
+            text = text,
+            color = Color.White,
+            birthTimesMs = sample.birthTimesMs,
+            positionDelaysMs = sample.positionDelaysMs,
+            nowMs = 1_100L,
+        )
+        assertTrue(elapsed.spanStyles.first().item.color.alpha >= 0f)
+        elapsed.spanStyles.forEach { range ->
             assertFalse(range.start.splitsSurrogatePair(text))
             assertFalse(range.end.splitsSurrogatePair(text))
         }
     }
 
     @Test
-    fun temporalAlpha_usesPerAppendBirthTimesAndEventuallyBecomesSolid() {
+    fun temporalAlphaUsesBirthAndDeltaPositionThenBecomesSolid() {
         val tracker = StreamingTailFadeTracker()
         tracker.update("ab", nowMs = 1_000L)
         val appended = tracker.update("abcd", nowMs = 1_100L)
@@ -117,32 +129,41 @@ class IncrementalStreamingMarkdownTest {
             longArrayOf(1_000L, 1_000L, 1_100L, 1_100L),
             appended.birthTimesMs,
         )
+        assertArrayEquals(longArrayOf(0L, 120L, 0L, 120L), appended.positionDelaysMs)
 
         val fading = streamingTailAnnotatedString(
             text = "abcd",
             color = Color.White,
-            fadeCodePoints = 4,
-            bands = 4,
-            newestAlpha = 0.4f,
             birthTimesMs = appended.birthTimesMs,
+            positionDelaysMs = appended.positionDelaysMs,
             nowMs = 1_200L,
             alphaPerSecond = 2f,
         )
-        assertEquals(0.6f, fading.spanStyles.last().item.color.alpha, 0.0001f)
-        assertTrue(streamingTailFadeActive(appended.birthTimesMs, nowMs = 1_200L))
+        assertEquals(0f, fading.spanStyles.last().item.color.alpha, 0.0001f)
+        assertTrue(
+            streamingTailFadeActive(
+                appended.birthTimesMs,
+                appended.positionDelaysMs,
+                nowMs = 1_200L,
+            ),
+        )
 
         val solid = streamingTailAnnotatedString(
             text = "abcd",
             color = Color.White,
-            fadeCodePoints = 4,
-            bands = 4,
-            newestAlpha = 0.4f,
             birthTimesMs = appended.birthTimesMs,
+            positionDelaysMs = appended.positionDelaysMs,
             nowMs = 2_000L,
             alphaPerSecond = 2f,
         )
         assertTrue(solid.spanStyles.isEmpty())
-        assertFalse(streamingTailFadeActive(appended.birthTimesMs, nowMs = 2_000L))
+        assertFalse(
+            streamingTailFadeActive(
+                appended.birthTimesMs,
+                appended.positionDelaysMs,
+                nowMs = 2_000L,
+            ),
+        )
     }
 
     @Test
@@ -160,8 +181,9 @@ class IncrementalStreamingMarkdownTest {
             text = base,
             color = Color.White,
             fadeCodePoints = 4,
-            bands = 2,
-            newestAlpha = 0.4f,
+            birthTimesMs = longArrayOf(1_000L, 1_000L, 1_000L, 1_000L),
+            positionDelaysMs = longArrayOf(0L, 40L, 80L, 120L),
+            nowMs = 1_000L,
         )
 
         assertEquals(base.text, faded.text)
@@ -170,7 +192,7 @@ class IncrementalStreamingMarkdownTest {
                 it.start == 0 && it.end == 4 && it.item.fontWeight == FontWeight.Bold
             }
         )
-        assertEquals(3, faded.spanStyles.size)
+        assertEquals(2, faded.spanStyles.size)
     }
 
     @Test
@@ -186,8 +208,9 @@ class IncrementalStreamingMarkdownTest {
             text = base,
             color = Color.White,
             fadeCodePoints = 4,
-            bands = 2,
-            newestAlpha = 0.4f,
+            birthTimesMs = longArrayOf(1_000L, 1_000L, 1_000L, 1_000L),
+            positionDelaysMs = longArrayOf(0L, 40L, 80L, 120L),
+            nowMs = 1_000L,
         )
 
         assertEquals("[openai.com]", faded.text)
@@ -252,9 +275,10 @@ class IncrementalStreamingMarkdownTest {
         val tracker = StreamingTailFadeTracker()
         tracker.update("abcd", nowMs = 1_000L)
 
-        val sample = tracker.update("abcde", nowMs = 1_400L)
+        val sample = tracker.update("abcde", nowMs = 1_700L)
 
-        assertArrayEquals(longArrayOf(1_400L), sample.birthTimesMs)
+        assertArrayEquals(longArrayOf(1_700L), sample.birthTimesMs)
+        assertArrayEquals(longArrayOf(0L), sample.positionDelaysMs)
     }
 
     @Test
@@ -283,6 +307,7 @@ class IncrementalStreamingMarkdownTest {
             fadeSample = StreamingTailFadeSample(
                 observedAtMs = 2_000L,
                 birthTimesMs = longArrayOf(1_000L, 1_010L, 1_020L, 1_030L, 1_040L, 1_050L),
+                positionDelaysMs = longArrayOf(0L, 24L, 48L, 72L, 96L, 120L),
             ),
         )
 
@@ -300,6 +325,7 @@ class IncrementalStreamingMarkdownTest {
         val spec = StreamingGlyphFadeSpec(
             tailCodePoints = 3,
             birthTimesMs = longArrayOf(1_000L, 1_010L, 1_020L),
+            positionDelaysMs = longArrayOf(0L, 60L, 120L),
         )
         // Block cp count = 10, window covers cp 7..10. Node [char 5, char 8) = cp 5..8 overlaps
         // cp 7..8 (1 cp, first birth entry).

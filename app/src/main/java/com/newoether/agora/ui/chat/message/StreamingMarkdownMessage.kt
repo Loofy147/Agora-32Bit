@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import com.newoether.agora.model.StreamingTextDelta
 
 /**
  * The single parameterized streaming Markdown message UI.
@@ -30,6 +31,7 @@ internal fun StreamingMarkdownMessage(
     renderContext: ChatMarkdownRenderContext,
     modifier: Modifier = Modifier,
     selectionEnabled: Boolean = !isStreaming,
+    textDeltas: List<StreamingTextDelta> = emptyList(),
     emptyStreamingText: String? = null,
     emptyStreamingTextColor: Color = Color.Unspecified,
     emptyStreamingTextStyle: TextStyle = renderContext.plainTextStyle,
@@ -47,6 +49,7 @@ internal fun StreamingMarkdownMessage(
                 renderContext = renderContext,
                 modifier = Modifier.fillMaxWidth(),
                 selectionEnabled = selectionEnabled,
+                textDeltas = textDeltas,
             )
         }
         AnimatedVisibility(

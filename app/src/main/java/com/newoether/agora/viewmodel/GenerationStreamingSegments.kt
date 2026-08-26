@@ -8,6 +8,7 @@ import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
 import com.newoether.agora.model.TokenUsage
+import com.newoether.agora.model.StreamingTextDelta
 
 internal class GenerationThoughtTiming(
     private val nowMs: () -> Long = System::currentTimeMillis,
@@ -73,6 +74,7 @@ internal fun appendMergedSegment(
             signature = segment.signature ?: last.signature,
             signatureProvider = segment.signatureProvider ?: last.signatureProvider,
             durationMs = mergeDurationMs(last.durationMs, segment.durationMs),
+            streamingTextDeltas = last.streamingTextDeltas + segment.streamingTextDeltas,
         )
     } else {
         target.add(segment)
@@ -113,11 +115,19 @@ internal fun buildLiveSegments(
     signatureProvider: String? = null,
     thoughtDurationMs: Long? = null,
     errorMessage: String? = null,
+    answerDeltas: List<StreamingTextDelta> = emptyList(),
 ): List<MessageSegment>? {
     val citations = flushed.filter { it.type == "citation" }
     val result = flushed.filterTo(mutableListOf()) { it.type != "citation" }
     if (answer.isNotEmpty()) {
-        appendMergedSegment(result, MessageSegment(type = "answer", content = answer.toString()))
+        appendMergedSegment(
+            result,
+            MessageSegment(
+                type = "answer",
+                content = answer.toString(),
+                streamingTextDeltas = answerDeltas,
+            ),
+        )
     }
     if (thought.isNotEmpty()) {
         appendMergedSegment(
@@ -176,6 +186,7 @@ internal data class GenerationFinalSnapshot(
     val errorMessage: String?,
     val runId: String,
     val runSequence: Long,
+    val answerDeltas: List<StreamingTextDelta> = emptyList(),
 )
 
 internal fun GenerationFinalSnapshot.toMessage(): ChatMessage = ChatMessage(
@@ -200,6 +211,7 @@ internal fun GenerationFinalSnapshot.toMessage(): ChatMessage = ChatMessage(
         thoughtSignatureProvider,
         thoughtDurationMs,
         errorMessage,
+        answerDeltas = answerDeltas,
     ) ?: flushedSegments.ifEmpty { null },
     runId = runId,
     runSequence = runSequence,

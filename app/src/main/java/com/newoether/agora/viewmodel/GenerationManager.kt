@@ -15,6 +15,7 @@ import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
 import com.newoether.agora.model.RunEffectIdentity
+import com.newoether.agora.model.StreamingTextDelta
 import com.newoether.agora.model.RequestTokenUsageAccumulator
 import com.newoether.agora.model.TokenUsage
 import com.newoether.agora.model.ToolCallData
@@ -160,6 +161,8 @@ class GenerationManager(
         val toolOverlay = GenerationToolOverlay(toolExecutor, config.providerName)
         val generatedImages = mutableListOf<String>()
         var currentAnswerBuf = StringBuilder()
+        var currentAnswerDeltas = mutableListOf<StreamingTextDelta>()
+        var nextAnswerDeltaSequence = 0L
         var currentThoughtBuf = StringBuilder()
         var currentThoughtSignature: String? = null
         var currentThoughtSignatureProvider: String? = null
@@ -289,6 +292,7 @@ class GenerationManager(
                     currentThoughtSignatureProvider,
                     thoughtTiming.liveDurationMs(),
                     generationErrorMessage,
+                    answerDeltas = currentAnswerDeltas,
                 ),
                 retryText = retryText,
                 runId = runId,
@@ -308,9 +312,14 @@ class GenerationManager(
             fun flushAnswerSegment() {
                 if (currentAnswerBuf.isNotEmpty()) {
                     toolOverlay.append(
-                        MessageSegment(type = "answer", content = currentAnswerBuf.toString()),
+                        MessageSegment(
+                            type = "answer",
+                            content = currentAnswerBuf.toString(),
+                            streamingTextDeltas = currentAnswerDeltas.toList(),
+                        ),
                     )
                     currentAnswerBuf = StringBuilder()
+                    currentAnswerDeltas = mutableListOf()
                 }
             }
 
@@ -414,6 +423,14 @@ class GenerationManager(
                         }
                         totalText += answerText
                         currentAnswerBuf.append(answerText)
+                        val deltaCodePointCount =
+                            answerText.codePointCount(0, answerText.length)
+                        if (deltaCodePointCount > 0) {
+                            currentAnswerDeltas += StreamingTextDelta(
+                                sequence = nextAnswerDeltaSequence++,
+                                codePointCount = deltaCodePointCount,
+                            )
+                        }
                         if (answerText.isNotBlank()) {
                             currentStatus = MessageStatus.SENDING
                         }
@@ -802,6 +819,7 @@ class GenerationManager(
                             errorMessage = generationErrorMessage,
                             runId = runId,
                             runSequence = modelRunSequence,
+                            answerDeltas = currentAnswerDeltas.toList(),
                         ).toMessage()
                         val finalMessage = generatedMessage.withBoundedFinalTextTransform(
                             callbacks.transformFinalText,
