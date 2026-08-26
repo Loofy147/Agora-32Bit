@@ -272,10 +272,12 @@ fun ChatApp(
         bypassScrollIsolation =
             streamingTailController.isAutoFollowing || absoluteBottomScrollPhase.isActive,
     )
+    val messageHydration = rememberChatMessageHydrationBindings(viewModel, customProviders)
     val conversationInteraction = rememberConversationInteractionState(
         currentConversationId = currentConversationId,
         messages = displayMessagesState,
         listState = listState,
+        searchMessages = messageHydration.searchMessages,
     )
     val conversationSearchActive = conversationInteraction.searchActive
     val conversationSearchQuery = conversationInteraction.searchQuery
@@ -555,6 +557,7 @@ fun ChatApp(
                                 compactPreview = viewModel.compactPreview,
                                 isStopping = isStopping,
                                 isSwitching = isSwitching,
+                                streamingMessageId = generationSnapshot.streamingMessage?.id,
                                 streamingAutoFollowEnabled =
                                     streamingFollowAvailability.enabled && stickToBottom,
                                 streamingAutoFollowPaused =
@@ -580,6 +583,8 @@ fun ChatApp(
                                 bottomBarHeight = bottomBarHeight + shareSelectionBarSpace,
                                 viewportHeight = viewportHeightPx,
                                 messageHeights = messageHeights,
+                                observeMessage = messageHydration.observeMessage,
+                                onMessageHydrated = scrollCoordinator::recordMessageHydrated,
                                 lifecycleAppearanceRegistry = messageLifecycleAppearanceRegistry,
                                 lifecycleEntranceTargetMessageId = animatedScrollRequest
                                     ?.takeIf { it.conversationId == currentConversationId }

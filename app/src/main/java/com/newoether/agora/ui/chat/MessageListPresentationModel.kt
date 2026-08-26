@@ -1,0 +1,59 @@
+package com.newoether.agora.ui.chat
+
+import com.newoether.agora.model.ChatMessage
+import com.newoether.agora.model.MessageGenerationBoundaryResolver
+import com.newoether.agora.model.MessageStatus
+import com.newoether.agora.model.Participant
+import com.newoether.agora.ui.chat.message.AssistantInlineActivityMode
+import com.newoether.agora.ui.chat.message.assistantInlineActivityMode
+import com.newoether.agora.ui.chat.message.isInfoSegment
+import com.newoether.agora.ui.chat.message.isVisibleAnswerSegment
+
+internal data class RunProjectionMessageKey(
+    val id: String,
+    val parentId: String?,
+    val participant: Participant,
+    val timestamp: Long,
+    val runId: String?,
+    val runSequence: Long?,
+)
+
+internal fun ChatMessage.toRunProjectionKey(): RunProjectionMessageKey =
+    RunProjectionMessageKey(
+        id = id,
+        parentId = parentId,
+        participant = participant,
+        timestamp = timestamp,
+        runId = runId,
+        runSequence = runSequence,
+    )
+
+internal fun compactMessageActionsEnabled(
+    isLoading: Boolean,
+    isStopping: Boolean,
+    isCompacting: Boolean,
+): Boolean = !isLoading && !isStopping && !isCompacting
+
+internal fun shouldShowStreamingTailIndicator(
+    isLoading: Boolean,
+    isStopping: Boolean,
+    message: ChatMessage?,
+): Boolean = message?.let {
+    val segments = it.segments.orEmpty()
+    val generationActive = it.status == MessageStatus.SENDING ||
+        it.status == MessageStatus.THINKING ||
+        it.status == MessageStatus.TOOL_CALLING ||
+        it.status == MessageStatus.TRANSCRIBING
+    isLoading && !isStopping && generationActive &&
+        MessageGenerationBoundaryResolver.isOrdinaryAssistant(it) &&
+        (segments.lastOrNull { segment ->
+            segment.isVisibleAnswerSegment() || segment.isInfoSegment()
+        }?.isVisibleAnswerSegment() ?: it.text.isNotBlank()) &&
+        assistantInlineActivityMode(
+            generationActive = generationActive,
+            hasAnswer = it.text.isNotBlank() ||
+                segments.any { segment -> segment.isVisibleAnswerSegment() },
+            hasVisibleInfoSegment = segments.any { segment -> segment.isInfoSegment() },
+            retryText = it.retryText,
+        ) == AssistantInlineActivityMode.NONE
+} == true
