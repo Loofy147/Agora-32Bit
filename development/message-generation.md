@@ -304,8 +304,8 @@ placeholder differences remain parameterized.
 Finalized Thinking Bottom Sheet Markdown is selectable in every rendering branch, including the
 virtualized single-segment long-document path. Selection uses the shared no-auto-scroll selection
 host so dragging handles never repositions the conversation. Active streaming content remains
-non-selectable; once that same renderer reaches terminal state, selection is enabled without
-switching Markdown implementations or disabling virtualization.
+non-selectable; terminal selection moves the same composition through movable content instead of
+recreating its Markdown subtree, resetting state, or emitting a zero-height frame.
 
 Generation terminal presentation is not Markdown syntax or renderer state. One stateless shared text
 component renders the ordinary answer and detail-sheet error beside the shared Markdown

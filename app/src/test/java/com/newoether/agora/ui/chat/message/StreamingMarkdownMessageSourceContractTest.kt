@@ -17,6 +17,7 @@ class StreamingMarkdownMessageSourceContractTest {
         val detail = source(root, "SegmentDetailSheet.kt")
         val segments = source(root, "MessageItemSegments.kt")
         val interaction = source(root, "StreamingMarkdownInteractionCommitGate.kt")
+        val selectionHost = File(root, "com/newoether/agora/util/NoOpBringIntoView.kt").readText()
 
         assertTrue(wrapper.contains("internal fun StreamingMarkdownMessage("))
         assertTrue(wrapper.contains("IncrementalStreamingMarkdownContent("))
@@ -57,6 +58,8 @@ class StreamingMarkdownMessageSourceContractTest {
         assertTrue(wrapper.contains("emptyStreamingTextStyle: TextStyle"))
         assertTrue(wrapper.contains("AnimatedVisibility("))
         assertTrue(wrapper.contains(".padding(top = 8.dp)"))
+        assertTrue(selectionHost.contains("movableContentOf"))
+        assertTrue(selectionHost.contains("DisableSelection(content = movableContent)"))
 
         listOf(assistant, timeline, detail).forEach {
             assertTrue(it.contains("StreamingMarkdownMessage("))
