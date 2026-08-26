@@ -45,8 +45,25 @@ interface ChatDao : ChatAutomationDao, ChatContextCompactDao, ChatProviderContex
     @Query("SELECT * FROM conversations WHERE id = :conversationId")
     fun observeConversation(conversationId: String): Flow<ChatEntity?>
 
-    @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY timestamp ASC")
-    fun getMessagesForConversation(conversationId: String): Flow<List<MessageEntity>>
+    @Query("SELECT * FROM messages WHERE id = :messageId")
+    fun observeMessage(messageId: String): Flow<MessageEntity?>
+
+    @Query(
+        """
+        SELECT *
+        FROM messages
+        WHERE conversationId = :conversationId
+          AND (
+              text LIKE '%' || :escapedQuery || '%' ESCAPE '\\'
+              OR toolCallJson LIKE '%' || :escapedQuery || '%' ESCAPE '\\'
+          )
+        ORDER BY timestamp ASC, id ASC
+        """
+    )
+    fun observeConversationSearchMatches(
+        conversationId: String,
+        escapedQuery: String,
+    ): Flow<List<MessageEntity>>
 
     @Query(
         """
@@ -57,115 +74,6 @@ interface ChatDao : ChatAutomationDao, ChatContextCompactDao, ChatProviderContex
         """
     )
     suspend fun stopStuckMessagesForConversation(conversationId: String): Int
-
-    /**
-     * UI projection of the message graph. Synthetic protocol rows are required for parent-path
-     * traversal, but their text/segments can be very large and are never rendered. While an
-     * in-memory overlay owns [streamingMessageId], that row is also projected as a stable,
-     * lightweight SENDING placeholder. Room may re-run this table query after a checkpoint, but
-     * the equal result is suppressed before JSON projection/Compose and no large live payload
-     * crosses the Cursor boundary.
-     */
-    @Query(
-        """
-        SELECT
-            id,
-            conversationId,
-            parentId,
-            CASE
-                WHEN id = :streamingMessageId
-                    OR substr(id, 1, 5) = 'tool_'
-                    OR substr(id, 1, 7) = 'result_' THEN ''
-                ELSE text
-            END AS text,
-            CASE
-                WHEN id = :streamingMessageId
-                    OR substr(id, 1, 5) = 'tool_'
-                    OR substr(id, 1, 7) = 'result_' THEN '[]'
-                ELSE images
-            END AS images,
-            CASE
-                WHEN id = :streamingMessageId
-                    OR substr(id, 1, 5) = 'tool_'
-                    OR substr(id, 1, 7) = 'result_' THEN NULL
-                ELSE thoughts
-            END AS thoughts,
-            CASE
-                WHEN id = :streamingMessageId
-                    OR substr(id, 1, 5) = 'tool_'
-                    OR substr(id, 1, 7) = 'result_' THEN NULL
-                ELSE thoughtTitle
-            END AS thoughtTitle,
-            CASE
-                WHEN id = :streamingMessageId
-                    OR substr(id, 1, 5) = 'tool_'
-                    OR substr(id, 1, 7) = 'result_' THEN 0
-                ELSE tokenCount
-            END AS tokenCount,
-            CASE
-                WHEN id = :streamingMessageId
-                    OR substr(id, 1, 5) = 'tool_'
-                    OR substr(id, 1, 7) = 'result_' THEN NULL
-                ELSE inputTokenCount
-            END AS inputTokenCount,
-            CASE
-                WHEN id = :streamingMessageId
-                    OR substr(id, 1, 5) = 'tool_'
-                    OR substr(id, 1, 7) = 'result_' THEN NULL
-                ELSE cachedInputTokenCount
-            END AS cachedInputTokenCount,
-            CASE
-                WHEN id = :streamingMessageId
-                    OR substr(id, 1, 5) = 'tool_'
-                    OR substr(id, 1, 7) = 'result_' THEN NULL
-                ELSE uncachedInputTokenCount
-            END AS uncachedInputTokenCount,
-            CASE
-                WHEN id = :streamingMessageId
-                    OR substr(id, 1, 5) = 'tool_'
-                    OR substr(id, 1, 7) = 'result_' THEN NULL
-                ELSE outputTokenCount
-            END AS outputTokenCount,
-            CASE
-                WHEN id = :streamingMessageId
-                    OR substr(id, 1, 5) = 'tool_'
-                    OR substr(id, 1, 7) = 'result_' THEN NULL
-                ELSE reasoningTokenCount
-            END AS reasoningTokenCount,
-            CASE WHEN id = :streamingMessageId THEN 'SENDING' ELSE status END AS status,
-            participant,
-            timestamp,
-            CASE
-                WHEN id = :streamingMessageId
-                    OR substr(id, 1, 5) = 'tool_'
-                    OR substr(id, 1, 7) = 'result_' THEN NULL
-                ELSE thoughtTimeMs
-            END AS thoughtTimeMs,
-            modelName,
-            CASE
-                WHEN id = :streamingMessageId
-                    OR substr(id, 1, 5) = 'tool_'
-                    OR substr(id, 1, 7) = 'result_' THEN NULL
-                ELSE toolCallJson
-            END AS toolCallJson,
-            CASE
-                WHEN id = :streamingMessageId
-                    OR substr(id, 1, 5) = 'tool_'
-                    OR substr(id, 1, 7) = 'result_' THEN NULL
-                ELSE attachmentMeta
-            END AS attachmentMeta,
-            runId,
-            runSequence,
-            consumedAtPass
-        FROM messages
-        WHERE conversationId = :conversationId
-        ORDER BY timestamp ASC
-        """
-    )
-    fun getUiMessagesForConversation(
-        conversationId: String,
-        streamingMessageId: String?,
-    ): Flow<List<MessageEntity>>
 
     @Upsert
     suspend fun upsertConversation(conversation: ChatEntity)
@@ -761,8 +669,37 @@ interface ChatDao : ChatAutomationDao, ChatContextCompactDao, ChatProviderContex
     @Query("SELECT * FROM conversations WHERE id = :conversationId AND taskId IS NULL")
     suspend fun getSearchableConversation(conversationId: String): ChatEntity?
 
-    @Query("SELECT * FROM conversations WHERE taskId IS NULL ORDER BY lastUpdated ASC")
-    suspend fun getSearchableConversationsList(): List<ChatEntity>
+
+    @Query("SELECT COUNT(*) FROM conversations WHERE taskId IS NULL")
+    suspend fun getSearchableConversationCount(): Int
+
+    @Query(
+        """
+        SELECT *
+        FROM conversations
+        WHERE taskId IS NULL
+        ORDER BY lastUpdated ASC, id ASC
+        LIMIT :limit OFFSET :offset
+        """
+    )
+    suspend fun getSearchableConversationsPageAscending(
+        offset: Int,
+        limit: Int,
+    ): List<ChatEntity>
+
+    @Query(
+        """
+        SELECT *
+        FROM conversations
+        WHERE taskId IS NULL
+        ORDER BY lastUpdated DESC, id DESC
+        LIMIT :limit OFFSET :offset
+        """
+    )
+    suspend fun getSearchableConversationsPageDescending(
+        offset: Int,
+        limit: Int,
+    ): List<ChatEntity>
 
     @Query("UPDATE conversations SET draftText = :text, draftAttachments = :attachments WHERE id = :id")
     suspend fun updateDraft(id: String, text: String, attachments: String?)
@@ -816,6 +753,26 @@ interface ChatDao : ChatAutomationDao, ChatContextCompactDao, ChatProviderContex
         """
     )
     suspend fun getMessageAttachmentReferencesPage(
+        afterId: String?,
+        limit: Int,
+    ): List<MessageAttachmentReference>
+
+    @Query(
+        """
+        SELECT id, images, attachmentMeta
+        FROM messages
+        WHERE conversationId = :conversationId
+          AND (:afterId IS NULL OR id > :afterId)
+          AND (
+              (images != '' AND images != '[]')
+              OR (attachmentMeta IS NOT NULL AND attachmentMeta != '')
+          )
+        ORDER BY id
+        LIMIT :limit
+        """
+    )
+    suspend fun getConversationMessageAttachmentReferencesPage(
+        conversationId: String,
         afterId: String?,
         limit: Int,
     ): List<MessageAttachmentReference>

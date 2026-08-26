@@ -93,6 +93,8 @@ class ChatViewModel(
      * receive the repository (not raw DAO) for a uniform boundary.
      */
     private val convRepo: ConversationRepository = conversationRepository
+    internal val messagePayloadHydration =
+        ConversationMessagePayloadHydration(convRepo, appContext)
     private val composerDrafts = ComposerDraftController(conversationRepository)
     val dataControl = DataControlController(
         conversations = conversationRepository,
@@ -436,7 +438,6 @@ class ChatViewModel(
         registry = generationRegistry,
         executionCoordinator = conversationExecutionCoordinator,
         currentConversationId = currentConversationId,
-        appContext = appContext,
         scope = viewModelScope,
         onConversationLoadFailed = selectionController::failConversationLoad,
     )

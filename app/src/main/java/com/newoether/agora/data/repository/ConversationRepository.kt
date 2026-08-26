@@ -10,6 +10,7 @@ import com.newoether.agora.data.local.EmbeddingModelCount
 import com.newoether.agora.data.local.EmbeddingSearchRow
 import com.newoether.agora.data.local.IndexableMessage
 import com.newoether.agora.data.local.MessageAttachmentReference
+import com.newoether.agora.data.local.MessageContextTopology
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.data.local.MessageStreamCheckpoint
 import com.newoether.agora.data.local.ProviderContextTopologySnapshot
@@ -33,7 +34,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -172,26 +172,51 @@ class ConversationRepository(
     ): Boolean = chatDao.updateConversationTitleIfUnchanged(id, expectedTitle, newTitle) == 1
 
     suspend fun deleteConversation(id: String) {
-        val messages = chatDao.getMessagesForConversation(id).first()
+        val attachmentReferences = mutableListOf<MessageAttachmentReference>()
+        var afterId: String? = null
+        while (true) {
+            val page = chatDao.getConversationMessageAttachmentReferencesPage(
+                conversationId = id,
+                afterId = afterId,
+                limit = ATTACHMENT_REFERENCE_PAGE_SIZE,
+            )
+            attachmentReferences += page
+            afterId = page.lastOrNull()?.id
+            if (page.size < ATTACHMENT_REFERENCE_PAGE_SIZE) break
+        }
         chatDao.deleteEmbeddingsByConversation(id)
         chatDao.deleteMessagesByConversation(id)
         chatDao.deleteConversation(id)
-        deleteMessageFiles(messages)
+        deleteMessageAttachmentFiles(attachmentReferences)
     }
 
     // ── Messages ──────────────────────────────────────────────
 
-    fun getMessagesForConversation(conversationId: String): Flow<List<MessageEntity>> =
-        chatDao.getMessagesForConversation(conversationId)
-
-    fun getUiMessagesForConversation(
+    fun observeMessageTopology(
         conversationId: String,
-        streamingMessageId: String? = null,
-    ): Flow<List<MessageEntity>> =
-        chatDao.getUiMessagesForConversation(conversationId, streamingMessageId)
+    ): Flow<List<MessageContextTopology>> =
+        chatDao.observeMessageContextTopology(conversationId)
 
-    suspend fun getMessagesForConversationSnapshot(conversationId: String): List<MessageEntity> =
-        chatDao.getMessagesForConversation(conversationId).first()
+    suspend fun getMessageTopologySnapshot(
+        conversationId: String,
+    ): List<MessageContextTopology> =
+        chatDao.getMessageContextTopology(conversationId)
+
+    fun observeMessage(messageId: String): Flow<MessageEntity?> =
+        chatDao.observeMessage(messageId)
+
+    fun observeConversationSearchMatches(
+        conversationId: String,
+        query: String,
+    ): Flow<List<MessageEntity>> =
+        if (query.isBlank()) {
+            kotlinx.coroutines.flow.flowOf(emptyList())
+        } else {
+            chatDao.observeConversationSearchMatches(
+                conversationId = conversationId,
+                escapedQuery = escapeLikePattern(query),
+            )
+        }
 
     suspend fun getProviderContextTopologySnapshot(
         conversationId: String,
@@ -206,9 +231,7 @@ class ConversationRepository(
         chatDao.getMessage(messageId)
 
     suspend fun getContextMessagesByIds(ids: List<String>): List<MessageEntity> =
-        ids.chunked(CONTEXT_MESSAGE_QUERY_PAGE_SIZE).flatMap { page ->
-            chatDao.getMessagesByIds(page)
-        }
+        getMessagesByIds(ids)
 
     suspend fun getLastMessageForConversation(conversationId: String): MessageEntity? =
         chatDao.getLastMessageForConversation(conversationId)
@@ -430,7 +453,9 @@ class ConversationRepository(
     suspend fun removeContextCompact(messageId: String): Boolean = chatDao.removeContextCompact(messageId)
 
     suspend fun getMessagesByIds(ids: List<String>): List<MessageEntity> =
-        chatDao.getMessagesByIds(ids)
+        ids.chunked(CONTEXT_MESSAGE_QUERY_PAGE_SIZE).flatMap { page ->
+            chatDao.getMessagesByIds(page)
+        }
 
     suspend fun getSearchableMessagesByIds(ids: List<String>): List<MessageEntity> =
         if (ids.isEmpty()) emptyList() else chatDao.getSearchableMessagesByIds(ids)
@@ -636,8 +661,18 @@ class ConversationRepository(
     suspend fun getSearchableConversation(id: String): ChatEntity? =
         chatDao.getSearchableConversation(id)
 
-    suspend fun getSearchableConversationsList(): List<ChatEntity> =
-        chatDao.getSearchableConversationsList()
+    suspend fun getSearchableConversationCount(): Int =
+        chatDao.getSearchableConversationCount()
+
+    suspend fun getSearchableConversationsPage(
+        offset: Int,
+        limit: Int,
+        descending: Boolean,
+    ): List<ChatEntity> = if (descending) {
+        chatDao.getSearchableConversationsPageDescending(offset, limit)
+    } else {
+        chatDao.getSearchableConversationsPageAscending(offset, limit)
+    }
 
     suspend fun getMessageAttachmentReferencesPage(
         afterId: String?,
@@ -659,6 +694,14 @@ class ConversationRepository(
     /** Deletes candidate files only after verifying that no remaining message or draft still
      * references them. This protects legacy forks/imports that share old backing paths. */
     suspend fun deleteMessageFiles(messages: List<MessageEntity>) {
+        deleteUnreferencedAttachmentFiles(
+            messages.flatMapTo(linkedSetOf()) { it.attachmentFilePaths() }
+        )
+    }
+
+    private suspend fun deleteMessageAttachmentFiles(
+        messages: List<MessageAttachmentReference>,
+    ) {
         deleteUnreferencedAttachmentFiles(
             messages.flatMapTo(linkedSetOf()) { it.attachmentFilePaths() }
         )
@@ -733,7 +776,16 @@ class ConversationRepository(
             .forEach { path -> runCatching { java.io.File(path).delete() } }
     }
 
-    private fun MessageEntity.attachmentFilePaths(): List<String> = buildList {
+    private fun MessageEntity.attachmentFilePaths(): List<String> =
+        attachmentFilePaths(images, attachmentMeta)
+
+    private fun MessageAttachmentReference.attachmentFilePaths(): List<String> =
+        attachmentFilePaths(images, attachmentMeta)
+
+    private fun attachmentFilePaths(
+        images: List<String>,
+        attachmentMeta: String?,
+    ): List<String> = buildList {
         images.mapTo(this, ::normalizeAttachmentPath)
         attachmentMeta
             ?.let { raw -> runCatching { Json.decodeFromString<AttachmentMeta>(raw) }.getOrNull() }
