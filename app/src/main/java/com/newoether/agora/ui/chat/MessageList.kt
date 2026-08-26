@@ -807,6 +807,7 @@ internal fun MessageList(
                 (editingMessageId == null || editingMessageId == message.id) &&
                 !isLoading,
             isEditing = editingMessageId == message.id,
+            userBubbleSizeAnimationReady = userBubbleSizeAnimationReady(hydrationPending),
             isSwitching = isSwitching,
             isInContext = isInContext,
             modelAliases = modelAliases,

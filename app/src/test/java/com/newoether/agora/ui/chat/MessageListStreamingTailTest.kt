@@ -7,6 +7,7 @@ import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
 import com.newoether.agora.ui.chat.message.AssistantInlineActivityMode
 import com.newoether.agora.ui.chat.message.assistantInlineActivityMode
+import com.newoether.agora.ui.chat.message.userBubbleSizeAnimationEnabled
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -14,6 +15,24 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MessageListStreamingTailTest {
+    @Test
+    fun userBubbleSizeAnimationStartsOnlyAfterPayloadHydration() {
+        assertFalse(userBubbleSizeAnimationReady(hydrationPending = true))
+        assertTrue(userBubbleSizeAnimationReady(hydrationPending = false))
+        assertFalse(
+            userBubbleSizeAnimationEnabled(
+                sizeAnimationReady = true,
+                allowSpatialTransitions = false,
+            ),
+        )
+        assertTrue(
+            userBubbleSizeAnimationEnabled(
+                sizeAnimationReady = true,
+                allowSpatialTransitions = true,
+            ),
+        )
+    }
+
     @Test
     fun attachedStreamingTailSurvivesContentGrowth() {
         var mode = reduceStreamingTailFollow(

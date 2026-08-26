@@ -34,6 +34,9 @@ internal fun compactMessageActionsEnabled(
     isCompacting: Boolean,
 ): Boolean = !isLoading && !isStopping && !isCompacting
 
+internal fun userBubbleSizeAnimationReady(hydrationPending: Boolean): Boolean =
+    !hydrationPending
+
 internal fun resolveMessagePayloadForRender(
     messageStub: ChatMessage,
     streamingMessageId: String?,
