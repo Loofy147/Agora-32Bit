@@ -264,26 +264,43 @@ cadence, and stream-to-terminal renderer continuity. A caller must not keep a se
 Markdown algorithm or switch to a different terminal renderer merely because streaming ended.
 
 The implementation is only a parameterized UI variant. Its allowed inputs include Markdown
-content, streaming state, render context, font/size/color, and a generic animated empty-stream
-presentation. Every append-growing live text surface uses one age-based active trailing-glyph
-fade with no fixed character-count cap: ordinary/timeline answer Markdown and plain/code leaves, Thinking previews/summaries in
-Compact/Timeline/detail-sheet modes, Tool summaries derived from streaming arguments or live state,
-and equivalent live detail text. Static titles, terminal labels, Retry, error text, and citation
-metadata do not replay this stream animation merely because they share typography.
+content, streaming state, render context, font/size/color, a published-delta glyph timeline, and a
+generic animated empty-stream presentation. Every append-growing live text surface uses one
+age-and-delta-position active glyph fade with no fixed character-count cap: ordinary/timeline answer
+Markdown and plain/code leaves, Thinking previews/summaries in Compact/Timeline/detail-sheet modes,
+Tool summaries derived from streaming arguments or live state, and equivalent live detail text.
+Static titles, terminal labels, Retry, error text, and citation metadata do not replay this stream
+animation merely because they share typography.
 
 The fade is draw-only. One unchanged full AnnotatedString/Text layout owns shaping, kerning, wrapping,
 alignment, semantics, links, citations, selection mapping, search highlights, and code controls while
 only glyph paint alpha changes. Terminal settlement must not remove temporary foreground spans,
 replace the Text/Markdown implementation, reset the paint origin, or otherwise create a left jump.
-New appended code points receive their birth time only when their snapshot is first published; input
-offer time, conflated parses, stale parses, and interaction-held snapshots cannot age them before their
-first rendered frame. Existing glyphs keep their age and do not replay when another delta arrives.
-Only the not-yet-solid suffix remains tracked, and solid prefixes are pruned without a count cap. The
-finite Welcome/Onboarding typewriter may share the same
-low-level stable glyph-paint primitive, but it is not the scope boundary. A caller must not disable
-the streaming fade merely to hide a surrounding answering-tail dot. The ordinary message list may
-own that separate dot, while Thinking and Compact Bottom Sheets omit it without changing text
-rendering. Typography or placeholder differences remain parameterized.
+
+Every newly published Unicode code point has an original delta identity, its code-point ordinal and
+code-point count within that delta, and a birth timestamp assigned only when the glyph is first
+published to a visible render snapshot. Input offer time, conflated parses, stale parses, and
+interaction-held snapshots cannot age a glyph before its first visible frame. If one frame publishes
+several original deltas, their position domains remain independent and every new glyph still starts
+at output alpha zero. Existing glyphs retain their metadata and never replay when another delta
+arrives, Markdown is reparsed or promoted, Compose recomposes, LazyColumn evicts or rehydrates a row,
+the row scrolls off-screen and back, or generation becomes terminal.
+
+For code point `i` in original delta `D` with `N` code points, the approved constants are
+`k = 2.0 s^-1` and `W = 0.12 s`. The renderer computes
+`position_i(D) = i / max(N - 1, 1) * W`,
+`rawAlpha_i(t) = k * (elapsed_i(t) - position_i(D))`, and
+`alpha_i(t) = clamp(rawAlpha_i(t), 0, 1)`. Position resets for each original delta and never derives
+from the whole message or document. Negative raw alpha is retained only as a calculation; paint alpha
+is always clamped to `[0, 1]`. Spatial alpha bands, a positive newest-glyph starting alpha,
+large-delta shortcuts, long-document bypasses, and count-based fade disabling are forbidden.
+
+Only glyphs that have reached output alpha one may be pruned from the tracker, without a count cap and
+without changing later output. The finite Welcome/Onboarding typewriter may share the same low-level
+stable glyph-paint primitive, but it is not the scope boundary. A caller must not disable the streaming
+fade merely to hide a surrounding answering-tail dot. The ordinary message list may own that separate
+dot, while Thinking and Compact Bottom Sheets omit it without changing text rendering. Typography or
+placeholder differences remain parameterized.
 
 Finalized Thinking Bottom Sheet Markdown is selectable in every rendering branch, including the
 virtualized single-segment long-document path. Selection uses the shared no-auto-scroll selection
@@ -340,34 +357,33 @@ text-to-terminal spacing remains unchanged. Timeline mode derives adjacency from
 segment; the mere existence of an earlier card does not add spacing. Compact capsule error/stopped
 chrome and detail-sheet defaults are independent and unchanged.
 
-Generation activity uses one direct, layout-owned white dot at the currently active slot.
-No transparent source marker, visual clone, source registry, coordinate follower, match-parent overlay,
-or dot-specific z layer participates. The pre-output and Retry slot remains after visible
-Thought/Tool/Transcription presentation and before answer Markdown; the answer-tail slot remains
-after answer content. Their existing visibility predicates are mutually exclusive, so only the
-active slot draws the shared dot.
+Generation activity and terminal presentation are resolved from one current assistant-message
+snapshot. Body content, Thought/Tool/Transcription visibility, pre-output activity, answer-tail
+activity, stopping, stopped, and error state must never be computed from separately collected or
+remembered snapshots. Exactly one white-dot owner may draw in a frame: an active ordinary assistant
+with no Answer and no visible information card uses the inline slot; an active ordinary assistant
+whose last visible output is Answer uses the answer-tail slot; a visible information card, stopping
+state, or terminal state uses no white dot. Retry remains part of the inline slot. These predicates
+are mutually exclusive by construction rather than coordinated after rendering.
 
-Pre-output keeps the exact 11 dp dot. A no-Answer transition to visible
-Thought/Tool/Transcription content or terminal disappearance retains the last non-hidden inline mode
-through its unchanged 320 ms exit. In ordinary motion, the inline host's layout height collapses over
-the same 320 ms as its opacity; Reduced Motion snaps only that spatial height while preserving the
-320 ms opacity feedback. Visible Answer activation is instead an immediate direct-source
-handoff: the pre-output/Retry host releases layout and stops drawing in that frame, and the answer-tail
-dot is the only source from its first frame at the final anchor. The outgoing inline Row must never
-temporarily inflate message height beneath a newly visible Answer. Retry keeps the localized label,
-8 dp gap, measured caret placement, and direct render-layer translation of that same dot. The answer
-tail keeps its fixed
-anchor height and lift and directly owns its established 400 ms entrance and 320 ms exit fade/scale.
-Each direct source owns its own opacity, breathing, size, and lifecycle. Direct activity and tail
-exit paths retain their content through zero alpha with explicit transition state; they do not use
-`AnimatedVisibility`. Their two alpha-bearing graphics layers use
-`CompositingStrategy.ModulateAlpha`, never default `Auto` or `Offscreen`, so exit opacity cannot
-rasterize the 1.30x breathing circle into tight rectangular layout bounds. Every graphics layer on
-the direct-dot path sets `clip = false`. The dot never uses `animateContentSize`, expand/shrink
-layout animation, a halo, inflated bounds, coordinate conversion, Euler integration, or retained
-follower velocity. Reduced Motion removes only spatial
-scale movement while preserving direct placement and the continuous-motion policy still owns
-breathing.
+The inline activity and terminal text share one stable final-geometry slot after visible
+Thought/Tool/Transcription content and before answer Markdown. On a transition to STOPPED or ERROR,
+the terminal label occupies its final coordinate in the first terminal frame. Any outgoing inline dot
+may remain only as a draw-only overlay at that coordinate while fading; it contributes no height,
+padding, baseline, or sibling position. `Generation Stopped` and error text therefore never begin
+below an exiting dot and never move upward as an animation completes. Reduced Motion changes only
+draw-time motion or opacity and cannot expose a different layout path.
+
+Pre-output keeps the exact 11 dp dot. Visible Answer activation immediately releases the inline slot,
+and the answer-tail dot is the sole source from its first frame at the final anchor. Retry keeps the
+localized label, 8 dp gap, measured caret placement, and direct render-layer translation of the same
+dot. The answer tail keeps its fixed anchor height and lift and owns its established entrance and exit
+paint animation. Direct activity and tail exit paths retain their draw content through zero alpha
+without `AnimatedVisibility`, expand/shrink layout animation, `animateContentSize`, coordinate
+followers, or retained layout height. Their alpha-bearing graphics layers use
+`CompositingStrategy.ModulateAlpha`, set `clip = false`, and never rasterize a breathing circle into
+tight rectangular bounds. Continuous-motion policy may own breathing; it never owns placement or
+layout geometry.
 
 Retry still fades its label in by Unicode grapheme at 27 ms per grapheme, bounded to
 225-600 ms, with the fast-start, slow-finish `LinearOutSlowInEasing` curve. The entrance plays only
@@ -696,6 +712,17 @@ walks the same durable parent chain, applies the nearest-SUCCESS-Compact boundar
 summary text content, and expands the same run-matched tool/result side chains in established order.
 Only full payload rows outside that canonical path may be omitted. There is no pre-rollout,
 overscan, payload-size product limit, topology-retry approximation, or alternate Compact boundary.
+
+Conversation UI payload residency is a separate projection optimization. Payload-free topology owns
+durable ordering and structural fields. The one active generation row is overlaid and rendered
+directly from one atomic current render snapshot; it must not be observed through a remembered
+single-value Flow, historical row hydration, or a payload cache. Composed historical rows may observe
+and hydrate their full payload by stable message identity. JSON decoding and display projection occur
+off the main thread. A bounded LRU may retain completed display projections, but it is never
+authoritative state, never bridges a terminal transition, and never changes topology, edit identity,
+or Provider-visible materialization. Search and semantic-search reads use bounded payload projections
+instead of unbounded full-row materialization. LazyColumn eviction or rehydration may change object
+lifetime only; it must not change content, generation state, or glyph-birth metadata.
 
 After Room projection, Provider preparation remains the only rollout authority. No DAO, loader,
 Compact controller, UI projector, transcription stage, or automation caller may remove an older
