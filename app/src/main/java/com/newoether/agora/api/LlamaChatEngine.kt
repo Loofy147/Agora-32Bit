@@ -9,12 +9,40 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
 import java.io.Closeable
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantReadWriteLock
 
+internal enum class LlamaGenerationStopReason(val nativeValue: String) {
+    EOG("eog"),
+    MAX_TOKENS("max_tokens"),
+    CONTEXT_FULL("context_full"),
+    CANCELLED("cancelled");
+
+    companion object {
+        fun fromNative(value: String): LlamaGenerationStopReason? = entries
+            .firstOrNull { it.nativeValue == value }
+    }
+}
+
+internal sealed interface LlamaGenerationEvent {
+    data class Text(val value: String) : LlamaGenerationEvent
+    data class Completed(
+        val reason: LlamaGenerationStopReason,
+        val inputTokenCount: Int,
+        val outputTokenCount: Int,
+    ) : LlamaGenerationEvent
+
+    data class Failed(
+        val message: String,
+        val inputTokenCount: Int,
+        val outputTokenCount: Int,
+    ) : LlamaGenerationEvent
+}
+
 interface NativeChatCallback {
-    fun onToken(token: String)
-    fun onDone()
-    fun onError(message: String)
+    fun onToken(token: String): Boolean
+    fun onDone(reason: String, inputTokenCount: Int, outputTokenCount: Int)
+    fun onError(message: String, inputTokenCount: Int, outputTokenCount: Int)
 }
 
 class ChatTemplateMessage(val role: String, val content: String)
@@ -103,24 +131,48 @@ class LlamaChatEngine(
         temperature: Float = 0.7f,
         topP: Float = 0.9f,
         maxTokens: Int = 4096
-    ): Flow<String> = callbackFlow {
+    ): Flow<LlamaGenerationEvent> = callbackFlow {
         if (nativeHandle == 0L) {
             close(RuntimeException("Model not loaded"))
             return@callbackFlow
         }
 
+        val terminalSignalled = AtomicBoolean(false)
         val callback = object : NativeChatCallback {
-            override fun onToken(token: String) {
-                if (trySendBlocking(token).isFailure) this@LlamaChatEngine.cancel()
+            override fun onToken(token: String): Boolean =
+                !terminalSignalled.get() &&
+                    trySendBlocking(LlamaGenerationEvent.Text(token)).isSuccess
+
+            override fun onDone(reason: String, inputTokenCount: Int, outputTokenCount: Int) {
+                if (!terminalSignalled.compareAndSet(false, true)) return
+                val parsedReason = LlamaGenerationStopReason.fromNative(reason)
+                if (parsedReason == null) {
+                    trySendBlocking(
+                        LlamaGenerationEvent.Failed(
+                            message = "Unknown native stop reason: $reason",
+                            inputTokenCount = inputTokenCount,
+                            outputTokenCount = outputTokenCount,
+                        )
+                    )
+                } else {
+                    trySendBlocking(
+                        LlamaGenerationEvent.Completed(
+                            reason = parsedReason,
+                            inputTokenCount = inputTokenCount,
+                            outputTokenCount = outputTokenCount,
+                        )
+                    )
+                }
+                this@callbackFlow.close()
             }
 
-            override fun onDone() {
-                close()
-            }
-
-            override fun onError(message: String) {
+            override fun onError(message: String, inputTokenCount: Int, outputTokenCount: Int) {
+                if (!terminalSignalled.compareAndSet(false, true)) return
                 DebugLog.e(TAG, "Generation error reported by native backend")
-                close(RuntimeException(message))
+                trySendBlocking(
+                    LlamaGenerationEvent.Failed(message, inputTokenCount, outputTokenCount)
+                )
+                this@callbackFlow.close()
             }
         }
 
@@ -129,9 +181,14 @@ class LlamaChatEngine(
             try {
                 val handle = nativeHandle
                 if (handle != 0L) {
-                    nativeChatGenerate(handle, prompt, temperature, topP, maxTokens, callback)
+                    val result = nativeChatGenerate(
+                        handle, prompt, temperature, topP, maxTokens, callback
+                    )
+                    if (result < 0 && !terminalSignalled.get()) {
+                        callback.onError("Native generation ended without a terminal result", 0, 0)
+                    }
                 } else {
-                    callback.onError("Model closed before generation started")
+                    callback.onError("Model closed before generation started", 0, 0)
                 }
             } catch (e: Exception) {
                 DebugLog.e(TAG, "nativeChatGenerate crashed", e)
@@ -193,20 +250,45 @@ class LlamaChatEngine(
         temperature: Float = 0.7f,
         topP: Float = 0.9f,
         maxTokens: Int = 4096
-    ): Flow<String> = callbackFlow {
+    ): Flow<LlamaGenerationEvent> = callbackFlow {
         if (nativeHandle == 0L) {
             close(RuntimeException("Model not loaded"))
             return@callbackFlow
         }
 
+        val terminalSignalled = AtomicBoolean(false)
         val callback = object : NativeChatCallback {
-            override fun onToken(token: String) {
-                if (trySendBlocking(token).isFailure) this@LlamaChatEngine.cancel()
+            override fun onToken(token: String): Boolean =
+                !terminalSignalled.get() &&
+                    trySendBlocking(LlamaGenerationEvent.Text(token)).isSuccess
+
+            override fun onDone(reason: String, inputTokenCount: Int, outputTokenCount: Int) {
+                if (!terminalSignalled.compareAndSet(false, true)) return
+                val parsedReason = LlamaGenerationStopReason.fromNative(reason)
+                val event = if (parsedReason == null) {
+                    LlamaGenerationEvent.Failed(
+                        message = "Unknown native stop reason: $reason",
+                        inputTokenCount = inputTokenCount,
+                        outputTokenCount = outputTokenCount,
+                    )
+                } else {
+                    LlamaGenerationEvent.Completed(
+                        reason = parsedReason,
+                        inputTokenCount = inputTokenCount,
+                        outputTokenCount = outputTokenCount,
+                    )
+                }
+                trySendBlocking(event)
+                this@callbackFlow.close()
             }
-            override fun onDone() { close() }
-            override fun onError(message: String) {
+
+            override fun onError(message: String, inputTokenCount: Int, outputTokenCount: Int) {
+                if (!terminalSignalled.compareAndSet(false, true)) return
                 DebugLog.e(TAG, "Generation error reported by native backend")
-                close(RuntimeException(message))
+                trySendBlocking(
+                    LlamaGenerationEvent.Failed(message, inputTokenCount, outputTokenCount)
+                )
+                this@callbackFlow.close()
             }
         }
 
@@ -215,12 +297,15 @@ class LlamaChatEngine(
             try {
                 val handle = nativeHandle
                 if (handle != 0L) {
-                    nativeChatGenerateWithImages(
+                    val result = nativeChatGenerateWithImages(
                         handle, prompt, imagePaths.toTypedArray(),
                         temperature, topP, maxTokens, callback
                     )
+                    if (result < 0 && !terminalSignalled.get()) {
+                        callback.onError("Native generation ended without a terminal result", 0, 0)
+                    }
                 } else {
-                    callback.onError("Model closed before generation started")
+                    callback.onError("Model closed before generation started", 0, 0)
                 }
             } catch (e: Exception) {
                 DebugLog.e(TAG, "nativeChatGenerateWithImages crashed", e)

@@ -92,6 +92,105 @@ static jstring utf8_to_jstring(JNIEnv * env, const char * data, size_t len) {
     return env->NewString(utf16.data(), static_cast<jsize>(utf16.size()));
 }
 
+struct NativeChatCallbacks {
+    jclass clazz = nullptr;
+    jmethodID on_token = nullptr;
+    jmethodID on_done = nullptr;
+    jmethodID on_error = nullptr;
+};
+
+static bool init_callbacks(JNIEnv * env, jobject callback, NativeChatCallbacks & methods) {
+    methods.clazz = env->GetObjectClass(callback);
+    if (!methods.clazz) return false;
+    methods.on_token = env->GetMethodID(methods.clazz, "onToken", "(Ljava/lang/String;)Z");
+    methods.on_done = env->GetMethodID(methods.clazz, "onDone", "(Ljava/lang/String;II)V");
+    methods.on_error = env->GetMethodID(methods.clazz, "onError", "(Ljava/lang/String;II)V");
+    if (methods.on_token && methods.on_done && methods.on_error) return true;
+    if (env->ExceptionCheck()) env->ExceptionClear();
+    env->DeleteLocalRef(methods.clazz);
+    methods.clazz = nullptr;
+    return false;
+}
+
+static jint report_error(
+    JNIEnv * env,
+    jobject callback,
+    NativeChatCallbacks & methods,
+    const char * message,
+    int32_t input_tokens,
+    int32_t output_tokens
+) {
+    jstring jmessage = utf8_to_jstring(env, message, std::strlen(message));
+    env->CallVoidMethod(
+        callback, methods.on_error, jmessage,
+        static_cast<jint>(input_tokens), static_cast<jint>(output_tokens)
+    );
+    env->DeleteLocalRef(jmessage);
+    if (env->ExceptionCheck()) env->ExceptionClear();
+    env->DeleteLocalRef(methods.clazz);
+    methods.clazz = nullptr;
+    return -1;
+}
+
+static jint report_done(
+    JNIEnv * env,
+    jobject callback,
+    NativeChatCallbacks & methods,
+    const char * reason,
+    int32_t input_tokens,
+    int32_t output_tokens
+) {
+    jstring jreason = env->NewStringUTF(reason);
+    env->CallVoidMethod(
+        callback, methods.on_done, jreason,
+        static_cast<jint>(input_tokens), static_cast<jint>(output_tokens)
+    );
+    env->DeleteLocalRef(jreason);
+    if (env->ExceptionCheck()) env->ExceptionClear();
+    env->DeleteLocalRef(methods.clazz);
+    methods.clazz = nullptr;
+    return output_tokens;
+}
+
+static bool report_token(
+    JNIEnv * env,
+    jobject callback,
+    const NativeChatCallbacks & methods,
+    const char * data,
+    size_t length
+) {
+    jstring jtoken = utf8_to_jstring(env, data, length);
+    jboolean accepted = env->CallBooleanMethod(callback, methods.on_token, jtoken);
+    env->DeleteLocalRef(jtoken);
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        return false;
+    }
+    return accepted == JNI_TRUE;
+}
+
+static bool token_to_piece(
+    const llama_vocab * vocab,
+    llama_token token,
+    std::string & piece
+) {
+    char inline_buffer[256];
+    int32_t length = llama_token_to_piece(
+        vocab, token, inline_buffer, sizeof(inline_buffer), 0, true
+    );
+    if (length >= 0) {
+        piece.assign(inline_buffer, static_cast<size_t>(length));
+        return true;
+    }
+    std::vector<char> dynamic_buffer(static_cast<size_t>(-length));
+    length = llama_token_to_piece(
+        vocab, token, dynamic_buffer.data(), dynamic_buffer.size(), 0, true
+    );
+    if (length < 0) return false;
+    piece.assign(dynamic_buffer.data(), static_cast<size_t>(length));
+    return true;
+}
+
 extern "C" {
 
 JNIEXPORT jlong JNICALL
@@ -247,34 +346,28 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
     jstring prompt, jfloat temperature, jfloat top_p, jint max_tokens,
     jobject callback) {
 
-    if (!handle_ptr) return -1;
+    NativeChatCallbacks callbacks;
+    if (!init_callbacks(env, callback, callbacks)) return -1;
+    if (!handle_ptr) return report_error(env, callback, callbacks, "Invalid model handle", 0, 0);
     ChatHandle * handle = reinterpret_cast<ChatHandle *>(handle_ptr);
-    if (!handle->ctx || !handle->vocab) return -1;
+    if (!handle->ctx || !handle->vocab) return report_error(
+        env, callback, callbacks, "Model is not loaded", 0, 0
+    );
 
-    // Reset cancelled flag
     handle->cancelled.store(false, std::memory_order_relaxed);
 
     const char * prompt_str = env->GetStringUTFChars(prompt, nullptr);
-    if (!prompt_str) return -1;
+    if (!prompt_str) {
+        return report_error(env, callback, callbacks, "Unable to read prompt", 0, 0);
+    }
 
     std::string prompt_text(prompt_str);
     env->ReleaseStringUTFChars(prompt, prompt_str);
 
-    if (prompt_text.empty()) return -1;
-
-    // Get callback class and method IDs
-    jclass cb_class = env->GetObjectClass(callback);
-    jmethodID on_token = env->GetMethodID(cb_class, "onToken", "(Ljava/lang/String;)V");
-    jmethodID on_done = env->GetMethodID(cb_class, "onDone", "()V");
-    jmethodID on_error = env->GetMethodID(cb_class, "onError", "(Ljava/lang/String;)V");
-
-    if (!on_token || !on_done || !on_error) {
-        LOGE("Failed to get callback method IDs");
-        env->DeleteLocalRef(cb_class);
-        return -1;
+    if (prompt_text.empty()) {
+        return report_error(env, callback, callbacks, "Prompt is empty", 0, 0);
     }
 
-    // Tokenize the prompt
     int32_t n_tokens_max = prompt_text.length() + 256;
     std::vector<llama_token> tokens(n_tokens_max);
     int32_t n_tokens = llama_tokenize(handle->vocab, prompt_text.c_str(),
@@ -288,9 +381,7 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
     }
     if (n_tokens <= 0) {
         LOGE("Tokenization returned 0 tokens for prompt len=%zu", prompt_text.size());
-        env->CallVoidMethod(callback, on_error, env->NewStringUTF("Tokenization failed"));
-        env->DeleteLocalRef(cb_class);
-        return -1;
+        return report_error(env, callback, callbacks, "Tokenization failed", 0, 0);
     }
     tokens.resize(n_tokens);
 
@@ -302,18 +393,12 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
         char error_msg[64];
         std::snprintf(error_msg, sizeof(error_msg),
                       "LOCAL_CONTEXT_EXCEEDED:%d:%d", n_tokens, n_ctx);
-        jstring jmsg = env->NewStringUTF(error_msg);
-        env->CallVoidMethod(callback, on_error, jmsg);
-        env->DeleteLocalRef(jmsg);
-        env->DeleteLocalRef(cb_class);
-        return -1;
+        return report_error(env, callback, callbacks, error_msg, n_tokens, 0);
     }
 
     LOGD("Generating: prompt_len=%zu, n_tokens=%d, max_tokens=%d",
          prompt_text.size(), n_tokens, max_tokens);
 
-    // Sampler chain: min_p → top_p → temp → dist
-    // (simple-chat.cpp uses min_p → temp → dist; we add top_p for configurability)
     auto sparams = llama_sampler_chain_default_params();
     llama_sampler * smpl = llama_sampler_chain_init(sparams);
     llama_sampler_chain_add(smpl, llama_sampler_init_min_p(0.05f, 1));
@@ -321,113 +406,94 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
     llama_sampler_chain_add(smpl, llama_sampler_init_temp(temperature));
     llama_sampler_chain_add(smpl, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
 
-    // Prefill + generation loop (pattern from simple-chat.cpp)
-    // Context space check before prefill
     int32_t n_ctx_used = llama_memory_seq_pos_max(llama_get_memory(handle->ctx), 0) + 1;
     if (n_ctx_used + n_tokens > n_ctx) {
         LOGE("Context size exceeded: used=%d + prompt=%d > ctx=%d", n_ctx_used, n_tokens, n_ctx);
         llama_sampler_free(smpl);
-        env->CallVoidMethod(callback, on_error, env->NewStringUTF("Context size exceeded"));
-        env->DeleteLocalRef(cb_class);
-        return -1;
+        return report_error(env, callback, callbacks, "Context size exceeded", 0, 0);
     }
 
-    // Prefill in n_batch-sized chunks: a single batch larger than n_batch is rejected by
-    // llama_decode now that n_batch is capped at 512.
-    // llama_batch_get_one returns a lightweight batch that borrows the tokens pointer —
-    // it does NOT allocate, so do NOT call llama_batch_free on it (would free vector memory)
     const int32_t n_batch = static_cast<int32_t>(llama_n_batch(handle->ctx));
+    int32_t input_tokens = 0;
     for (int32_t off = 0; off < n_tokens; off += n_batch) {
-        // Cancellation is checked per chunk so Stop no longer has to wait out the whole prefill
-        // of a long prompt (previously one uninterruptible decode).
         if (handle->cancelled.load(std::memory_order_relaxed)) {
             LOGD("Cancelled during prefill at %d/%d tokens", off, n_tokens);
             llama_sampler_free(smpl);
-            env->DeleteLocalRef(cb_class);
-            return 0;
+            return report_done(env, callback, callbacks, "cancelled", input_tokens, 0);
         }
         const int32_t chunk = std::min(n_batch, n_tokens - off);
         llama_batch batch = llama_batch_get_one(tokens.data() + off, chunk);
         if (llama_decode(handle->ctx, batch) != 0) {
             LOGE("Prefill decode failed at offset %d (chunk=%d)", off, chunk);
             llama_sampler_free(smpl);
-            env->CallVoidMethod(callback, on_error, env->NewStringUTF("Prefill decode failed"));
-            env->DeleteLocalRef(cb_class);
-            return -1;
+            return report_error(
+                env, callback, callbacks, "Prefill decode failed", input_tokens, 0
+            );
         }
+        input_tokens += chunk;
     }
 
-    // Generation loop
     int32_t generated = 0;
-    llama_token new_token_id;
-    std::string utf8_buf; // holds bytes not yet on a UTF-8 boundary
-
-    // Generation loop
+    std::string utf8_buf;
+    const char * stop_reason = nullptr;
+    const char * failure = nullptr;
     while (generated < max_tokens) {
         if (handle->cancelled.load(std::memory_order_relaxed)) {
             LOGD("Generation cancelled at %d tokens", generated);
+            stop_reason = "cancelled";
             break;
         }
 
-        // Context space check
         int32_t n_ctx_used = llama_memory_seq_pos_max(llama_get_memory(handle->ctx), 0) + 1;
         if (n_ctx_used + 1 > n_ctx) {
             LOGD("Context full at %d tokens", generated);
+            stop_reason = "context_full";
             break;
         }
 
-        // Synchronize before sampling (best practice)
-        llama_synchronize(handle->ctx);
-
-        // Sample the next token
-        new_token_id = llama_sampler_sample(smpl, handle->ctx, -1);
+        llama_token new_token_id = llama_sampler_sample(smpl, handle->ctx, -1);
 
         if (llama_vocab_is_eog(handle->vocab, new_token_id)) {
             LOGD("EOG token %d at position %d", new_token_id, generated);
+            stop_reason = "eog";
             break;
         }
 
-        // Convert token to text
-        char piece[256];
-        int32_t n = llama_token_to_piece(handle->vocab, new_token_id, piece, sizeof(piece), 0, true);
-        if (n < 0) {
+        std::string piece;
+        if (!token_to_piece(handle->vocab, new_token_id, piece)) {
             LOGE("llama_token_to_piece failed");
+            failure = "Token conversion failed";
             break;
         }
-        // Accumulate, then emit only the complete-UTF-8 prefix; the truncated
-        // tail (if any) is carried into the next token.
-        utf8_buf.append(piece, n);
-        size_t emit_len = utf8_complete_prefix_len(utf8_buf);
-        if (emit_len > 0) {
-            jstring jtoken = utf8_to_jstring(env, utf8_buf.data(), emit_len);
-            env->CallVoidMethod(callback, on_token, jtoken);
-            env->DeleteLocalRef(jtoken);
-            utf8_buf.erase(0, emit_len);
 
-            if (env->ExceptionCheck()) {
-                env->ExceptionDescribe();
-                env->ExceptionClear();
-                LOGD("Java exception in onToken, stopping generation");
-                break;
-            }
-        }
-
-        generated++;
-
-        // Decode the new token
         llama_batch single = llama_batch_get_one(&new_token_id, 1);
         if (llama_decode(handle->ctx, single) != 0) {
-            LOGE("Decode failed at token %d", generated);
+            LOGE("Decode failed at token %d", generated + 1);
+            failure = "Decode failed";
             break;
+        }
+        generated++;
+
+        utf8_buf.append(piece);
+        size_t emit_len = utf8_complete_prefix_len(utf8_buf);
+        if (emit_len > 0) {
+            if (!report_token(env, callback, callbacks, utf8_buf.data(), emit_len)) {
+                failure = "Stream consumer closed";
+                break;
+            }
+            utf8_buf.erase(0, emit_len);
         }
     }
 
+    if (!failure && !stop_reason) stop_reason = "max_tokens";
+    if (!failure && !utf8_buf.empty()) failure = "Generated incomplete UTF-8 output";
     llama_sampler_free(smpl);
-    env->CallVoidMethod(callback, on_done);
-    env->DeleteLocalRef(cb_class);
-
-    LOGD("Generation complete: %d tokens generated", generated);
-    return generated;
+    if (failure) {
+        return report_error(env, callback, callbacks, failure, input_tokens, generated);
+    }
+    return report_done(
+        env, callback, callbacks, stop_reason, input_tokens, generated
+    );
 }
 
 JNIEXPORT void JNICALL
@@ -506,20 +572,28 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
     jfloat temperature, jfloat top_p, jint max_tokens,
     jobject callback) {
 
-    if (!handle_ptr) return -1;
+    NativeChatCallbacks callbacks;
+    if (!init_callbacks(env, callback, callbacks)) return -1;
+    if (!handle_ptr) {
+        return report_error(env, callback, callbacks, "Invalid model handle", 0, 0);
+    }
     ChatHandle * handle = reinterpret_cast<ChatHandle *>(handle_ptr);
-    if (!handle->ctx || !handle->vocab) return -1;
+    if (!handle->ctx || !handle->vocab) {
+        return report_error(env, callback, callbacks, "Model is not loaded", 0, 0);
+    }
     if (!handle->mtmd_ctx) {
-        env->CallVoidMethod(callback,
-            env->GetMethodID(env->GetObjectClass(callback), "onError", "(Ljava/lang/String;)V"),
-            env->NewStringUTF("Vision projector not loaded. Add mmproj file in model settings."));
-        return -1;
+        return report_error(
+            env, callback, callbacks,
+            "Vision projector not loaded. Add mmproj file in model settings.", 0, 0
+        );
     }
 
     handle->cancelled.store(false, std::memory_order_relaxed);
 
     const char * prompt_str = env->GetStringUTFChars(prompt, nullptr);
-    if (!prompt_str) return -1;
+    if (!prompt_str) {
+        return report_error(env, callback, callbacks, "Unable to read prompt", 0, 0);
+    }
     std::string prompt_text(prompt_str);
     env->ReleaseStringUTFChars(prompt, prompt_str);
 
@@ -543,10 +617,9 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
             for (jint j = 0; j < i; j++) {
                 if (bitmaps[j]) mtmd_bitmap_free(bitmaps[j]);
             }
-            env->CallVoidMethod(callback,
-                env->GetMethodID(env->GetObjectClass(callback), "onError", "(Ljava/lang/String;)V"),
-                env->NewStringUTF("Failed to load image for multimodal input."));
-            return -1;
+            return report_error(
+                env, callback, callbacks, "Failed to load image for multimodal input.", 0, 0
+            );
         }
     }
 
@@ -566,17 +639,10 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
         LOGE("mtmd_tokenize failed with code %d (images=%d)", tok_ret, n_images);
         for (auto & b : bitmaps) if (b) mtmd_bitmap_free(b);
         mtmd_input_chunks_free(chunks);
-        env->CallVoidMethod(callback,
-            env->GetMethodID(env->GetObjectClass(callback), "onError", "(Ljava/lang/String;)V"),
-            env->NewStringUTF("Failed to tokenize multimodal prompt."));
-        return -1;
+        return report_error(
+            env, callback, callbacks, "Failed to tokenize multimodal prompt.", 0, 0
+        );
     }
-
-    // --- Eval all chunks (text + image) via mtmd helper ---
-    jclass cb_class = env->GetObjectClass(callback);
-    jmethodID on_token = env->GetMethodID(cb_class, "onToken", "(Ljava/lang/String;)V");
-    jmethodID on_done  = env->GetMethodID(cb_class, "onDone", "()V");
-    jmethodID on_error = env->GetMethodID(cb_class, "onError", "(Ljava/lang/String;)V");
 
     llama_pos n_past = 0;
     int32_t n_ctx = llama_n_ctx(handle->ctx);
@@ -592,10 +658,10 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
 
     if (eval_ret != 0) {
         LOGE("mtmd_helper_eval_chunks failed with code %d", eval_ret);
-        env->CallVoidMethod(callback, on_error,
-            env->NewStringUTF("Multimodal prefill failed."));
-        env->DeleteLocalRef(cb_class);
-        return -1;
+        return report_error(
+            env, callback, callbacks, "Multimodal prefill failed.",
+            static_cast<int32_t>(n_past), 0
+        );
     }
 
     LOGD("Multimodal prefill done: n_past=%lld, starting generation", (long long)n_past);
@@ -609,44 +675,64 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
     llama_sampler_chain_add(smpl, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
 
     int32_t generated = 0;
-    std::string utf8_buf; // holds bytes not yet on a UTF-8 boundary
+    std::string utf8_buf;
+    const char * stop_reason = "max_tokens";
+    const char * failure = nullptr;
     while (generated < max_tokens) {
-        if (handle->cancelled.load(std::memory_order_relaxed)) break;
+        if (handle->cancelled.load(std::memory_order_relaxed)) {
+            stop_reason = "cancelled";
+            break;
+        }
 
         int32_t n_ctx_used = llama_memory_seq_pos_max(llama_get_memory(handle->ctx), 0) + 1;
-        if (n_ctx_used + 1 > n_ctx) break;
+        if (n_ctx_used + 1 > n_ctx) {
+            stop_reason = "context_full";
+            break;
+        }
 
         llama_synchronize(handle->ctx);
         llama_token new_token_id = llama_sampler_sample(smpl, handle->ctx, -1);
 
-        if (llama_vocab_is_eog(handle->vocab, new_token_id)) break;
+        if (llama_vocab_is_eog(handle->vocab, new_token_id)) {
+            stop_reason = "eog";
+            break;
+        }
 
         char piece[256];
-        int32_t n = llama_token_to_piece(handle->vocab, new_token_id, piece, sizeof(piece), 0, true);
-        if (n < 0) break;
+        int32_t piece_size = llama_token_to_piece(
+            handle->vocab, new_token_id, piece, sizeof(piece), 0, true
+        );
+        if (piece_size < 0) {
+            failure = "Token conversion failed";
+            break;
+        }
 
-        utf8_buf.append(piece, n);
+        utf8_buf.append(piece, piece_size);
         size_t emit_len = utf8_complete_prefix_len(utf8_buf);
         if (emit_len > 0) {
-            jstring jtoken = utf8_to_jstring(env, utf8_buf.data(), emit_len);
-            env->CallVoidMethod(callback, on_token, jtoken);
-            env->DeleteLocalRef(jtoken);
+            if (!report_token(env, callback, callbacks, utf8_buf.data(), emit_len)) {
+                failure = "Stream consumer closed";
+                break;
+            }
             utf8_buf.erase(0, emit_len);
-
-            if (env->ExceptionCheck()) { env->ExceptionClear(); break; }
         }
 
         generated++;
         llama_batch single = llama_batch_get_one(&new_token_id, 1);
-        if (llama_decode(handle->ctx, single) != 0) break;
+        if (llama_decode(handle->ctx, single) != 0) {
+            failure = "Decode failed";
+            break;
+        }
     }
 
     llama_sampler_free(smpl);
-    env->CallVoidMethod(callback, on_done);
-    env->DeleteLocalRef(cb_class);
-
-    LOGD("Multimodal generation complete: %d tokens", generated);
-    return generated;
+    const int32_t input_tokens = static_cast<int32_t>(n_past);
+    if (failure) {
+        return report_error(env, callback, callbacks, failure, input_tokens, generated);
+    }
+    return report_done(
+        env, callback, callbacks, stop_reason, input_tokens, generated
+    );
 }
 
 JNIEXPORT void JNICALL

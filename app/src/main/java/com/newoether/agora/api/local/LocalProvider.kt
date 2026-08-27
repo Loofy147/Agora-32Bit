@@ -82,7 +82,9 @@ class LocalProvider(
         }
 
         // Generate tokens with unified thinking parsing
-        var totalTokens = 0
+        var inputTokenCount = 0
+        var outputTokenCount = 0
+        var terminalError: GenerationError? = null
         var stopped = false
         var rawBuf = ""
         val STOP_PATTERNS = listOf("<|im_end|>", "<|im_start|>")
@@ -111,13 +113,36 @@ class LocalProvider(
             val nativeCancel = GenerationCancelHandle { engine.cancel() }
             streamScope?.register(nativeCancel)
             try {
-                tokenFlow.collect { token ->
+                tokenFlow.collect { event ->
                     if (!coroutineContext.isActive) {
                         engine.cancel()
                         return@collect
                     }
+                    if (event is LlamaGenerationEvent.Completed) {
+                        inputTokenCount = event.inputTokenCount
+                        outputTokenCount = event.outputTokenCount
+                        terminalError = when (event.reason) {
+                            LlamaGenerationStopReason.EOG -> null
+                            LlamaGenerationStopReason.MAX_TOKENS ->
+                                GenerationError.OutputTruncated(name, "max_tokens")
+                            LlamaGenerationStopReason.CONTEXT_FULL -> GenerationError.LocalModel(
+                                "Local context window was exhausted before generation completed."
+                            )
+                            LlamaGenerationStopReason.CANCELLED ->
+                                if (stopped) null else GenerationError.Cancelled
+                        }
+                        return@collect
+                    }
+                    if (event is LlamaGenerationEvent.Failed) {
+                        inputTokenCount = event.inputTokenCount
+                        outputTokenCount = event.outputTokenCount
+                        terminalError = GenerationError.LocalModel(
+                            formatGenerationError(IllegalStateException(event.message), modelConfig)
+                        )
+                        return@collect
+                    }
                     if (stopped) return@collect
-                    totalTokens++
+                    val token = (event as LlamaGenerationEvent.Text).value
 
                     // Check for stop patterns in the rolling buffer
                     rawBuf += token
@@ -154,6 +179,9 @@ class LocalProvider(
             } finally {
                 streamScope?.unregister(nativeCancel)
             }
+            if (terminalError === GenerationError.Cancelled) {
+                throw kotlinx.coroutines.CancellationException("Native generation cancelled")
+            }
             // Flush remaining buffer (no stop pattern found)
             if (!stopped && rawBuf.isNotEmpty()) {
                 thinkParser.feed(
@@ -179,11 +207,13 @@ class LocalProvider(
         emit(
             StreamEvent.UsageUpdate(
                 TokenUsage(
-                    totalTokenCount = totalTokens.coerceAtLeast(0),
-                    outputTokenCount = totalTokens.coerceAtLeast(0),
+                    totalTokenCount = (inputTokenCount + outputTokenCount).coerceAtLeast(0),
+                    inputTokenCount = inputTokenCount.coerceAtLeast(0),
+                    outputTokenCount = outputTokenCount.coerceAtLeast(0),
                 )
             )
         )
+        terminalError?.let { emit(StreamEvent.Error(it)) }
         } finally {
             LocalModelSerializer.mutex.unlock()
         }
