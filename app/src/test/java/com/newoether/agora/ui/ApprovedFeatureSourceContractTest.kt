@@ -134,9 +134,9 @@ class ApprovedFeatureSourceContractTest {
             .substringBefore("fun dismissPendingPdf")
         val videoIngress = composerState.substringAfter("fun addSlicedVideo")
             .substringBefore("\n}")
-        val privateImageUri = "uri = Uri.fromFile(java.io.File(localPath)).toString()"
+        val privateImageUri = "uri = Uri.fromFile(java.io.File(copy.path)).toString()"
         assertTrue(
-            imageIngress.indexOf("copyToPrivate(uriObj, \"img\")") <
+            imageIngress.indexOf("when (val copy = copyToPrivate(uriObj, \"img\"))") <
                 imageIngress.indexOf(privateImageUri),
         )
         assertTrue(
@@ -145,7 +145,7 @@ class ApprovedFeatureSourceContractTest {
         )
         assertFalse(imageIngress.contains("uri = uriObj.toString()"))
         assertTrue(
-            fileIngress.indexOf("copyToPrivate(uri, ext)") <
+            fileIngress.indexOf("copyToPrivate(uri, ext, attachment.fileSize)") <
                 fileIngress.indexOf("selectedAttachments = selectedAttachments + copiedAttachments"),
         )
         assertTrue(
