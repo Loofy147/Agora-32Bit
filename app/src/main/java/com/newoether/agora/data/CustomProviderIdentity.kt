@@ -283,7 +283,7 @@ fun modelApiDisplayName(
 )
 
 private val aliasSeparators = Regex("[-_\\s]+")
-private val batchAliasSuffix = Regex(":batch$", RegexOption.IGNORE_CASE)
+private val omittedAliasVariantSuffix = Regex(":(?:batch|free)$", RegexOption.IGNORE_CASE)
 private val novaAliasPattern = Regex(
     "^nova-(\\d+(?:\\.\\d+)?)-(.+)-v\\d+(?::\\d+)?$",
     RegexOption.IGNORE_CASE,
@@ -333,11 +333,11 @@ internal fun inferModelAlias(modelName: String): String {
     if (trimmed.isEmpty()) return trimmed
 
     val pathTail = trimmed.substringAfterLast('/').trim().ifEmpty { trimmed }
-    val withoutBatch = pathTail.replace(batchAliasSuffix, "").ifEmpty { pathTail }
-    inferClaudeAlias(withoutBatch)?.let { return it }
-    inferNovaAlias(withoutBatch)?.let { return it }
-    inferDeepSeekAlias(withoutBatch)?.let { return it }
-    return humanizeModelAlias(withoutBatch).ifEmpty { trimmed }
+    val withoutVariant = pathTail.replace(omittedAliasVariantSuffix, "").ifEmpty { pathTail }
+    inferClaudeAlias(withoutVariant)?.let { return it }
+    inferNovaAlias(withoutVariant)?.let { return it }
+    inferDeepSeekAlias(withoutVariant)?.let { return it }
+    return humanizeModelAlias(withoutVariant).ifEmpty { trimmed }
 }
 
 private fun inferClaudeAlias(slug: String): String? {
@@ -406,7 +406,8 @@ private fun formatAliasToken(value: String): String {
             normalized.startsWith(token) &&
             normalized[token.length].isDigit()
     }?.let { (token, displayName) ->
-        return displayName + normalized.removePrefix(token)
+        val numericSuffix = normalized.removePrefix(token)
+        return if (token == "qwen") "$displayName $numericSuffix" else displayName + numericSuffix
     }
     if (normalized.matches(Regex("[vr]\\d+(?:\\.\\d+)?"))) {
         return normalized.replaceFirstChar(Char::uppercaseChar)

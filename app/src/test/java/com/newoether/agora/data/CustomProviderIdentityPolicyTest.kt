@@ -123,7 +123,10 @@ class CustomProviderIdentityPolicyTest {
             "anthropic/claude-3-5-sonnet-20241022" to "Claude 3.5 Sonnet",
             "deepseek/deepseek-r1-0528" to "DeepSeek R1",
             "openai/gpt-4o-mini" to "GPT 4o Mini",
-            "qwen/qwen3.5-27b-vl" to "Qwen3.5 27B VL",
+            "qwen/qwen3.5-27b-vl" to "Qwen 3.5 27B VL",
+            "qwen/qwen3.8:free" to "Qwen 3.8",
+            "qwen/qwen3.8:FREE" to "Qwen 3.8",
+            "anthropic/claude-opus-5:free" to "Claude Opus 5",
         )
 
         cases.forEach { (modelName, expectedAlias) ->
@@ -153,6 +156,7 @@ class CustomProviderIdentityPolicyTest {
     @Test
     fun inferredAliasNormalizationIsIdempotentAndBoundarySafe() {
         assertEquals("Claude Opus 5", inferModelAlias("Claude Opus 5"))
+        assertEquals("Qwen 3.8", inferModelAlias("Qwen 3.8"))
         assertEquals("Qwen 3.5 VL", inferModelAlias("  qwen__3.5--vl  "))
         assertEquals("", inferModelAlias("   "))
         assertEquals("Vendor/trailing/", inferModelAlias("vendor/trailing/"))
