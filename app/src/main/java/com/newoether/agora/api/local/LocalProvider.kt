@@ -63,16 +63,40 @@ class LocalProvider(
 
         // Build template messages, collecting images per-message with <__media__> markers
         val imagePaths = mutableListOf<String>()
+        val localContextWindow = minOf(config.maxContextWindow, modelConfig.nCtx).coerceAtLeast(1)
         val templateMessages = buildTemplateMessages(
-            prepareMessages(messages, config.maxContextWindow),
+            prepareMessages(messages, localContextWindow),
             config.systemPrompt,
             imagePaths,
         )
         val hasImages = imagePaths.isNotEmpty()
 
-        // Try native chat template first, fall back to ChatML
+        if (hasImages) {
+            if (modelConfig.mmprojPath.isBlank()) {
+                emit(StreamEvent.Error(GenerationError.LocalModel(
+                    "This local model has no vision projector configured."
+                )))
+                return@flow
+            }
+            if (!engine.loadMmproj(modelConfig.mmprojPath)) {
+                emit(StreamEvent.Error(GenerationError.LocalModel(
+                    "Failed to load the configured vision projector."
+                )))
+                return@flow
+            }
+        } else if (modelConfig.mmprojPath.isBlank()) {
+            engine.unloadMmproj()
+        }
+
+        // Template ownership stays with the model. A generic fallback can silently apply the
+        // wrong role/control-token protocol, so an incompatible model fails closed.
         val prompt = engine.applyTemplate(templateMessages, addAss = true)
-            ?: buildPrompt(templateMessages)
+        if (prompt == null) {
+            emit(StreamEvent.Error(GenerationError.LocalModel(
+                "The local model does not provide a compatible chat template."
+            )))
+            return@flow
+        }
         val promptLength = prompt.length
         val imageCount = imagePaths.size
         if (hasImages) {
@@ -236,28 +260,18 @@ class LocalProvider(
     private suspend fun ensureEngineLoaded(model: com.newoether.agora.data.LocalChatModelConfig): LlamaChatEngine? {
         return engineLock.withLock {
             val existing = currentEngine
-            if (existing != null && existing.modelPath == model.localFilePath) {
+            if (existing != null && existing.matches(model.localFilePath, model.nCtx)) {
                 existing.resetContext()
-                // Load or unload mmproj based on current config
-                if (model.mmprojPath.isNotBlank()) {
-                    existing.loadMmproj(model.mmprojPath)
-                } else {
-                    existing.unloadMmproj()
-                }
                 existing
             } else {
-                existing?.close()
-                val engine = LlamaChatEngine(model.localFilePath, model.nCtx)
-                if (engine.load()) {
-                    if (model.mmprojPath.isNotBlank()) {
-                        val loaded = engine.loadMmproj(model.mmprojPath)
-                        DebugLog.d(TAG, "mmproj load: $loaded")
-                    }
-                    currentEngine = engine
-                    engine
-                } else {
-                    null
+                val candidate = LlamaChatEngine(model.localFilePath, model.nCtx)
+                if (!candidate.load()) {
+                    candidate.close()
+                    return@withLock null
                 }
+                currentEngine = candidate
+                existing?.close()
+                candidate
             }
         }
     }
@@ -333,15 +347,6 @@ class LocalProvider(
         }
 
         return result
-    }
-
-    private fun buildPrompt(messages: List<ChatTemplateMessage>): String {
-        val sb = StringBuilder()
-        for (msg in messages) {
-            sb.append("<|im_start|>${msg.role}\n${msg.content}<|im_end|>\n")
-        }
-        sb.append("<|im_start|>assistant\n")
-        return sb.toString()
     }
 
     override suspend fun fetchModels(apiKey: String, baseUrl: String?): List<String> {

@@ -62,6 +62,8 @@ class LlamaChatEngine(
 
     @Volatile
     private var nativeHandle: Long = 0
+    @Volatile
+    private var loadedMmprojPath: String? = null
     private val lock = ReentrantReadWriteLock()
 
     private external fun nativeChatLoadModel(path: String, nCtx: Int): Long
@@ -83,6 +85,9 @@ class LlamaChatEngine(
     private external fun nativeChatCancel(handle: Long)
 
     fun isLoaded(): Boolean = nativeHandle != 0L
+
+    fun matches(path: String, contextSize: Int): Boolean =
+        nativeHandle != 0L && modelPath == path && nCtx == contextSize
 
     fun load(): Boolean {
         if (!File(modelPath).exists()) {
@@ -126,7 +131,7 @@ class LlamaChatEngine(
         }
     }
 
-    fun generate(
+    internal fun generate(
         prompt: String,
         temperature: Float = 0.7f,
         topP: Float = 0.9f,
@@ -218,7 +223,12 @@ class LlamaChatEngine(
         lock.writeLock().lock()
         try {
             if (nativeHandle == 0L) return false
-            return nativeChatLoadMmproj(nativeHandle, mmprojPath)
+            if (loadedMmprojPath == mmprojPath && nativeChatHasMmproj(nativeHandle)) {
+                return true
+            }
+            val loaded = nativeChatLoadMmproj(nativeHandle, mmprojPath)
+            if (loaded) loadedMmprojPath = mmprojPath
+            return loaded
         } finally {
             lock.writeLock().unlock()
         }
@@ -236,15 +246,16 @@ class LlamaChatEngine(
     fun unloadMmproj() {
         lock.writeLock().lock()
         try {
-            if (nativeHandle != 0L) {
+            if (nativeHandle != 0L && loadedMmprojPath != null) {
                 nativeChatUnloadMmproj(nativeHandle)
             }
+            loadedMmprojPath = null
         } finally {
             lock.writeLock().unlock()
         }
     }
 
-    fun generateWithImages(
+    internal fun generateWithImages(
         prompt: String,
         imagePaths: List<String>,
         temperature: Float = 0.7f,
@@ -362,6 +373,7 @@ class LlamaChatEngine(
             if (nativeHandle != 0L) {
                 nativeChatFreeModel(nativeHandle)
                 nativeHandle = 0L
+                loadedMmprojPath = null
                 DebugLog.d(TAG, "Model closed")
             }
         } finally {

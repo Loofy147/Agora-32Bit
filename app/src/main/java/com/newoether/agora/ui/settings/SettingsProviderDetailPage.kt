@@ -506,7 +506,7 @@ fun SettingsProviderDetailPage(
     if (showAddModelDialog && copiedFilePath != null) {
         var modelId by remember { mutableStateOf("") }; var modelAlias by remember { mutableStateOf("") }
         var addMmprojPath by remember { mutableStateOf("") }
-        var nCtx by remember { mutableStateOf("2048") }; var temperature by remember { mutableStateOf("0.7") }; var topP by remember { mutableStateOf("0.9") }; var maxTokens by remember { mutableStateOf("4096") }
+        var nCtx by remember { mutableStateOf("2048") }; var temperature by remember { mutableStateOf("0.7") }; var topP by remember { mutableStateOf("0.9") }; var maxTokens by remember { mutableStateOf("1024") }
         var idError by remember { mutableStateOf<String?>(null) }; var formError by remember { mutableStateOf<String?>(null) }
         val idRegex = remember { Regex("^[a-z0-9._-]+\$") }
         LaunchedEffect(mmprojPickedUri) {
@@ -562,6 +562,7 @@ fun SettingsProviderDetailPage(
                 val t = temperature.toFloatOrNull()?.takeIf { it in 0f..2f } ?: run { formError = "Temperature must be 0–2"; return@TextButton }
                 val p = topP.toFloatOrNull()?.takeIf { it in 0f..1f } ?: run { formError = "Top P must be 0–1"; return@TextButton }
                 val m = maxTokens.toIntOrNull()?.takeIf { it > 0 } ?: run { formError = "Max tokens must be positive"; return@TextButton }
+                if (m > n) { formError = "Max tokens must not exceed context size"; return@TextButton }
                 viewModel.modelManager.addLocalChatModel(LocalChatModelConfig(modelId = id, alias = modelAlias.ifBlank { id }, localFilePath = copiedFilePath!!, mmprojPath = addMmprojPath.trim(), nCtx = n, temperature = t, topP = p, maxTokens = m))
                 showAddModelDialog = false; copiedFilePath = null
             }) { Text(stringResource(R.string.add)) } },
@@ -631,6 +632,7 @@ fun SettingsProviderDetailPage(
                 val t = editTemp.toFloatOrNull()?.takeIf { it in 0f..2f } ?: run { editFormError = "Temperature must be 0–2"; return@TextButton }
                 val p = editTopP.toFloatOrNull()?.takeIf { it in 0f..1f } ?: run { editFormError = "Top P must be 0–1"; return@TextButton }
                 val m = editMaxTokens.toIntOrNull()?.takeIf { it > 0 } ?: run { editFormError = "Max tokens must be positive"; return@TextButton }
+                if (m > n) { editFormError = "Max tokens must not exceed context size"; return@TextButton }
                 viewModel.modelManager.updateLocalChatModel(model.id, id, editAlias.ifBlank { id }, n, t, p, m, mmprojPath = editMmprojPath.trim())
                 showEditModelDialog = null
             }) { Text(stringResource(R.string.save)) } },

@@ -1,6 +1,7 @@
 package com.newoether.agora.api.local
 
 import com.newoether.agora.api.LlamaGenerationStopReason
+import com.newoether.agora.data.LocalChatModelConfig
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -77,6 +78,67 @@ class LocalLlamaOwnershipSourceContractTest {
             assertEquals(reason, LlamaGenerationStopReason.fromNative(reason.nativeValue))
         }
         assertNull(LlamaGenerationStopReason.fromNative("unknown"))
+    }
+
+    @Test
+    fun `typed generation events stay module internal`() {
+        val engine = mainSource("com/newoether/agora/api/LlamaChatEngine.kt")
+
+        assertTrue(engine.contains("internal fun generate("))
+        assertTrue(engine.contains("internal fun generateWithImages("))
+    }
+
+    @Test
+    fun `engine replacement is atomic and includes context identity`() {
+        val provider = mainSource("com/newoether/agora/api/local/LocalProvider.kt")
+        val ensure = functionSection(provider, "ensureEngineLoaded")
+        val candidateLoad = ensure.indexOf("candidate.load()")
+        val install = ensure.indexOf("currentEngine = candidate")
+        val oldClose = ensure.indexOf("existing?.close()")
+
+        assertTrue(ensure.contains("existing.matches(model.localFilePath, model.nCtx)"))
+        assertTrue(candidateLoad >= 0)
+        assertTrue(install > candidateLoad)
+        assertTrue(oldClose > install)
+        assertFalse(ensure.contains("loadMmproj"))
+    }
+
+    @Test
+    fun `projector is image gated and reused by path`() {
+        val provider = mainSource("com/newoether/agora/api/local/LocalProvider.kt")
+        val engine = mainSource("com/newoether/agora/api/LlamaChatEngine.kt")
+        val projectorLoad = functionSection(engine, "loadMmproj")
+
+        assertTrue(provider.contains("if (hasImages)"))
+        assertTrue(provider.contains("engine.loadMmproj(modelConfig.mmprojPath)"))
+        assertTrue(projectorLoad.contains("loadedMmprojPath == mmprojPath"))
+        assertTrue(projectorLoad.indexOf("loadedMmprojPath == mmprojPath") <
+            projectorLoad.indexOf("nativeChatLoadMmproj"))
+    }
+
+    @Test
+    fun `local context and settings cannot promise an impossible output`() {
+        val provider = mainSource("com/newoether/agora/api/local/LocalProvider.kt")
+        val settings = mainSource("com/newoether/agora/ui/settings/SettingsProviderDetailPage.kt")
+        val onboarding = mainSource("com/newoether/agora/ui/onboarding/WelcomeScreen.kt")
+        val native = mainCppSource("llama_chat_jni.cpp")
+        val legacyDefaults = LocalChatModelConfig(modelId = "model", alias = "Model")
+
+        assertEquals(2048, legacyDefaults.nCtx)
+        assertEquals(4096, legacyDefaults.maxTokens)
+        assertTrue(settings.contains("mutableStateOf(\"1024\")"))
+        assertTrue(onboarding.contains("maxTokens = 1024"))
+        assertEquals(2, "Max tokens must not exceed context size".toRegex()
+            .findAll(settings).count())
+        assertTrue(provider.contains(
+            "minOf(config.maxContextWindow, modelConfig.nCtx).coerceAtLeast(1)"
+        ))
+        assertFalse(provider.contains("?: buildPrompt(templateMessages)"))
+        listOf("nativeChatGenerate", "nativeChatGenerateWithImages").forEach { functionName ->
+            val function = nativeFunctionSection(native, functionName)
+            assertTrue(function.contains("generation_limit = std::min(max_tokens, remaining_context)"))
+            assertTrue(function.contains("context_limited ? \"context_full\" : \"max_tokens\""))
+        }
     }
 
     private fun functionSection(source: String, functionName: String): String = source

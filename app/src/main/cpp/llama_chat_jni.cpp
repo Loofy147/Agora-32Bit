@@ -433,11 +433,17 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
         input_tokens += chunk;
     }
 
+    const int32_t context_after_prefill =
+        llama_memory_seq_pos_max(llama_get_memory(handle->ctx), 0) + 1;
+    const int32_t remaining_context = std::max(0, n_ctx - context_after_prefill);
+    const int32_t generation_limit = std::min(max_tokens, remaining_context);
+    const bool context_limited = generation_limit < max_tokens;
+
     int32_t generated = 0;
     std::string utf8_buf;
     const char * stop_reason = nullptr;
     const char * failure = nullptr;
-    while (generated < max_tokens) {
+    while (generated < generation_limit) {
         if (handle->cancelled.load(std::memory_order_relaxed)) {
             LOGD("Generation cancelled at %d tokens", generated);
             stop_reason = "cancelled";
@@ -485,7 +491,9 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
         }
     }
 
-    if (!failure && !stop_reason) stop_reason = "max_tokens";
+    if (!failure && !stop_reason) {
+        stop_reason = context_limited ? "context_full" : "max_tokens";
+    }
     if (!failure && !utf8_buf.empty()) failure = "Generated incomplete UTF-8 output";
     llama_sampler_free(smpl);
     if (failure) {
@@ -708,11 +716,17 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
     llama_sampler_chain_add(smpl, llama_sampler_init_temp(temperature));
     llama_sampler_chain_add(smpl, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
 
+    const int32_t context_after_prefill =
+        llama_memory_seq_pos_max(llama_get_memory(handle->ctx), 0) + 1;
+    const int32_t remaining_context = std::max(0, n_ctx - context_after_prefill);
+    const int32_t generation_limit = std::min(max_tokens, remaining_context);
+    const bool context_limited = generation_limit < max_tokens;
+
     int32_t generated = 0;
     std::string utf8_buf;
-    const char * stop_reason = "max_tokens";
+    const char * stop_reason = nullptr;
     const char * failure = nullptr;
-    while (generated < max_tokens) {
+    while (generated < generation_limit) {
         if (handle->cancelled.load(std::memory_order_relaxed)) {
             stop_reason = "cancelled";
             break;
@@ -755,6 +769,9 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
         }
     }
 
+    if (!failure && !stop_reason) {
+        stop_reason = context_limited ? "context_full" : "max_tokens";
+    }
     if (!failure && !utf8_buf.empty()) failure = "Generated incomplete UTF-8 output";
     llama_sampler_free(smpl);
     const int32_t input_tokens = static_cast<int32_t>(n_past);
