@@ -82,12 +82,14 @@ internal data class StreamingMarkdownSnapshot(
     val liveBlock: LiveMarkdownBlock?,
     val isStreaming: Boolean,
     val fadeSample: StreamingTailFadeSample? = null,
+    val textDeltas: List<StreamingTextDelta>? = null,
 )
 
 private data class StreamingMarkdownInput(
     val revision: Long,
     val content: String,
     val isStreaming: Boolean,
+    val textDeltas: List<StreamingTextDelta>?,
 )
 
 
@@ -191,37 +193,60 @@ private data class StreamingFadingGlyph(
 internal class StreamingTailFadeTracker {
     private var previousText = ""
     private val fadingGlyphs = java.util.ArrayDeque<StreamingFadingGlyph>()
+    private val publishedDeltaSequences = mutableSetOf<Long>()
 
     @Synchronized
     fun update(
         text: String,
         nowMs: Long,
+        textDeltas: List<StreamingTextDelta>? = null,
     ): StreamingTailFadeSample {
         require(nowMs >= 0L)
         pruneSolidPrefix(nowMs)
+        val textCodePoints = text.codePointCount(0, text.length)
+        val newDeltas = textDeltas.orEmpty().filter { delta ->
+            delta.sequence !in publishedDeltaSequences
+        }
+        val newDeltaCodePoints = newDeltas.fold(0) { total, delta ->
+            total + min(
+                textCodePoints - total,
+                delta.codePointCount.coerceAtLeast(0),
+            )
+        }
 
         when {
             text == previousText -> Unit
             text.startsWith(previousText) -> {
                 val appendedCodePoints =
                     text.codePointCount(previousText.length, text.length)
-                appendPublishedGlyphs(appendedCodePoints, nowMs)
+                appendPublishedGlyphs(
+                    codePointCount = if (textDeltas == null) {
+                        appendedCodePoints
+                    } else {
+                        min(appendedCodePoints, newDeltaCodePoints)
+                    },
+                    nowMs = nowMs,
+                )
             }
             previousText.endsWith(text) -> {
                 // A closed Markdown block was promoted out of the live tail. The remaining text is
                 // the old suffix, so its glyph timeline remains valid.
-                val keep = min(text.codePointCount(0, text.length), fadingGlyphs.size)
-                while (fadingGlyphs.size > keep) fadingGlyphs.removeFirst()
+                retainFadingSuffix(textCodePoints)
             }
             else -> {
-                // A renderer-level source rewrite has no trustworthy offset mapping. Keep the
-                // contract fail-closed: the replacement source starts transparent at publication.
-                fadingGlyphs.clear()
-                appendPublishedGlyphs(
-                    codePointCount = text.codePointCount(0, text.length),
-                    nowMs = nowMs,
-                )
+                val newlyPublishedCodePoints = if (textDeltas == null) {
+                    textCodePoints
+                } else {
+                    newDeltaCodePoints
+                }
+                // Renderer-only rewrites retain the active terminal timeline. If Provider text
+                // arrived with the rewrite, only that genuinely new terminal suffix is born now.
+                retainFadingSuffix(textCodePoints - newlyPublishedCodePoints)
+                appendPublishedGlyphs(newlyPublishedCodePoints, nowMs)
             }
+        }
+        if (text != previousText) {
+            publishedDeltaSequences += newDeltas.map(StreamingTextDelta::sequence)
         }
         previousText = text
         return StreamingTailFadeSample(
@@ -242,6 +267,11 @@ internal class StreamingTailFadeTracker {
         repeat(codePointCount.coerceAtLeast(0)) {
             fadingGlyphs.addLast(StreamingFadingGlyph(nowMs))
         }
+    }
+
+    private fun retainFadingSuffix(maximumSize: Int) {
+        val keep = min(maximumSize.coerceAtLeast(0), fadingGlyphs.size)
+        while (fadingGlyphs.size > keep) fadingGlyphs.removeFirst()
     }
 
     private fun streamingGlyphAlpha(glyph: StreamingFadingGlyph, nowMs: Long): Float {
@@ -446,9 +476,10 @@ private class StreamingMarkdownRenderState(
     fun offer(
         content: String,
         isStreaming: Boolean,
+        textDeltas: List<StreamingTextDelta>?,
     ) {
         val revision = offeredRevision.incrementAndGet()
-        inputs.trySend(StreamingMarkdownInput(revision, content, isStreaming))
+        inputs.trySend(StreamingMarkdownInput(revision, content, isStreaming, textDeltas))
     }
 
     override fun setCodeBlockScrolling(owner: Any, active: Boolean) {
@@ -460,6 +491,7 @@ private class StreamingMarkdownRenderState(
                 fadeSample = fadeTracker.update(
                     text = preparedSource,
                     nowMs = nowMs,
+                    textDeltas = pending.textDeltas,
                 ),
             )
         }
@@ -499,7 +531,7 @@ private class StreamingMarkdownRenderState(
                     preparedSource = preparedSource,
                     inputContent = input.content,
                     isStreaming = input.isStreaming,
-                )
+                ).copy(textDeltas = input.textDeltas)
                 next to preparedSource
             }
             // Parsing is not cooperatively cancellable. A revision gate provides mapLatest
@@ -512,6 +544,7 @@ private class StreamingMarkdownRenderState(
                         fadeSample = fadeTracker.update(
                             text = preparedSource,
                             nowMs = nowMs,
+                            textDeltas = published.textDeltas,
                         ),
                     )
                 }
@@ -532,12 +565,12 @@ internal fun IncrementalStreamingMarkdownContent(
     renderContext: ChatMarkdownRenderContext,
     modifier: Modifier = Modifier,
     selectionEnabled: Boolean = !isStreaming,
-    textDeltas: List<StreamingTextDelta> = emptyList(),
+    textDeltas: List<StreamingTextDelta>? = null,
     fadeTracker: StreamingTailFadeTracker = remember { StreamingTailFadeTracker() },
 ) {
-    var hasStreamed by remember { mutableStateOf(isStreaming || textDeltas.isNotEmpty()) }
+    var hasStreamed by remember { mutableStateOf(isStreaming || !textDeltas.isNullOrEmpty()) }
     SideEffect {
-        if (isStreaming || textDeltas.isNotEmpty()) hasStreamed = true
+        if (isStreaming || !textDeltas.isNullOrEmpty()) hasStreamed = true
     }
 
     // A historical message can use the library's normal full-document path. A message that was
@@ -567,10 +600,10 @@ internal fun IncrementalStreamingMarkdownContent(
     LaunchedEffect(state) {
         state.run()
     }
-    LaunchedEffect(state, content, isStreaming) {
+    LaunchedEffect(state, content, isStreaming, textDeltas) {
         // One offer per actual input snapshot. A SideEffect here also ran after fade-clock
         // recompositions and needlessly woke the parser worker for unchanged text.
-        state.offer(content, isStreaming)
+        state.offer(content, isStreaming, textDeltas)
     }
     DisposableEffect(state) {
         onDispose(state::close)

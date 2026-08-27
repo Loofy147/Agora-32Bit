@@ -32,7 +32,7 @@ internal fun StreamingMarkdownMessage(
     renderContext: ChatMarkdownRenderContext,
     modifier: Modifier = Modifier,
     selectionEnabled: Boolean = !isStreaming,
-    textDeltas: List<StreamingTextDelta> = emptyList(),
+    textDeltas: List<StreamingTextDelta>? = null,
     fadeTracker: StreamingTailFadeTracker = remember { StreamingTailFadeTracker() },
     emptyStreamingText: String? = null,
     emptyStreamingTextColor: Color = Color.Unspecified,

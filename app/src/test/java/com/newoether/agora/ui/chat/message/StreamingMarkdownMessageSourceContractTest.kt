@@ -30,12 +30,12 @@ class StreamingMarkdownMessageSourceContractTest {
         assertFalse(incremental.contains("takeIf { showStreamingIndicator }"))
         assertTrue(
             incremental.contains(
-                "mutableStateOf(isStreaming || textDeltas.isNotEmpty())",
+                "mutableStateOf(isStreaming || !textDeltas.isNullOrEmpty())",
             ),
         )
         assertTrue(
             incremental.contains(
-                "if (isStreaming || textDeltas.isNotEmpty()) hasStreamed = true",
+                "if (isStreaming || !textDeltas.isNullOrEmpty()) hasStreamed = true",
             ),
         )
         assertEquals(
@@ -53,6 +53,9 @@ class StreamingMarkdownMessageSourceContractTest {
         assertTrue(wrapper.contains("fadeTracker = fadeTracker,"))
         assertTrue(incremental.contains("private val fadeTracker: StreamingTailFadeTracker"))
         assertFalse(incremental.contains("private val fadeTracker = StreamingTailFadeTracker()"))
+        assertTrue(incremental.contains("textDeltas = pending.textDeltas,"))
+        assertTrue(incremental.contains("textDeltas = published.textDeltas,"))
+        assertTrue(incremental.contains("LaunchedEffect(state, content, isStreaming, textDeltas)"))
         assertFalse(incremental.contains("internal class StreamingInteractionCommitGate"))
         assertTrue(interaction.contains("internal class StreamingInteractionCommitGate"))
         assertTrue(wrapper.contains("emptyStreamingTextStyle: TextStyle"))

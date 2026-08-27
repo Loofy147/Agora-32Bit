@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
+import com.newoether.agora.model.StreamingTextDelta
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import org.intellij.markdown.parser.MarkdownParser
 import org.junit.Assert.assertArrayEquals
@@ -335,6 +336,48 @@ class IncrementalStreamingMarkdownTest {
         assertArrayEquals(
             longArrayOf(1_000L, 1_000L, 1_000L, 1_000L),
             promoted.birthTimesMs,
+        )
+    }
+
+    @Test
+    fun rendererOnlyRewritePreservesPublishedAgesWithoutReplayingFade() {
+        val tracker = StreamingTailFadeTracker()
+        val deltas = listOf(StreamingTextDelta(sequence = 0L, codePointCount = 6))
+        val initial = tracker.update("answer", nowMs = 1_000L, textDeltas = deltas)
+
+        val rewritten = tracker.update(
+            text = "an[token]swer",
+            nowMs = 1_100L,
+            textDeltas = deltas,
+        )
+        assertArrayEquals(initial.birthTimesMs, rewritten.birthTimesMs)
+
+        val solidRewrite = tracker.update(
+            text = "an[terminal-token]swer",
+            nowMs = 1_700L,
+            textDeltas = deltas,
+        )
+        assertTrue(solidRewrite.birthTimesMs.isEmpty())
+    }
+
+    @Test
+    fun rendererRewriteWithNewDeltaBirthsOnlyTheNewTerminalSuffix() {
+        val tracker = StreamingTailFadeTracker()
+        val initialDelta = StreamingTextDelta(sequence = 0L, codePointCount = 4)
+        tracker.update("abcd", nowMs = 1_000L, textDeltas = listOf(initialDelta))
+
+        val rewritten = tracker.update(
+            text = "ab[token]cdef",
+            nowMs = 1_100L,
+            textDeltas = listOf(
+                initialDelta,
+                StreamingTextDelta(sequence = 1L, codePointCount = 2),
+            ),
+        )
+
+        assertArrayEquals(
+            longArrayOf(1_000L, 1_000L, 1_000L, 1_000L, 1_100L, 1_100L),
+            rewritten.birthTimesMs,
         )
     }
 
