@@ -103,6 +103,7 @@ class ExperimentalGenerationUiSourceContractTest {
         val timeline = source(root, "message/MessageItemTimeline.kt")
         val assistant = source(root, "message/AssistantMessageContent.kt")
         val presentation = source(root, "message/ThinkingSegmentPresentation.kt")
+        val mutedText = source(root, "message/StreamingMutedText.kt")
 
         assertTrue(timeline.contains("CompactSegmentIcon.LOADING"))
         assertTrue(timeline.contains("compactSegmentHasActiveContent("))
@@ -161,12 +162,12 @@ class ExperimentalGenerationUiSourceContractTest {
         assertFalse(timeline.contains("Icons.Default.KeyboardArrowUp"))
         assertTrue(timeline.contains("rotationZ = disclosureRotation"))
         assertTrue(presentation.contains("thinking_for_seconds_ellipsis"))
-        assertTrue(timeline.contains("THINKING_PREVIEW_INITIAL_ALPHA = 0.38f"))
-        val thoughtPreview = timeline.substringAfter("private fun StreamingThoughtPreviewText(")
-        assertTrue(thoughtPreview.contains("StableStreamingText("))
-        assertTrue(thoughtPreview.contains(
-            "tailFadeInitialAlpha = THINKING_PREVIEW_INITIAL_ALPHA"
-        ))
+        assertTrue(mutedText.contains("MUTED_STREAM_TAIL_CODE_POINTS = 42"))
+        assertTrue(mutedText.contains("MUTED_STREAM_TAIL_ALPHA_BANDS = 6"))
+        assertTrue(mutedText.contains("MUTED_STREAM_TAIL_NEWEST_ALPHA = 0.38f"))
+        val thoughtPreview = mutedText.substringAfter("internal fun StreamingThoughtPreviewText(")
+        assertTrue(thoughtPreview.contains("StreamingMutedText("))
+        assertEquals(2, Regex("StreamingThoughtPreviewText\\(").findAll(timeline).count())
     }
 
     @Test

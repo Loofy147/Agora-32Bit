@@ -25,6 +25,8 @@ internal fun StableStreamingText(
     overflow: TextOverflow = TextOverflow.Clip,
     tailFadeEnabled: Boolean = true,
     tailFadeInitialAlpha: Float = 0f,
+    tailFadeCodePoints: Int? = null,
+    tailFadeSpatialBands: Int = 0,
 ) {
     val content = AnnotatedString(text)
     val renderedText = rememberStreamingGlyphFade(
@@ -32,6 +34,8 @@ internal fun StableStreamingText(
         color = color,
         enabled = streaming && tailFadeEnabled,
         initialAlpha = tailFadeInitialAlpha,
+        fadeCodePoints = tailFadeCodePoints,
+        spatialBands = tailFadeSpatialBands,
     )
     Text(
         text = renderedText,

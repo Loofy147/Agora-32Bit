@@ -190,6 +190,10 @@ class ApprovedFeatureSourceContractTest {
             root,
             "com/newoether/agora/ui/chat/message/StableStreamingText.kt",
         )
+        val mutedText = source(
+            root,
+            "com/newoether/agora/ui/chat/message/StreamingMutedText.kt",
+        )
         val lifecycle = source(
             root,
             "com/newoether/agora/ui/chat/message/GenerationLifecycleMotion.kt",
@@ -214,13 +218,15 @@ class ApprovedFeatureSourceContractTest {
         assertTrue(assets.contains("content = base,"))
         assertTrue(assets.contains("rememberStreamingGlyphFade("))
         assertFalse(assets.contains(".stableStreamingGlyphFade("))
-        assertTrue(timeline.contains("StableStreamingText("))
+        assertFalse(timeline.contains("StableStreamingText("))
+        assertEquals(2, Regex("StreamingMutedText\\(").findAll(timeline).count())
         assertFalse(tool.contains("StableStreamingText("))
         assertFalse(timeline.contains("tailFadeEnabled ="))
         assertFalse(tool.contains("tailFadeEnabled ="))
-        assertTrue(timeline.contains("private fun ToolSummaryText(summary: String) = Crossfade("))
-        assertEquals(3, Regex("ToolSummaryText\\(").findAll(timeline).count())
-        assertTrue(timeline.contains("targetState = summary"))
+        assertTrue(mutedText.contains("internal fun ToolSummaryText(summary: String) = Crossfade("))
+        assertEquals(2, Regex("ToolSummaryText\\(").findAll(timeline).count())
+        assertEquals(1, Regex("ToolSummaryText\\(").findAll(mutedText).count())
+        assertTrue(mutedText.contains("targetState = summary"))
         assertTrue(timeline.contains("targetState = collapsedTitle"))
         assertTrue(timeline.contains("compactSegmentTitle:\$expansionKey"))
         assertTrue(timeline.contains("val containsToolSummary = segs.any { it.type == \"tool\" }"))
@@ -238,6 +244,15 @@ class ApprovedFeatureSourceContractTest {
         assertTrue(segments.contains("forceOpaque = forceOpaque"))
         assertTrue(stableText.contains("enabled = streaming && tailFadeEnabled"))
         assertTrue(stableText.contains("initialAlpha = tailFadeInitialAlpha"))
+        assertTrue(stableText.contains("fadeCodePoints = tailFadeCodePoints"))
+        assertTrue(stableText.contains("spatialBands = tailFadeSpatialBands"))
+        assertTrue(mutedText.contains("MUTED_STREAM_TAIL_CODE_POINTS = 42"))
+        assertTrue(mutedText.contains("MUTED_STREAM_TAIL_ALPHA_BANDS = 6"))
+        assertTrue(mutedText.contains("MUTED_STREAM_TAIL_NEWEST_ALPHA = 0.38f"))
+        val toolSummary = mutedText.substringAfter("internal fun ToolSummaryText(")
+            .substringBefore("private fun thoughtPreviewTail(")
+        assertTrue(toolSummary.contains("Crossfade("))
+        assertFalse(toolSummary.contains("StableStreamingText("))
         assertFalse(fade.contains("TOOL_SUMMARY_"))
         assertFalse(fade.contains("toolSummaryTailAnnotatedString"))
         assertFalse(fade.contains("rememberToolSummaryGlyphFade"))
@@ -255,6 +270,7 @@ class ApprovedFeatureSourceContractTest {
         assertFalse(fade.contains("positionDelaysMs"))
         assertFalse(fade.contains("STREAM_DELTA_POSITION_WINDOW_MS"))
         assertTrue(fade.contains("startAlpha + (1f - startAlpha) * progress"))
+        assertTrue(fade.contains("spatialAlpha + ageAlpha"))
         assertFalse(fade.contains("STREAM_TAIL_FADE_CODE_POINTS"))
         assertFalse(fade.contains("ArrivalRecord"))
         assertFalse(fade.contains("distributeArrivalBirths"))

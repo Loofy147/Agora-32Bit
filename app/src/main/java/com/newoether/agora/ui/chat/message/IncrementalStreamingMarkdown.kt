@@ -684,7 +684,7 @@ private fun ParsedMarkdownBlockContent(
     )
 }
 
-/** Interpolates from [initialAlpha] to one over clamp(k * elapsed, 0, 1). */
+/** Applies temporal alpha, with optional spatial bands whose newest edge starts at [initialAlpha]. */
 internal fun streamingTailAnnotatedString(
     text: String,
     color: Color,
@@ -693,6 +693,7 @@ internal fun streamingTailAnnotatedString(
     nowMs: Long = 0L,
     alphaPerSecond: Float = STREAM_TAIL_ALPHA_PER_SECOND,
     initialAlpha: Float = 0f,
+    spatialBands: Int = 0,
 ): AnnotatedString = streamingTailAnnotatedString(
     text = AnnotatedString(text),
     color = color,
@@ -701,6 +702,7 @@ internal fun streamingTailAnnotatedString(
     nowMs = nowMs,
     alphaPerSecond = alphaPerSecond,
     initialAlpha = initialAlpha,
+    spatialBands = spatialBands,
 )
 
 /**
@@ -715,6 +717,7 @@ internal fun streamingTailAnnotatedString(
     nowMs: Long = 0L,
     alphaPerSecond: Float = STREAM_TAIL_ALPHA_PER_SECOND,
     initialAlpha: Float = 0f,
+    spatialBands: Int = 0,
 ): AnnotatedString {
     if (text.isEmpty()) return text
     val births = birthTimesMs ?: return text
@@ -727,6 +730,7 @@ internal fun streamingTailAnnotatedString(
     val fadedCount = min(codePointCount, min(requestedFadeCodePoints, births.size))
     if (fadedCount == 0) return text
     val startAlpha = initialAlpha.coerceIn(0f, 1f)
+    val actualBands = min(spatialBands.coerceAtLeast(0), fadedCount)
 
     val metadataStart = births.size - fadedCount
     val prefixCodePoints = codePointCount - fadedCount
@@ -749,9 +753,16 @@ internal fun streamingTailAnnotatedString(
         val metadataIndex = metadataStart + suffixIndex
         val elapsedSeconds =
             (nowMs - births[metadataIndex]).coerceAtLeast(0L) / 1_000f
-        val progress = (alphaPerSecond.coerceAtLeast(0f) * elapsedSeconds)
-            .coerceIn(0f, 1f)
-        val alpha = startAlpha + (1f - startAlpha) * progress
+        val ageAlpha = alphaPerSecond.coerceAtLeast(0f) * elapsedSeconds
+        val alpha = if (actualBands > 0) {
+            val band = suffixIndex * actualBands / fadedCount
+            val bandProgress = (band + 1).toFloat() / actualBands.toFloat()
+            val spatialAlpha = 1f - bandProgress * (1f - startAlpha)
+            (spatialAlpha + ageAlpha).coerceIn(0f, 1f)
+        } else {
+            val progress = ageAlpha.coerceIn(0f, 1f)
+            startAlpha + (1f - startAlpha) * progress
+        }
         if (rangeAlpha == null) {
             rangeAlpha = alpha
         } else if (kotlin.math.abs(checkNotNull(rangeAlpha) - alpha) > 0.0001f) {
@@ -832,6 +843,8 @@ internal fun rememberStreamingGlyphFade(
     color: Color,
     enabled: Boolean,
     initialAlpha: Float = 0f,
+    fadeCodePoints: Int? = null,
+    spatialBands: Int = 0,
 ): AnnotatedString {
     if (!enabled || content.isEmpty()) return content
 
@@ -842,24 +855,35 @@ internal fun rememberStreamingGlyphFade(
     var fadeClockMs by remember(fadeSample) {
         mutableLongStateOf(fadeSample.observedAtMs)
     }
-    LaunchedEffect(fadeSample) {
+    LaunchedEffect(fadeSample, initialAlpha, spatialBands) {
         while (
             streamingTailFadeActive(
                 birthTimesMs = fadeSample.birthTimesMs,
                 nowMs = fadeClockMs,
+                initialAlpha = if (spatialBands > 0) initialAlpha else 0f,
             )
         ) {
             delay(STREAM_TAIL_FADE_TICK_MS)
             fadeClockMs = SystemClock.uptimeMillis()
         }
     }
-    return remember(content, color, fadeSample, fadeClockMs, initialAlpha) {
+    return remember(
+        content,
+        color,
+        fadeSample,
+        fadeClockMs,
+        initialAlpha,
+        fadeCodePoints,
+        spatialBands,
+    ) {
         streamingTailAnnotatedString(
             text = content,
             color = color,
+            fadeCodePoints = fadeCodePoints,
             birthTimesMs = fadeSample.birthTimesMs,
             nowMs = fadeClockMs,
             initialAlpha = initialAlpha,
+            spatialBands = spatialBands,
         )
     }
 }
@@ -868,10 +892,11 @@ internal fun streamingTailFadeActive(
     birthTimesMs: LongArray,
     nowMs: Long,
     alphaPerSecond: Float = STREAM_TAIL_ALPHA_PER_SECOND,
+    initialAlpha: Float = 0f,
 ): Boolean {
     if (birthTimesMs.isEmpty() || alphaPerSecond <= 0f) return false
     return birthTimesMs.any { birthTimeMs ->
         val elapsedSeconds = (nowMs - birthTimeMs).coerceAtLeast(0L) / 1_000f
-        alphaPerSecond * elapsedSeconds < 0.999f
+        initialAlpha.coerceIn(0f, 1f) + alphaPerSecond * elapsedSeconds < 0.999f
     }
 }

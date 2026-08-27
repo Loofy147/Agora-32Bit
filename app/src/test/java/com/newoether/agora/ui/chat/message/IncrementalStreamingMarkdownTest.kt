@@ -156,6 +156,58 @@ class IncrementalStreamingMarkdownTest {
     }
 
     @Test
+    fun mutedSuffixUsesHistoricalBandsCapAndAdditiveAge() {
+        val text = "OLD😀${"a".repeat(41)}"
+        val sample = StreamingTailFadeTracker().update(text, nowMs = 1_000L)
+
+        val initial = streamingTailAnnotatedString(
+            text = text,
+            color = Color.White,
+            fadeCodePoints = 42,
+            birthTimesMs = sample.birthTimesMs,
+            nowMs = 1_000L,
+            initialAlpha = 0.38f,
+            spatialBands = 6,
+        )
+        assertEquals(6, initial.spanStyles.size)
+        assertEquals(3, initial.spanStyles.first().start)
+        assertEquals(0.38f, initial.spanStyles.last().item.color.alpha, 0.002f)
+        initial.spanStyles.forEach { range ->
+            assertFalse(range.start.splitsSurrogatePair(text))
+            assertFalse(range.end.splitsSurrogatePair(text))
+        }
+
+        val aged = streamingTailAnnotatedString(
+            text = text,
+            color = Color.White,
+            fadeCodePoints = 42,
+            birthTimesMs = sample.birthTimesMs,
+            nowMs = 1_250L,
+            initialAlpha = 0.38f,
+            spatialBands = 6,
+        )
+        assertEquals(0.88f, aged.spanStyles.last().item.color.alpha, 0.002f)
+
+        val solid = streamingTailAnnotatedString(
+            text = text,
+            color = Color.White,
+            fadeCodePoints = 42,
+            birthTimesMs = sample.birthTimesMs,
+            nowMs = 1_310L,
+            initialAlpha = 0.38f,
+            spatialBands = 6,
+        )
+        assertTrue(solid.spanStyles.isEmpty())
+        assertFalse(
+            streamingTailFadeActive(
+                birthTimesMs = sample.birthTimesMs,
+                nowMs = 1_310L,
+                initialAlpha = 0.38f,
+            ),
+        )
+    }
+
+    @Test
     fun onePublishedSnapshotUsesOneBirthTimeForEveryPublishedGlyph() {
         val text = "abcdefgh"
         val tracker = StreamingTailFadeTracker()
