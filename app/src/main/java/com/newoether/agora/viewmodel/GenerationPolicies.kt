@@ -2,6 +2,7 @@ package com.newoether.agora.viewmodel
 
 import com.newoether.agora.api.util.projectAssistantImagesToLatestUserMessage
 import com.newoether.agora.api.util.projectToolResultImagesToUserMessage
+import com.newoether.agora.data.PredefinedVariables
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.MessageStatus
@@ -163,14 +164,14 @@ internal fun applyUserTemplateToMessages(
 ): List<ChatMessage> {
     if (prepend == null && postpend == null) return messages
     val timeSdf = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
-    val dateSdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+    val sentDateSdf = java.text.SimpleDateFormat(PredefinedVariables.SENT_DATE_PATTERN, java.util.Locale.US)
     return messages.map { msg ->
         val isToolMessage = msg.id.startsWith(Constants.TOOL_MSG_PREFIX) ||
             msg.id.startsWith(Constants.RESULT_MSG_PREFIX)
         if (!isToolMessage && msg.participant == Participant.USER && msg.text.isNotEmpty()) {
             val ts = java.util.Date(msg.timestamp)
-            val rp = prepend?.replace("{sent_time}", timeSdf.format(ts))?.replace("{sent_date}", dateSdf.format(ts)) ?: ""
-            val ra = postpend?.replace("{sent_time}", timeSdf.format(ts))?.replace("{sent_date}", dateSdf.format(ts)) ?: ""
+            val rp = prepend?.replace("{sent_time}", timeSdf.format(ts))?.replace("{sent_date}", sentDateSdf.format(ts)) ?: ""
+            val ra = postpend?.replace("{sent_time}", timeSdf.format(ts))?.replace("{sent_date}", sentDateSdf.format(ts)) ?: ""
             if (rp.isEmpty() && ra.isEmpty()) msg
             else msg.copy(text = rp + msg.text + ra)
         } else msg

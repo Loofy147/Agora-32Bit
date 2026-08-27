@@ -5,8 +5,28 @@ import com.newoether.agora.model.Participant
 import com.newoether.agora.util.Constants
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.util.Calendar
 
 class GenerationManagerUserTemplateTest {
+    @Test
+    fun applyUserTemplateToMessages_formatsSentDateWithEnglishWeekday() {
+        val sentAt = Calendar.getInstance().apply {
+            clear()
+            set(2026, Calendar.MAY, 9, 12, 34, 56)
+        }.timeInMillis
+        val messages = listOf(
+            ChatMessage(id = "u1", text = "hello", participant = Participant.USER, timestamp = sentAt),
+        )
+
+        val result = applyUserTemplateToMessages(
+            messages,
+            "<sent date=\"{sent_date}\" time=\"{sent_time}\">",
+            null,
+        )
+
+        assertEquals("<sent date=\"2026-05-09 Sat\" time=\"12:34:56\">hello", result.single().text)
+    }
+
     @Test
     fun applyUserTemplateToMessages_wrapsOnlyNormalUserMessages() {
         val messages = listOf(

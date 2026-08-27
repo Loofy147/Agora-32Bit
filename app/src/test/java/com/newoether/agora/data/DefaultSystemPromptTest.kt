@@ -8,6 +8,11 @@ import java.util.Locale
 
 class DefaultSystemPromptTest {
     @Test
+    fun sentDateExample_includesEnglishWeekday() {
+        assertEquals("2026-05-09 Sat", PredefinedVariables.EXAMPLE_VALUES[PredefinedVariables.SENT_DATE])
+    }
+
+    @Test
     fun titleForLocale_usesChineseDefaultForChineseLocale() {
         assertEquals("Default", DefaultSystemPrompt.titleForLocale(Locale.ENGLISH))
         assertEquals("\u9ed8\u8ba4", DefaultSystemPrompt.titleForLocale(Locale.SIMPLIFIED_CHINESE))
@@ -53,14 +58,14 @@ class DefaultSystemPromptTest {
         val prefix = PredefinedVariables.compile(
             entry.userPrependItems,
             mapOf(
-                PredefinedVariables.SENT_DATE to "2026-06-17",
+                PredefinedVariables.SENT_DATE to "2026-05-09 Sat",
                 PredefinedVariables.SENT_TIME to "21:35:10"
             ),
             emptyMap()
         )
         val suffix = PredefinedVariables.compile(entry.userPostpendItems, emptyMap(), emptyMap())
 
-        assertEquals("<agora_user_message sent_date=\"2026-06-17\" sent_time=\"21:35:10\">\n", prefix)
+        assertEquals("<agora_user_message sent_date=\"2026-05-09 Sat\" sent_time=\"21:35:10\">\n", prefix)
         assertEquals("\n</agora_user_message>", suffix)
     }
 }

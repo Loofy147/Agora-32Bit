@@ -424,13 +424,14 @@ class GenerationRequestBuilder(
 
             val sdf = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
             val dateSdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+            val sentDateSdf = java.text.SimpleDateFormat(PredefinedVariables.SENT_DATE_PATTERN, java.util.Locale.US)
             val now = java.util.Date()
 
             val runtimeValues = mapOf(
                 PredefinedVariables.TIME to sdf.format(now),
                 PredefinedVariables.DATE to dateSdf.format(now),
                 PredefinedVariables.SENT_TIME to sdf.format(now),
-                PredefinedVariables.SENT_DATE to dateSdf.format(now),
+                PredefinedVariables.SENT_DATE to sentDateSdf.format(now),
                 PredefinedVariables.MODEL_ID to modelId,
                 PredefinedVariables.ACTIVE_MEMORY to if (includeActiveMemory && activeMemory.isNotBlank()) activeMemory else ""
             )

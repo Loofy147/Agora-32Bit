@@ -18,6 +18,7 @@ object PredefinedVariables {
     const val DATE = "date"
     const val SENT_TIME = "sent_time"
     const val SENT_DATE = "sent_date"
+    const val SENT_DATE_PATTERN = "yyyy-MM-dd EEE"
     const val ACTIVE_MEMORY = "active_memory"
     const val MODEL_ID = "model_id"
 
@@ -31,7 +32,7 @@ object PredefinedVariables {
         TIME to "14:30:00",
         DATE to "2026-05-10",
         SENT_TIME to "10:05:00",
-        SENT_DATE to "2026-05-11",
+        SENT_DATE to "2026-05-09 Sat",
         ACTIVE_MEMORY to "[Example memory content]",
         MODEL_ID to Constants.EXAMPLE_MODEL_ID
     )
