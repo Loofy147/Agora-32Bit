@@ -32,6 +32,10 @@ Chat and Embedding are different identities even when their canonical model path
 sampling values such as temperature, top P, and maximum output tokens do not construct the native
 context and therefore do not change identity.
 
+New Local Chat model records created through Settings or onboarding default to `nCtx=4096` and
+`maxTokens=1024`. Existing records are not migrated: the serialized `LocalChatModelConfig` fallback
+for a missing legacy `nCtx` remains 2048, and an explicitly stored context size remains unchanged.
+
 A task requesting the current identity reuses its resident model. Reused Chat identity clears its
 context before the new request; reused Embedding identity clears per-input context memory through
 the native Embedding path. A different path, mode, or Chat `nCtx` closes the old resident completely
