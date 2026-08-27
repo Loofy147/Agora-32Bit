@@ -1,6 +1,7 @@
 package com.newoether.agora.ui.chat.message
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.LinearEasing
@@ -163,32 +164,44 @@ private fun AssistantInlineActivity(
         }
     }
     val activityVisible = visibilityTransition.targetState
-    val visibleMode = if (activityVisible) mode else retainedMode
-    val visibleRetryText = if (activityVisible) retryText else retainedRetryText
+    val ownsCurrentActivity = activityVisible && mode != AssistantInlineActivityMode.NONE
+    val visibleMode = if (ownsCurrentActivity) mode else retainedMode
+    val visibleRetryText = if (ownsCurrentActivity) retryText else retainedRetryText
     if (visibilityTransition.targetState || retainExitLayout || terminalText != null) {
         Box(
             modifier = Modifier
                 .padding(top = if (precededByCard) 12.dp else 0.dp)
                 .heightIn(min = AssistantInlineActivityHeight),
         ) {
-            if (terminalText == null) {
-                Row(
-                    modifier = Modifier.graphicsLayer {
-                        compositingStrategy = CompositingStrategy.ModulateAlpha
-                        alpha = activityOpacity
-                        clip = false
-                    },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (visibleMode == AssistantInlineActivityMode.RETRY) {
-                        RetryActivityIndicator(label = visibleRetryText.orEmpty() + "...")
-                    } else {
-                        GenerationActivityDot()
+            Crossfade(
+                targetState = terminalText,
+                animationSpec = tween(durationMillis = 180, easing = LinearEasing),
+                label = "AssistantInlineTerminalTransition",
+            ) { visibleTerminalText ->
+                if (visibleTerminalText == null) {
+                    Row(
+                        modifier = Modifier.graphicsLayer {
+                            compositingStrategy = CompositingStrategy.ModulateAlpha
+                            // Crossfade exclusively owns alpha after the terminal handoff begins.
+                            alpha = if (terminalText == null) activityOpacity else 1f
+                            clip = false
+                        },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (visibleMode == AssistantInlineActivityMode.RETRY) {
+                            RetryActivityIndicator(label = visibleRetryText.orEmpty() + "...")
+                        } else {
+                            GenerationActivityDot()
+                        }
                     }
+                } else {
+                    GenerationTerminalText(
+                        visibleTerminalText,
+                        selectable = terminalIsError,
+                        fillWidth = terminalIsError,
+                        normalizeError = terminalIsError,
+                    )
                 }
-            }
-            terminalText?.let { text ->
-                GenerationTerminalText(text, selectable = terminalIsError, fillWidth = terminalIsError, normalizeError = terminalIsError)
             }
         }
     }
@@ -364,7 +377,8 @@ internal fun AssistantMessageContent(
     )
     val inlineActivityMode = inlineActivityPresentation.mode
     val inlineActivityTransition = updateTransition(
-        targetState = inlineActivityMode != AssistantInlineActivityMode.NONE,
+        targetState = inlineActivityMode != AssistantInlineActivityMode.NONE ||
+            inlineActivityPresentation.retainLayout,
         label = "AssistantInlineActivityVisibility",
     )
     val inlineActivityOpacity by inlineActivityTransition.animateFloat(

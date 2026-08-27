@@ -33,11 +33,23 @@ class Phase25UiSourceContractTest {
             "visibilityTransition.targetState || retainExitLayout"
         ))
         assertTrue(assistant.contains("retainExitLayout = inlineActivityPresentation.retainLayout"))
-        assertTrue(assistantActivity.contains("alpha = activityOpacity"))
+        assertTrue(assistantActivity.contains(
+            "alpha = if (terminalText == null) activityOpacity else 1f"
+        ))
         assertTrue(assistant.contains(".heightIn(min = AssistantInlineActivityHeight)"))
         assertTrue(assistantActivity.contains("clip = false"))
         assertTrue(assistantActivity.contains("GenerationActivityDot()"))
-                assertTrue(retry.contains("GenerationActivityDot("))
+        assertTrue(assistantActivity.contains("Crossfade("))
+        assertTrue(assistantActivity.contains("targetState = terminalText"))
+        assertTrue(assistantActivity.contains(
+            "animationSpec = tween(durationMillis = 180, easing = LinearEasing)"
+        ))
+        assertFalse(assistantActivity.contains("terminalText?.let"))
+        assertTrue(assistant.contains(
+            "targetState = inlineActivityMode != AssistantInlineActivityMode.NONE ||"
+        ))
+        assertTrue(assistant.contains("inlineActivityPresentation.retainLayout,"))
+        assertTrue(retry.contains("GenerationActivityDot("))
         assertTrue(retry.contains("clip = false"))
         val tailIndicator = tail
             .substringAfter("internal fun StreamingTailIndicator(")

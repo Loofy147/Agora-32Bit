@@ -33,7 +33,9 @@ class Phase32DirectDotSourceContractTest {
             "visibilityTransition.targetState || retainExitLayout"
         ))
         assertTrue(assistant.contains("retainExitLayout = inlineActivityPresentation.retainLayout"))
-        assertTrue(assistantActivity.contains("alpha = activityOpacity"))
+        assertTrue(assistantActivity.contains(
+            "alpha = if (terminalText == null) activityOpacity else 1f"
+        ))
         assertTrue(assistant.contains(".heightIn(min = AssistantInlineActivityHeight)"))
         assertTrue(assistant.contains("import androidx.compose.ui.graphics.CompositingStrategy"))
         assertTrue(assistantActivity.contains(
@@ -41,7 +43,7 @@ class Phase32DirectDotSourceContractTest {
         ))
         assertFalse(assistantActivity.contains("CompositingStrategy.Offscreen"))
         assertTrue(assistantActivity.contains("clip = false"))
-                assertFalse(assistant.contains("InlineActivityDotMarker"))
+        assertFalse(assistant.contains("InlineActivityDotMarker"))
         assertFalse(assistant.contains("InlineActivityDotSource"))
 
         assertTrue(retry.contains("GenerationActivityDot("))

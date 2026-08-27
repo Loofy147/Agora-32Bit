@@ -39,7 +39,9 @@ class ExperimentalGenerationUiSourceContractTest {
         assertTrue(assistant.contains(
             "visibilityTransition.targetState || retainExitLayout"
         ))
-        assertTrue(assistant.contains("alpha = activityOpacity"))
+        assertTrue(assistant.contains(
+            "alpha = if (terminalText == null) activityOpacity else 1f"
+        ))
         assertTrue(assistant.contains("retainExitLayout = inlineActivityPresentation.retainLayout"))
         assertTrue(assistant.contains("clip = false"))
         assertTrue(assistant.contains("GenerationActivityDot()"))
