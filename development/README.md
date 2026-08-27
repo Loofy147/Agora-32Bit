@@ -109,6 +109,7 @@ Never:
 | Scope | Required module contract |
 |---|---|
 | Message generation, Run lifecycle, queue, tools, Compact, Regenerate, message actions/status, or Provider context | [message-generation.md](message-generation.md) |
+| Embedded llama.cpp FIFO admission, Chat/Embedding residency, identity switching, Stop, or idle offload | [local-model-runtime.md](local-model-runtime.md) |
 | Provider structured citations, citation persistence, marker cleanup, answer/source projection, citation copy/search/import/export, or citation accessibility | [citations.md](citations.md) |
 | Embedding-cache reads, semantic conversation search, RAG ranking, or search eligibility | [semantic-search.md](semantic-search.md) |
 | Generic Web Search providers/settings/tool execution or native provider-hosted web search | [web-search.md](web-search.md) |
