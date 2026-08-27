@@ -14,20 +14,21 @@ class LocalLlamaOwnershipSourceContractTest {
     fun `title generation delegates local serialization to the Provider`() {
         val source = mainSource("com/newoether/agora/viewmodel/ConversationTitleGenerator.kt")
 
-        assertFalse(source.contains("LocalModelSerializer"))
+        assertFalse(source.contains("LocalModelRuntime"))
     }
 
     @Test
-    fun `Provider serializes before engine mutation and releases in finally`() {
+    fun `Provider runs the complete request inside the process runtime`() {
         val source = mainSource("com/newoether/agora/api/local/LocalProvider.kt")
-        val lock = source.indexOf("LocalModelSerializer.mutex.lock()")
-        val ensure = source.indexOf("ensureEngineLoaded(modelConfig)")
-        val unlock = source.indexOf("LocalModelSerializer.mutex.unlock()")
+        val admission = source.indexOf("LocalModelRuntime.runChat(")
+        val template = source.indexOf("engine.applyTemplate")
+        val generation = source.indexOf("tokenFlow.collect")
 
-        assertTrue(lock >= 0)
-        assertTrue(ensure > lock)
-        assertTrue(unlock > ensure)
-        assertTrue(source.substring(lock, unlock).contains("finally"))
+        assertTrue(admission >= 0)
+        assertTrue(template > admission)
+        assertTrue(generation > template)
+        assertFalse(source.contains("currentEngine"))
+        assertFalse(source.contains("releaseEngineBlocking"))
     }
 
     @Test
@@ -89,18 +90,29 @@ class LocalLlamaOwnershipSourceContractTest {
     }
 
     @Test
-    fun `engine replacement is atomic and includes context identity`() {
-        val provider = mainSource("com/newoether/agora/api/local/LocalProvider.kt")
-        val ensure = functionSection(provider, "ensureEngineLoaded")
-        val candidateLoad = ensure.indexOf("candidate.load()")
-        val install = ensure.indexOf("currentEngine = candidate")
-        val oldClose = ensure.indexOf("existing?.close()")
+    fun `runtime unloads before switching identity and isolates embeddings`() {
+        val runtime = mainSource("com/newoether/agora/api/LocalModelRuntime.kt")
+        val embeddingNative = mainCppSource("llama_jni.cpp")
+        val chatSwitch = runtime.indexOf("unloadResident()")
+        val chatLoad = runtime.indexOf("LlamaChatEngine(identity.canonicalPath, identity.nCtx)")
+        val chatFailure = runtime.indexOf("if (!loaded.load())", chatLoad)
+        val chatInstall = runtime.indexOf("resident = Resident.Chat", chatFailure)
+        val embeddingSwitch = runtime.indexOf("unloadResident()", chatSwitch + 1)
+        val embeddingLoad = runtime.indexOf("LlamaEngine.loadResident", embeddingSwitch)
 
-        assertTrue(ensure.contains("existing.matches(model.localFilePath, model.nCtx)"))
-        assertTrue(candidateLoad >= 0)
-        assertTrue(install > candidateLoad)
-        assertTrue(oldClose > install)
-        assertFalse(ensure.contains("loadMmproj"))
+        assertTrue(runtime.contains("data class Chat("))
+        assertTrue(runtime.contains("val nCtx: Int"))
+        assertTrue(runtime.contains("data class Embedding("))
+        assertTrue(chatSwitch >= 0 && chatLoad > chatSwitch)
+        assertTrue(chatFailure > chatLoad && chatInstall > chatFailure)
+        assertTrue(runtime.substring(chatFailure, chatInstall).contains("return@run false"))
+        assertTrue(embeddingSwitch >= 0 && embeddingLoad > embeddingSwitch)
+        assertTrue(runtime.contains("activeChatEngine = engine"))
+        assertTrue(runtime.contains("activeChatEngine = null"))
+        assertTrue(runtime.contains("activeChatEngine?.cancel()"))
+        assertTrue(embeddingNative.contains(
+            "llama_memory_clear(llama_get_memory(handle->ctx), true);"
+        ))
     }
 
     @Test

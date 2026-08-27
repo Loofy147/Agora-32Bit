@@ -146,7 +146,6 @@ class ChatViewModel(
     val ragManager = RagManager(
         conversations = convRepo,
         settings = settings,
-        localProvider = localProvider,
         appContext = appContext,
         scope = viewModelScope,
     ) { _snackbarMessage.emit(it) }

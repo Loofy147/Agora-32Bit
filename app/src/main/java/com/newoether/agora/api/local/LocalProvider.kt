@@ -18,8 +18,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import com.newoether.agora.viewmodel.GenerationCancelHandle
 import kotlin.coroutines.coroutineContext
 
@@ -36,9 +34,6 @@ class LocalProvider(
     override val name: String = Constants.PROVIDER_LOCAL
     override val defaultBaseUrl: String = ""
 
-    private var currentEngine: LlamaChatEngine? = null
-    private val engineLock = Mutex()
-
     override fun generateResponse(
         messages: List<ChatMessage>,
         config: ProviderConfig
@@ -50,16 +45,12 @@ class LocalProvider(
             return@flow
         }
 
-        // This Provider is the single owner of embedded chat-model serialization. The lock begins
-        // before load/reset/mmproj mutation and remains held through template rendering and native
-        // generation, so embedding work cannot evict or overlap the engine at either boundary.
-        LocalModelSerializer.mutex.lock()
-        try {
-            val engine = ensureEngineLoaded(modelConfig)
-            if (engine == null) {
-                emit(StreamEvent.Error(GenerationError.LocalModel("Failed to load model: ${modelConfig.alias}")))
-                return@flow
-            }
+        // The process runtime owns strict FIFO admission and the single Chat-or-Embedding resident.
+        // This block covers model/context mutation, template rendering, and complete generation.
+        val executed = LocalModelRuntime.runChat(
+            modelPath = modelConfig.localFilePath,
+            nCtx = modelConfig.nCtx,
+        ) { engine ->
 
         // Build template messages, collecting images per-message with <__media__> markers
         val imagePaths = mutableListOf<String>()
@@ -76,13 +67,13 @@ class LocalProvider(
                 emit(StreamEvent.Error(GenerationError.LocalModel(
                     "This local model has no vision projector configured."
                 )))
-                return@flow
+                return@runChat
             }
             if (!engine.loadMmproj(modelConfig.mmprojPath)) {
                 emit(StreamEvent.Error(GenerationError.LocalModel(
                     "Failed to load the configured vision projector."
                 )))
-                return@flow
+                return@runChat
             }
         } else if (modelConfig.mmprojPath.isBlank()) {
             engine.unloadMmproj()
@@ -95,7 +86,7 @@ class LocalProvider(
             emit(StreamEvent.Error(GenerationError.LocalModel(
                 "The local model does not provide a compatible chat template."
             )))
-            return@flow
+            return@runChat
         }
         val promptLength = prompt.length
         val imageCount = imagePaths.size
@@ -130,9 +121,8 @@ class LocalProvider(
                     maxTokens = config.maxTokens ?: modelConfig.maxTokens
                 )
             }
-            // Register while still holding the process-wide local-model mutex. This makes the
-            // handle generation-specific: it is removed before another conversation can begin
-            // native sampling on the shared engine.
+            // Register while still holding the process-wide runtime task. The handle is removed
+            // before the next FIFO waiter may begin native work on the resident engine.
             val streamScope = HttpClient.boundStreamScope()
             val nativeCancel = GenerationCancelHandle { engine.cancel() }
             streamScope?.register(nativeCancel)
@@ -225,7 +215,7 @@ class LocalProvider(
         } catch (e: Exception) {
             DebugLog.e(TAG, "Generation failed", e)
             emit(StreamEvent.Error(GenerationError.LocalModel(formatGenerationError(e, modelConfig))))
-            return@flow
+            return@runChat
         }
 
         emit(
@@ -238,8 +228,11 @@ class LocalProvider(
             )
         )
         terminalError?.let { emit(StreamEvent.Error(it)) }
-        } finally {
-            LocalModelSerializer.mutex.unlock()
+        }
+        if (!executed) {
+            emit(StreamEvent.Error(GenerationError.LocalModel(
+                "Failed to load model: ${modelConfig.alias}"
+            )))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -255,25 +248,6 @@ class LocalProvider(
             return context.getString(R.string.local_context_exceeded, promptTokens, contextTokens)
         }
         return "Generation failed: $message"
-    }
-
-    private suspend fun ensureEngineLoaded(model: com.newoether.agora.data.LocalChatModelConfig): LlamaChatEngine? {
-        return engineLock.withLock {
-            val existing = currentEngine
-            if (existing != null && existing.matches(model.localFilePath, model.nCtx)) {
-                existing.resetContext()
-                existing
-            } else {
-                val candidate = LlamaChatEngine(model.localFilePath, model.nCtx)
-                if (!candidate.load()) {
-                    candidate.close()
-                    return@withLock null
-                }
-                currentEngine = candidate
-                existing?.close()
-                candidate
-            }
-        }
     }
 
     private fun buildTemplateMessages(
@@ -353,19 +327,4 @@ class LocalProvider(
         return settings.localChatModels.first().map { it.modelId }
     }
 
-    fun close() {
-        currentEngine?.close()
-        currentEngine = null
-    }
-
-    suspend fun releaseEngine() {
-        engineLock.withLock {
-            currentEngine?.close()
-            currentEngine = null
-        }
-    }
-
-    fun releaseEngineBlocking() {
-        kotlinx.coroutines.runBlocking { releaseEngine() }
-    }
 }
