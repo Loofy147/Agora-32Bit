@@ -646,6 +646,23 @@ class ApplicationUiSourceContractTest {
     }
 
     @Test
+    fun `shell confirmation code surface provides standalone Markdown locals`() {
+        val main = sourceFile("app/src/main/java/com/newoether/agora/MainActivity.kt")
+        val assets = sourceFile(
+            "app/src/main/java/com/newoether/agora/ui/chat/message/MessageBubbleAssets.kt",
+        )
+        val codeBlock = assets
+            .substringAfter("internal fun ChatMarkdownCodeBlock(")
+            .substringBefore("private fun OverflowFriendlyMarkdownTable(")
+
+        assertTrue(main.contains("ChatMarkdownCodeBlock(code = pending.summary)"))
+        assertTrue(codeBlock.contains("CompositionLocalProvider("))
+        assertTrue(codeBlock.contains("LocalMarkdownColors provides assets.renderContext.colors"))
+        assertTrue(codeBlock.contains("LocalMarkdownDimens provides markdownDimens()"))
+        assertTrue(codeBlock.contains("MarkdownCodeBackground("))
+    }
+
+    @Test
     fun `every full screen viewer uses shared spatial entrance and exit with reduced motion fallback`() {
         val source = sourceFile("app/src/main/java/com/newoether/agora/MainActivity.kt")
         val mediaViewer = sourceFile(

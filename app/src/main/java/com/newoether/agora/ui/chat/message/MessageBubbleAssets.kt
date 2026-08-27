@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -51,6 +52,7 @@ import com.mikepenz.markdown.compose.LocalMarkdownPadding
 import com.mikepenz.markdown.m3.markdownColor
 import com.mikepenz.markdown.m3.markdownTypography
 import com.mikepenz.markdown.model.markdownPadding
+import com.mikepenz.markdown.model.markdownDimens
 import com.mikepenz.markdown.model.MarkdownColors
 import com.mikepenz.markdown.model.MarkdownPadding
 import com.mikepenz.markdown.model.MarkdownTypography
@@ -451,25 +453,30 @@ internal fun ChatMarkdownCodeBlock(
     modifier: Modifier = Modifier,
 ) {
     val assets = rememberChatMarkdownAssets(MaterialTheme.colorScheme.onSurface)
-    MarkdownCodeBackground(
-        color = assets.renderContext.colors.codeBackground,
-        shape = RoundedCornerShape(LocalMarkdownDimens.current.codeBackgroundCornerSize),
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        showHeader = true,
-        language = null,
-        code = code,
+    CompositionLocalProvider(
+        LocalMarkdownColors provides assets.renderContext.colors,
+        LocalMarkdownDimens provides markdownDimens(),
     ) {
-        MarkdownBasicText(
-            text = AnnotatedString(code),
-            style = assets.renderContext.typography.code.copy(
-                color = MaterialTheme.colorScheme.onSurface,
-            ),
-            modifier = Modifier
-                .horizontalScroll(rememberScrollState())
-                .padding(assets.renderContext.padding.codeBlock),
-        )
+        MarkdownCodeBackground(
+            color = assets.renderContext.colors.codeBackground,
+            shape = RoundedCornerShape(LocalMarkdownDimens.current.codeBackgroundCornerSize),
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            showHeader = true,
+            language = null,
+            code = code,
+        ) {
+            MarkdownBasicText(
+                text = AnnotatedString(code),
+                style = assets.renderContext.typography.code.copy(
+                    color = MaterialTheme.colorScheme.onSurface,
+                ),
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(assets.renderContext.padding.codeBlock),
+            )
+        }
     }
 }
 
