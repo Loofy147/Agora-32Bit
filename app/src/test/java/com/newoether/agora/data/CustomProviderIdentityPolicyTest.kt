@@ -118,15 +118,35 @@ class CustomProviderIdentityPolicyTest {
             "amazon/nova-2-lite-v1" to "Nova 2 Lite",
             "anthropic/claude-fable-5:batch" to "Claude Fable 5",
             "anthropic/claude-opus-5-fast" to "Claude Opus 5",
-            "deepseek/deepseek-v4-flash-0731" to "DeepSeek V4 Flash",
+            "google/gemini-3-flash-preview" to "Gemini 3 Flash",
+            "gemini-2.5-pro-preview" to "Gemini 2.5 Pro",
+            "gemini-3-flash-PREVIEW" to "Gemini 3 Flash",
+            "deepseek/deepseek-v4-flash-0731" to "DeepSeek V4 Flash 0731",
+            "deepseek/deepseek-v4-flash-0831" to "DeepSeek V4 Flash 0831",
             "claude-sonnet-4-5-20250929" to "Claude Sonnet 4.5",
             "anthropic/claude-3-5-sonnet-20241022" to "Claude 3.5 Sonnet",
-            "deepseek/deepseek-r1-0528" to "DeepSeek R1",
+            "deepseek/deepseek-r1-0528" to "DeepSeek R1 0528",
             "openai/gpt-4o-mini" to "GPT 4o Mini",
             "qwen/qwen3.5-27b-vl" to "Qwen 3.5 27B VL",
             "qwen/qwen3.8:free" to "Qwen 3.8",
             "qwen/qwen3.8:FREE" to "Qwen 3.8",
             "anthropic/claude-opus-5:free" to "Claude Opus 5",
+        )
+
+        cases.forEach { (modelName, expectedAlias) ->
+            assertEquals(modelName, expectedAlias, inferModelAlias(modelName))
+        }
+    }
+
+    @Test
+    fun inferredAliasesApplyOnlyApprovedExactTokenCasing() {
+        val cases = linkedMapOf(
+            "zai/glm-4.5-air" to "GLM 4.5 Air",
+            "xiaomi/mimo-v2-flash" to "MiMo V2 Flash",
+            "minimax/minimax-m2.1" to "MiniMax M2.1",
+            "vendor/model-a3b-e4b-a70b-oss-tts" to "Model A3B E4B A70B OSS TTS",
+            "vendor/GLM-MIMO-MINIMAX-A3B-E4B-A70B-OSS-TTS" to
+                "GLM MiMo MiniMax A3B E4B A70B OSS TTS",
         )
 
         cases.forEach { (modelName, expectedAlias) ->
@@ -146,6 +166,10 @@ class CustomProviderIdentityPolicyTest {
             "claude-opus-5:thinking" to "Claude Opus 5:thinking",
             "claude-opus-5-20251340" to "Claude Opus 5 20251340",
             "deepseek-v4-flash-1332" to "DeepSeek V4 Flash 1332",
+            "vendor/model-preview" to "Model Preview",
+            "gemini-2.5-pro-preview-03-25" to "Gemini 2.5 Pro Preview 03 25",
+            "gemini--preview" to "Gemini Preview",
+            "vendor/glmtoken-mimosa-loss-a8b-tts2" to "Glmtoken Mimosa Loss A8b Tts2",
         )
 
         cases.forEach { (modelName, expectedAlias) ->
@@ -156,6 +180,11 @@ class CustomProviderIdentityPolicyTest {
     @Test
     fun inferredAliasNormalizationIsIdempotentAndBoundarySafe() {
         assertEquals("Claude Opus 5", inferModelAlias("Claude Opus 5"))
+        assertEquals("Gemini 3 Flash", inferModelAlias("Gemini 3 Flash"))
+        assertEquals("GLM 4.5 Air", inferModelAlias("GLM 4.5 Air"))
+        assertEquals("MiMo V2 Flash", inferModelAlias("MiMo V2 Flash"))
+        assertEquals("MiniMax M2.1", inferModelAlias("MiniMax M2.1"))
+        assertEquals("Model A3B E4B A70B OSS TTS", inferModelAlias("Model A3B E4B A70B OSS TTS"))
         assertEquals("Qwen 3.8", inferModelAlias("Qwen 3.8"))
         assertEquals("Qwen 3.5 VL", inferModelAlias("  qwen__3.5--vl  "))
         assertEquals("", inferModelAlias("   "))

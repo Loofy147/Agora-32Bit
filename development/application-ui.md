@@ -215,15 +215,21 @@ continue to use the complete original model ID.
 
 Inference removes a provider path for display and recognizes only bounded family-specific suffixes:
 the exact `:batch` and `:free` variants, a terminal Claude `fast` serving marker, valid Claude snapshot
-dates and version grammar, valid DeepSeek `MMDD` snapshots in V/R family grammar, and Amazon Nova's
-terminal API revision. Core family, tier, size, speed, capability, and version tokens remain. Unknown
-or malformed names receive separator/case humanization without deleting ambiguous tokens such as an
-unrecognized date, number, `vN`, `latest`, `fast`, or colon suffix. The resolver is deterministic,
-case-insensitive for recognized grammar, and idempotent for its formatted output.
+dates and version grammar, Amazon Nova's terminal API revision, and an exact terminal Gemini
+`preview` marker. A nonterminal Gemini `preview` token and every generic-family `preview` token remain.
+Core family, tier, size, speed, capability, version, and every DeepSeek numeric token remain. Unknown
+or malformed names receive separator/case humanization without deleting ambiguous tokens such as a
+date, number, `vN`, `latest`, `fast`, or colon suffix. The resolver is deterministic, case-insensitive
+for recognized grammar, and idempotent for its formatted output.
 
 Qwen tokens with an immediately adjacent numeric version insert one display space between the brand
 and version, so `qwen3.8` becomes `Qwen 3.8`. This brand-specific spacing does not change the raw ID
 or silently alter the formatting of other brand-number tokens.
+
+Exact standalone tokens use their approved product casing: `glm` becomes `GLM`, `mimo` becomes
+`MiMo`, `minimax` becomes `MiniMax`, and `a3b`, `e4b`, `a70b`, `oss`, and `tts` become `A3B`, `E4B`,
+`A70B`, `OSS`, and `TTS`. Matching is case-insensitive but does not rewrite substrings or establish a
+generic rule for unknown abbreviations or letter-number-letter tokens.
 
 Settings Models renders the resolved alias as every model row's headline and the raw API model name
 as supporting text, so distinct IDs remain distinguishable even when serving variants share one

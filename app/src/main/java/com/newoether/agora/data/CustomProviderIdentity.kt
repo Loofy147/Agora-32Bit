@@ -288,6 +288,10 @@ private val novaAliasPattern = Regex(
     "^nova-(\\d+(?:\\.\\d+)?)-(.+)-v\\d+(?::\\d+)?$",
     RegexOption.IGNORE_CASE,
 )
+private val geminiPreviewAliasPattern = Regex(
+    "^(gemini-[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?)-preview$",
+    RegexOption.IGNORE_CASE,
+)
 private val claudeFamilyFirstAliasPattern = Regex(
     "^claude-([a-z][a-z0-9]*(?:-[a-z][a-z0-9]*)*)-(\\d{1,2})(?:-(\\d{1,2}))?" +
         "(?:-(\\d{8}))?(?:-fast)?$",
@@ -298,11 +302,17 @@ private val claudeVersionFirstAliasPattern = Regex(
         "(?:-(\\d{8}))?(?:-fast)?$",
     RegexOption.IGNORE_CASE,
 )
-private val deepSeekSnapshotAliasPattern = Regex(
-    "^deepseek-((?:v|r)\\d+(?:\\.\\d+)?)(?:-([a-z0-9][a-z0-9-]*))?-(\\d{4})$",
-    RegexOption.IGNORE_CASE,
-)
 private val snapshotDateFormatter = DateTimeFormatter.BASIC_ISO_DATE
+private val exactAliasTokenDisplayNames = mapOf(
+    "a3b" to "A3B",
+    "a70b" to "A70B",
+    "e4b" to "E4B",
+    "glm" to "GLM",
+    "mimo" to "MiMo",
+    "minimax" to "MiniMax",
+    "oss" to "OSS",
+    "tts" to "TTS",
+)
 private val aliasTokenDisplayNames = mapOf(
     "ai" to "AI",
     "api" to "API",
@@ -334,10 +344,15 @@ internal fun inferModelAlias(modelName: String): String {
 
     val pathTail = trimmed.substringAfterLast('/').trim().ifEmpty { trimmed }
     val withoutVariant = pathTail.replace(omittedAliasVariantSuffix, "").ifEmpty { pathTail }
+    inferGeminiAlias(withoutVariant)?.let { return it }
     inferClaudeAlias(withoutVariant)?.let { return it }
     inferNovaAlias(withoutVariant)?.let { return it }
-    inferDeepSeekAlias(withoutVariant)?.let { return it }
     return humanizeModelAlias(withoutVariant).ifEmpty { trimmed }
+}
+
+private fun inferGeminiAlias(slug: String): String? {
+    val match = geminiPreviewAliasPattern.matchEntire(slug) ?: return null
+    return humanizeModelAlias(match.groupValues[1])
 }
 
 private fun inferClaudeAlias(slug: String): String? {
@@ -383,16 +398,6 @@ private fun inferNovaAlias(slug: String): String? {
     return "Nova ${match.groupValues[1]} ${humanizeModelAlias(match.groupValues[2])}"
 }
 
-private fun inferDeepSeekAlias(slug: String): String? {
-    val match = deepSeekSnapshotAliasPattern.matchEntire(slug) ?: return null
-    if (!isValidMonthDay(match.groupValues[3])) return null
-    val version = formatAliasToken(match.groupValues[1])
-    val variant = match.groupValues[2]
-        .takeIf(String::isNotEmpty)
-        ?.let(::humanizeModelAlias)
-    return listOfNotNull("DeepSeek", version, variant).joinToString(" ")
-}
-
 private fun humanizeModelAlias(value: String): String = value
     .split(aliasSeparators)
     .filter(String::isNotEmpty)
@@ -400,6 +405,7 @@ private fun humanizeModelAlias(value: String): String = value
 
 private fun formatAliasToken(value: String): String {
     val normalized = value.lowercase(Locale.ROOT)
+    exactAliasTokenDisplayNames[normalized]?.let { return it }
     aliasTokenDisplayNames[normalized]?.let { return it }
     aliasTokenDisplayNames.entries.firstOrNull { (token, _) ->
         normalized.length > token.length &&
@@ -426,19 +432,6 @@ private fun formatAliasToken(value: String): String {
 private fun isValidSnapshotDate(value: String): Boolean = runCatching {
     LocalDate.parse(value, snapshotDateFormatter)
 }.isSuccess
-
-private fun isValidMonthDay(value: String): Boolean {
-    if (value.length != 4 || value.any { !it.isDigit() }) return false
-    val month = value.substring(0, 2).toInt()
-    val day = value.substring(2, 4).toInt()
-    val maximumDay = when (month) {
-        2 -> 29
-        4, 6, 9, 11 -> 30
-        1, 3, 5, 7, 8, 10, 12 -> 31
-        else -> return false
-    }
-    return day in 1..maximumDay
-}
 
 fun modelAliasDisplayName(
     modelId: String,
