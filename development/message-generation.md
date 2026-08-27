@@ -596,6 +596,13 @@ locally before HTTP. Opus 5 does the same when off is combined with `xhigh` or `
 efforts remain valid. Legacy non-thinking/default-off families continue omitting `thinking` rather
 than receiving a current-only disabled shape.
 
+Ollama requests always carry the native top-level `think` control. Ordinary and unknown model names
+use a Boolean matching the captured thinking toggle. Native `gpt-oss` model names use the required
+`low`/`medium`/`high` effort strings; off or `none` is impossible and fails locally before HTTP.
+Ollama continues forwarding temperature, top-p, and max tokens as `options.temperature`,
+`options.top_p`, and `options.num_predict`. Frequency/presence penalties are protocol N/A and are
+not approximated with Ollama's different repeat-penalty semantics.
+
 OpenAI Responses reasoning summaries are public summary content, not raw chain-of-thought. When
 thinking is enabled on an official or custom OpenAI-compatible Responses transport, the request opts
 into the most detailed available summary with `reasoning.summary = auto`. Summary text deltas enter

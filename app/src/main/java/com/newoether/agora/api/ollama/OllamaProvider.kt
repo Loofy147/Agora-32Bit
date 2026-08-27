@@ -16,6 +16,7 @@ import com.newoether.agora.api.util.safeWireToolCallId
 import com.newoether.agora.api.util.safeWireToolName
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.Participant
+import com.newoether.agora.model.ThinkingLevels
 import com.newoether.agora.model.TokenUsage
 import com.newoether.agora.util.Constants
 import kotlinx.coroutines.delay
@@ -28,7 +29,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import java.io.File
 
 @Serializable
@@ -37,7 +40,8 @@ internal data class OllamaChatRequest(
     val messages: List<OllamaMessage>,
     val stream: Boolean = true,
     val options: JsonObject? = null,
-    val tools: List<ToolDefinition>? = null
+    val tools: List<ToolDefinition>? = null,
+    val think: JsonElement? = null,
 )
 
 @Serializable
@@ -214,15 +218,36 @@ class OllamaProvider : LlmProvider {
             config.maxTokens?.let { put("num_predict", kotlinx.serialization.json.JsonPrimitive(it)) }
         }.takeIf { it.isNotEmpty() }?.let { JsonObject(it) }
 
+        val thinkingLevel = ThinkingLevels.normalize(config.thinkingLevel)
+        val gptOss = isOllamaGptOss(modelName)
+        val thinkViolation = if (
+            gptOss && (!config.thinkingEnabled || thinkingLevel == "none")
+        ) {
+            "model $modelName cannot disable thinking"
+        } else null
+        val think = if (gptOss) {
+            JsonPrimitive(
+                when (thinkingLevel) {
+                    "minimal", "low" -> "low"
+                    "medium" -> "medium"
+                    else -> "high"
+                }
+            )
+        } else {
+            JsonPrimitive(config.thinkingEnabled)
+        }
+
         val requestBody = OllamaChatRequest(
             model = config.modelId,
             messages = apiMessages,
             stream = true,
             options = options,
-            tools = config.tools
+            tools = config.tools,
+            think = think,
         )
 
         try {
+            thinkViolation?.let { throw RequestFormatException(name, listOf(it)) }
             requestBody.requireValidWireFormat()
             val url = "$baseUrl/api/chat"
             val headers = mutableMapOf("Content-Type" to "application/json")
@@ -478,3 +503,6 @@ class OllamaProvider : LlmProvider {
         models
     }
 }
+
+private fun isOllamaGptOss(modelName: String): Boolean =
+    modelName.trim().substringAfterLast('/').substringBefore(':').equals("gpt-oss", ignoreCase = true)
