@@ -613,6 +613,24 @@ class ApplicationUiSourceContractTest {
     }
 
     @Test
+    fun `provider base URL placeholder stays separate from its stored default`() {
+        val provider = sourceFile(
+            "app/src/main/java/com/newoether/agora/ui/settings/SettingsProviderDetailPage.kt",
+        )
+
+        assertTrue(provider.contains(
+            "val defaultUrl = providerInstance?.defaultBaseUrl.orEmpty()"
+        ))
+        assertTrue(provider.contains(
+            "val placeholderUrl = providerInstance?.baseUrlPlaceholder.orEmpty()"
+        ))
+        assertTrue(provider.contains(
+            "val displayedUrl = savedUrl?.takeIf(String::isNotBlank) ?: defaultUrl"
+        ))
+        assertTrue(provider.contains("placeholder = { Text(placeholderUrl"))
+    }
+
+    @Test
     fun `Settings destination rows omit redundant arrows without losing behavior`() {
         val home = sourceFile(
             "app/src/main/java/com/newoether/agora/ui/settings/SettingsScreen.kt",

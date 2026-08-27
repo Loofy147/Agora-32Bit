@@ -13,7 +13,10 @@ import org.junit.Test
 class OllamaProviderConfigurationTest {
     @Test
     fun providerHasNoImplicitBaseUrl() {
-        assertEquals("", OllamaProvider().defaultBaseUrl)
+        val provider = OllamaProvider()
+
+        assertEquals("", provider.defaultBaseUrl)
+        assertEquals("http://localhost:11434", provider.baseUrlPlaceholder)
     }
 
     @Test

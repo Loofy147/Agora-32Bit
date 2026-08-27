@@ -483,6 +483,8 @@ class PendingToolCall(
 interface LlmProvider {
     val name: String
     val defaultBaseUrl: String
+    val baseUrlPlaceholder: String
+        get() = defaultBaseUrl
 
     fun generateResponse(
         messages: List<ChatMessage>,

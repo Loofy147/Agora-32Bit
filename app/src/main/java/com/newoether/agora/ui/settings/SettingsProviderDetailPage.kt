@@ -185,6 +185,7 @@ fun SettingsProviderDetailPage(
                 val providerInstance = viewModel.getProviderInstanceOrNull(currentName)
                 val savedUrl = providerBaseUrls[currentName]
                 val defaultUrl = providerInstance?.defaultBaseUrl.orEmpty()
+                val placeholderUrl = providerInstance?.baseUrlPlaceholder.orEmpty()
                 val displayedUrl = savedUrl?.takeIf(String::isNotBlank) ?: defaultUrl
                 // Don't key remember on savedUrl — that causes TextFieldState to be recreated
                 // every time the debounced save writes back to DataStore, overwriting user input.
@@ -230,7 +231,7 @@ fun SettingsProviderDetailPage(
                                         Box(modifier = Modifier.noOpBringIntoView().padding(top = 8.dp)) {
                                             OutlinedTextField(
                                                 state = baseUrlState,
-                                                placeholder = { Text(defaultUrl, style = MaterialTheme.typography.bodyMedium) },
+                                                placeholder = { Text(placeholderUrl, style = MaterialTheme.typography.bodyMedium) },
                                                 shape = RoundedCornerShape(16.dp),
                                                 modifier = Modifier.fillMaxWidth(),
                                                 textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
