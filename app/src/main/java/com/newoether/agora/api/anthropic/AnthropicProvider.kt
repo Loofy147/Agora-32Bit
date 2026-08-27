@@ -169,14 +169,26 @@ internal data class AnthropicUsage(
  * provider reported an in-band error. The transport layer cannot answer any of those from socket
  * state alone.
  */
-/** Request-shape generations of the Claude model line. Only the LEGACY sets are enumerated;
- *  anything unmatched (opus-5, sonnet-5, fable, mythos, every future family) is
- *  [CURRENT_ADAPTIVE] and must never receive `budget_tokens` or sampling params (400 on 4.7+). */
-internal enum class ClaudeFamily { NO_THINKING, BUDGET_THINKING, TRANSITIONAL_4_6, CURRENT_ADAPTIVE }
+/** Request-shape generations of the Claude model line. Unknown future families stay conservative:
+ * adaptive when enabled, omitted when disabled, and never receive legacy sampling parameters. */
+internal enum class ClaudeFamily {
+    NO_THINKING,
+    BUDGET_THINKING,
+    TRANSITIONAL_4_6,
+    CURRENT_ADAPTIVE,
+    CURRENT_DEFAULT_ON,
+    CURRENT_ALWAYS_THINKING,
+}
 
 internal fun classifyClaudeFamily(modelName: String): ClaudeFamily {
     val m = modelName.lowercase()
     if (!m.startsWith("claude")) return ClaudeFamily.CURRENT_ADAPTIVE
+    if (m in setOf("claude-fable-5", "claude-mythos-5", "claude-mythos-preview")) {
+        return ClaudeFamily.CURRENT_ALWAYS_THINKING
+    }
+    if (m in setOf("claude-opus-5", "claude-sonnet-5")) {
+        return ClaudeFamily.CURRENT_DEFAULT_ON
+    }
     // 3.0 / 3.5 predate extended thinking entirely.
     if (listOf("claude-3-opus", "claude-3-sonnet", "claude-3-haiku", "claude-3-5-")
             .any { m.startsWith(it) }
@@ -235,17 +247,27 @@ class AnthropicProvider(
         val modelName = config.modelId
 
         // ── Model-generation classification ─────────────────────────────────
-        // The legacy sets are CLOSED lists; every model NOT matched below — including
-        // claude-opus-5 / claude-sonnet-5 / fable / mythos and all FUTURE families — is
-        // treated as current-generation: adaptive thinking only, and no sampling params.
+        // The legacy and current default-on/always-on sets are CLOSED lists. Every model not
+        // matched below is treated conservatively: adaptive when enabled and no sampling params.
         // Rationale (API contract): `budget_tokens` and `temperature`/`top_p` are REMOVED
         // from Opus 4.7 onward (sending either returns a hard 400), so an unknown new
         // model must never fall back onto the legacy request shape.
         val family = classifyClaudeFamily(modelName)
+        val effort = ThinkingLevels.anthropicEffort(config.thinkingLevel)
+        val thinkingViolation = when {
+            config.thinkingEnabled -> null
+            family == ClaudeFamily.CURRENT_ALWAYS_THINKING ->
+                "model $modelName cannot disable thinking"
+            modelName.equals("claude-opus-5", ignoreCase = true) && effort in setOf("xhigh", "max") ->
+                "model $modelName cannot disable thinking at effort $effort"
+            else -> null
+        }
         val thinkingBudget = (
             if (config.thinkingBudgetEnabled) config.thinkingBudgetTokens else ThinkingLevels.DefaultBudgetTokens
         ).coerceIn(1024, 128000)
         val thinking = when {
+            !config.thinkingEnabled && family == ClaudeFamily.CURRENT_DEFAULT_ON ->
+                AnthropicThinking(type = "disabled")
             !config.thinkingEnabled -> null
             family == ClaudeFamily.NO_THINKING -> null
             family == ClaudeFamily.BUDGET_THINKING ->
@@ -256,12 +278,16 @@ class AnthropicProvider(
                 AnthropicThinking(type = "enabled", budgetTokens = thinkingBudget, display = "summarized")
             else -> AnthropicThinking(type = "adaptive", display = "summarized")
         }
-        val outputConfig = if (thinking?.type == "adaptive") {
-            AnthropicOutputConfig(effort = ThinkingLevels.anthropicEffort(config.thinkingLevel))
+        val outputConfig = if (thinking?.type in setOf("adaptive", "disabled")) {
+            AnthropicOutputConfig(effort = effort)
         } else null
         // temperature/top_p are rejected with a 400 on Opus 4.7+ / Sonnet 5 / Fable — only the
         // legacy and transitional families may carry user sampling overrides.
-        val allowsSamplingParams = family != ClaudeFamily.CURRENT_ADAPTIVE
+        val allowsLegacySamplingParams = family in setOf(
+            ClaudeFamily.NO_THINKING,
+            ClaudeFamily.BUDGET_THINKING,
+            ClaudeFamily.TRANSITIONAL_4_6,
+        )
 
         val canonicalPath = prepareMessages(messages, config.maxContextWindow)
         val validatedPath = adaptToolRoundsForProvider(
@@ -271,7 +297,7 @@ class AnthropicProvider(
             toolMessage.isAnthropicToolRoundCompatible(
                 targetModel = modelName,
                 targetProviderName = name,
-                signedThinkingRequired = thinking != null,
+                signedThinkingRequired = thinking?.type in setOf("enabled", "adaptive"),
             )
         }
 
@@ -362,11 +388,16 @@ class AnthropicProvider(
                 else -> 8192
             },
             tools = anthropicTools,
-            temperature = config.temperature.takeIf { allowsSamplingParams },
-            topP = config.topP.takeIf { allowsSamplingParams }
+            temperature = config.temperature.takeIf {
+                allowsLegacySamplingParams && thinking == null
+            },
+            topP = config.topP?.takeIf {
+                allowsLegacySamplingParams && (thinking == null || it in 0.95f..1f)
+            }
         )
 
         try {
+            thinkingViolation?.let { throw RequestFormatException(name, listOf(it)) }
             requestBody.requireValidWireFormat()
             val url = "$baseUrl/messages"
             val headers = mutableMapOf("Content-Type" to "application/json")
@@ -382,7 +413,7 @@ class AnthropicProvider(
             DebugLog.d(
                 "AgoraAPI",
                 "[$name] request model=$modelName messages=${apiMessages.size} " +
-                    "thinking=${thinking != null} tools=${anthropicTools?.size ?: 0}",
+                    "thinking=${thinking?.type ?: "omitted"} tools=${anthropicTools?.size ?: 0}",
             )
             val maxAttempts = ProviderRetryPolicy.MAX_ATTEMPTS
             val retryableCodes = setOf(429, 502, 503, 504)

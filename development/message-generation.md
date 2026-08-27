@@ -585,6 +585,17 @@ untouched. OpenAI Responses forwards temperature, max output tokens, and top-p b
 frequency/presence fields in this request contract, so those penalties are protocol N/A rather than
 silently approximated.
 
+Anthropic keeps temperature/top-p only on its legacy request families and has no native
+frequency/presence penalty fields. With legacy manual thinking enabled, temperature is omitted and
+top-p is forwarded only in the protocol-compatible 0.95–1 range; with thinking off, both captured
+values are forwarded. Manual-thinking families use `thinking.type=enabled` plus the captured budget;
+adaptive families use `thinking.type=adaptive` plus `output_config.effort`.
+Sonnet 5 and Opus 5 serialize `thinking.type=disabled` when thinking is off, without `display` or
+`budget_tokens`, and retain their effort control. Fable 5, Mythos 5, and Mythos Preview reject off
+locally before HTTP. Opus 5 does the same when off is combined with `xhigh` or `max`; high and lower
+efforts remain valid. Legacy non-thinking/default-off families continue omitting `thinking` rather
+than receiving a current-only disabled shape.
+
 OpenAI Responses reasoning summaries are public summary content, not raw chain-of-thought. When
 thinking is enabled on an official or custom OpenAI-compatible Responses transport, the request opts
 into the most detailed available summary with `reasoning.summary = auto`. Summary text deltas enter
