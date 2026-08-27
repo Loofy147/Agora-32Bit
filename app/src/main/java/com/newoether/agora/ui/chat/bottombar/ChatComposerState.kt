@@ -137,6 +137,23 @@ class ChatComposerState(
         selectedAttachments = emptyList()
     }
 
+    /** Reclaim pending Sandbox uploads from a new chat that never acquired a draft owner. */
+    fun abandonUnownedSandboxAttachments() {
+        if (draftOwnerConversationId != null) return
+        val abandoned = selectedAttachments.filter {
+            it.storage == AttachmentStorage.LOCAL_SANDBOX_PENDING
+        }
+        if (abandoned.isEmpty()) return
+        val abandonedIds = abandoned.mapTo(hashSetOf(), SelectedAttachment::localId)
+        abandonedIds.forEach { id -> attachmentCopyJobs.remove(id)?.cancel() }
+        selectedAttachments = selectedAttachments.filterNot { it.localId in abandonedIds }
+        processingStates = processingStates - abandonedIds
+        if (selectedAttachments.isEmpty()) pendingSend = false
+        scope.launch(NonCancellable + Dispatchers.IO) {
+            AttachmentFiles.deleteBacking(abandoned)
+        }
+    }
+
     /** Transfer pending Sandbox files to runtime ownership at the send submission boundary. */
     fun transferAttachmentsForSend(
         attachments: List<SelectedAttachment>,

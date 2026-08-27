@@ -332,26 +332,27 @@ class DataExporter(
             val attachments = conversation.draftAttachments?.let { raw ->
                 runCatching { Json.decodeFromString<List<SelectedAttachment>>(raw) }.getOrNull()
             } ?: return@forEach
-            val archived = attachments.mapNotNull { attachment ->
-                val primarySource = listOfNotNull(
-                    attachment.localPath,
-                    attachment.uri.takeIf(String::isNotBlank),
-                ).firstNotNullOfOrNull { source ->
-                    copySource(source, NativeBackupFormat.DRAFT_MEDIA_PREFIX)
-                } ?: return@mapNotNull null
-                val processedFrames = attachment.processedFrames
-                    ?.mapNotNull { copySource(it, NativeBackupFormat.DRAFT_MEDIA_PREFIX) }
-                    ?.takeIf(List<String>::isNotEmpty)
-                val preRenderedPaths = attachment.preRenderedPaths
-                    ?.mapNotNull { copySource(it, NativeBackupFormat.DRAFT_MEDIA_PREFIX) }
-                    ?.takeIf(List<String>::isNotEmpty)
-                attachment.copy(
-                    uri = primarySource,
-                    localPath = primarySource,
-                    processedFrames = processedFrames,
-                    preRenderedPaths = preRenderedPaths,
-                )
-            }
+            val archived = NativeBackupMediaPolicy.exportableDraftAttachments(attachments)
+                .mapNotNull { attachment ->
+                    val primarySource = listOfNotNull(
+                        attachment.localPath,
+                        attachment.uri.takeIf(String::isNotBlank),
+                    ).firstNotNullOfOrNull { source ->
+                        copySource(source, NativeBackupFormat.DRAFT_MEDIA_PREFIX)
+                    } ?: return@mapNotNull null
+                    val processedFrames = attachment.processedFrames
+                        ?.mapNotNull { copySource(it, NativeBackupFormat.DRAFT_MEDIA_PREFIX) }
+                        ?.takeIf(List<String>::isNotEmpty)
+                    val preRenderedPaths = attachment.preRenderedPaths
+                        ?.mapNotNull { copySource(it, NativeBackupFormat.DRAFT_MEDIA_PREFIX) }
+                        ?.takeIf(List<String>::isNotEmpty)
+                    attachment.copy(
+                        uri = primarySource,
+                        localPath = primarySource,
+                        processedFrames = processedFrames,
+                        preRenderedPaths = preRenderedPaths,
+                    )
+                }
             draftAttachments[conversation.id] = archived
                 .takeIf(List<SelectedAttachment>::isNotEmpty)
                 ?.let { Json.encodeToString(it) }

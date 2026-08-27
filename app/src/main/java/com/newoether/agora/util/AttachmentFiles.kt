@@ -113,6 +113,14 @@ object AttachmentFiles {
         attachments.forEach { deleteBacking(it) }
     }
 
+    /** Remove UUID directories after reference-aware draft cleanup has deleted their payloads. */
+    fun deleteEmptySandboxParents(attachments: List<SelectedAttachment>) {
+        attachments.asSequence()
+            .filter { it.storage == AttachmentStorage.LOCAL_SANDBOX_PENDING }
+            .mapNotNull(SelectedAttachment::localPath)
+            .forEach(::deleteEmptyParent)
+    }
+
     private fun deleteEmptyParent(path: String) {
         runCatching { File(path).parentFile?.takeIf(File::isDirectory)?.delete() }
     }

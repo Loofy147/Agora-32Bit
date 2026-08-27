@@ -30,6 +30,7 @@ import com.newoether.agora.model.SelectedAttachment
 import com.newoether.agora.model.citationRecords
 import com.newoether.agora.model.matchesCitationTitle
 import com.newoether.agora.util.DebugLog
+import com.newoether.agora.util.AttachmentFiles
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -172,6 +173,11 @@ class ConversationRepository(
     ): Boolean = chatDao.updateConversationTitleIfUnchanged(id, expectedTitle, newTitle) == 1
 
     suspend fun deleteConversation(id: String) {
+        val draftAttachments = chatDao.getConversation(id)?.draftAttachments
+            ?.let { raw ->
+                runCatching { Json.decodeFromString<List<SelectedAttachment>>(raw) }.getOrNull()
+            }
+            .orEmpty()
         val attachmentReferences = mutableListOf<MessageAttachmentReference>()
         var afterId: String? = null
         while (true) {
@@ -188,6 +194,7 @@ class ConversationRepository(
         chatDao.deleteMessagesByConversation(id)
         chatDao.deleteConversation(id)
         deleteMessageAttachmentFiles(attachmentReferences)
+        deleteUnreferencedDraftAttachmentFiles(draftAttachments)
     }
 
     // ── Messages ──────────────────────────────────────────────
@@ -711,8 +718,9 @@ class ConversationRepository(
     suspend fun deleteUnreferencedDraftAttachmentFiles(
         attachments: List<SelectedAttachment>,
     ) {
+        val reclaimable = attachments.filter { it.storage.reclaimWhenAbandoned }
         deleteUnreferencedAttachmentFiles(
-            attachments.flatMapTo(linkedSetOf()) { attachment ->
+            reclaimable.flatMapTo(linkedSetOf()) { attachment ->
                 buildList {
                     attachment.localPath?.let(::add)
                     addAll(attachment.processedFrames.orEmpty())
@@ -720,6 +728,7 @@ class ConversationRepository(
                 }
             },
         )
+        AttachmentFiles.deleteEmptySandboxParents(reclaimable)
     }
 
     private suspend fun deleteUnreferencedAttachmentFiles(candidates: Set<String>) {

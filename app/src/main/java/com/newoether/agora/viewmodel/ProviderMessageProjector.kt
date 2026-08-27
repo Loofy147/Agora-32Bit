@@ -2,6 +2,7 @@ package com.newoether.agora.viewmodel
 
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.model.AttachmentMeta
+import com.newoether.agora.model.AttachmentItem
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.TokenUsage
@@ -59,6 +60,8 @@ internal fun projectProviderMessages(
         }
         val attachmentText = attachmentMeta?.items?.mapNotNull { item ->
             when {
+                item.storage.isLocalSandbox && !item.sandboxPath.isNullOrBlank() ->
+                    sandboxAttachmentInstruction(item)
                 item.textContent != null -> {
                     val label = item.fileName ?: "file"
                     "\n\n--- File: $label ---\n${item.textContent}"
@@ -101,4 +104,13 @@ internal fun projectProviderMessages(
             consumedAtPass = entity.consumedAtPass,
         )
     }
+}
+
+internal fun sandboxAttachmentInstruction(item: AttachmentItem): String {
+    val label = item.fileName ?: "file"
+    val mimeType = item.mimeType ?: "unknown"
+    val size = item.fileSize?.let { "$it bytes" } ?: "unknown"
+    return "\n\nAttached file $label is available in Local Sandbox at " +
+        "${item.sandboxPath}. MIME type: $mimeType. Size: $size. " +
+        "Use the Local Sandbox file tools (for example file_read) to inspect it before answering."
 }

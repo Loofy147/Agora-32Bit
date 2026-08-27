@@ -171,6 +171,34 @@ class AttachmentFoundationTest {
     }
 
     @Test
+    fun referenceAwareCleanupRemovesOnlyPendingSandboxEmptyDirectory() {
+        val pendingDirectory = temporaryFolder.newFolder("pending-reference")
+        val pendingPayload = File(pendingDirectory, "payload.bin").apply { writeText("payload") }
+        val runtimeDirectory = temporaryFolder.newFolder("runtime-reference")
+        pendingPayload.delete()
+
+        AttachmentFiles.deleteEmptySandboxParents(
+            listOf(
+                SelectedAttachment(
+                    uri = "pending",
+                    type = "file",
+                    localPath = pendingPayload.absolutePath,
+                    storage = AttachmentStorage.LOCAL_SANDBOX_PENDING,
+                ),
+                SelectedAttachment(
+                    uri = "runtime",
+                    type = "file",
+                    localPath = File(runtimeDirectory, "payload.bin").absolutePath,
+                    storage = AttachmentStorage.LOCAL_SANDBOX_RUNTIME,
+                ),
+            ),
+        )
+
+        assertFalse(pendingDirectory.exists())
+        assertTrue(runtimeDirectory.isDirectory)
+    }
+
+    @Test
     fun filenameSanitizationPreventsTraversalAndUsesBlankFallback() {
         assertEquals(".._unsafe_name_.bin", AttachmentFiles.sanitizeFileName("../unsafe:name?.bin"))
         assertEquals("attachment", AttachmentFiles.sanitizeFileName("  "))

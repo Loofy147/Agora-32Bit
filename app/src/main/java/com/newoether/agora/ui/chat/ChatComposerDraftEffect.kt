@@ -2,6 +2,7 @@ package com.newoether.agora.ui.chat
 
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
 import com.newoether.agora.model.SelectedAttachment
@@ -45,6 +46,9 @@ internal fun ComposerDraftLifecycleEffect(
     composer: ChatComposerState,
     textFieldState: TextFieldState,
 ) {
+    DisposableEffect(composer) {
+        onDispose { composer.abandonUnownedSandboxAttachments() }
+    }
     // One effect owns both loading and persistence for exactly one conversation. This prevents
     // the former pair of independent effects from cancelling a debounced tail write during a
     // fast switch. Attachment mutations bypass the text debounce; cancellation performs a final
@@ -56,6 +60,7 @@ internal fun ComposerDraftLifecycleEffect(
             // doesn't carry over.
             viewModel.loadingDraft = true
             try {
+                composer.abandonUnownedSandboxAttachments()
                 composer.bindDraftOwner(null)
                 textFieldState.edit { replace(0, length, "") }
                 composer.selectedAttachments = emptyList()
@@ -65,6 +70,7 @@ internal fun ComposerDraftLifecycleEffect(
             return@LaunchedEffect
         }
 
+        composer.abandonUnownedSandboxAttachments()
         viewModel.loadingDraft = true
         val loadedDraft = try {
             viewModel.loadDraft(draftId)
