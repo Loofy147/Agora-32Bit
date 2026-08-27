@@ -3,6 +3,7 @@ package com.newoether.agora.api
 import com.newoether.agora.util.DebugLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
@@ -110,7 +111,7 @@ class LlamaChatEngine(
 
         val callback = object : NativeChatCallback {
             override fun onToken(token: String) {
-                trySend(token)
+                if (trySendBlocking(token).isFailure) this@LlamaChatEngine.cancel()
             }
 
             override fun onDone() {
@@ -157,12 +158,12 @@ class LlamaChatEngine(
             DebugLog.e(TAG, "mmproj file not found")
             return false
         }
-        lock.readLock().lock()
+        lock.writeLock().lock()
         try {
             if (nativeHandle == 0L) return false
             return nativeChatLoadMmproj(nativeHandle, mmprojPath)
         } finally {
-            lock.readLock().unlock()
+            lock.writeLock().unlock()
         }
     }
 
@@ -176,13 +177,13 @@ class LlamaChatEngine(
     }
 
     fun unloadMmproj() {
-        lock.readLock().lock()
+        lock.writeLock().lock()
         try {
             if (nativeHandle != 0L) {
                 nativeChatUnloadMmproj(nativeHandle)
             }
         } finally {
-            lock.readLock().unlock()
+            lock.writeLock().unlock()
         }
     }
 
@@ -199,7 +200,9 @@ class LlamaChatEngine(
         }
 
         val callback = object : NativeChatCallback {
-            override fun onToken(token: String) { trySend(token) }
+            override fun onToken(token: String) {
+                if (trySendBlocking(token).isFailure) this@LlamaChatEngine.cancel()
+            }
             override fun onDone() { close() }
             override fun onError(message: String) {
                 DebugLog.e(TAG, "Generation error reported by native backend")
@@ -249,13 +252,13 @@ class LlamaChatEngine(
     }
 
     fun resetContext() {
-        lock.readLock().lock()
+        lock.writeLock().lock()
         try {
             if (nativeHandle != 0L) {
                 nativeChatReset(nativeHandle)
             }
         } finally {
-            lock.readLock().unlock()
+            lock.writeLock().unlock()
         }
     }
 

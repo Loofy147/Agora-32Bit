@@ -50,11 +50,16 @@ class LocalProvider(
             return@flow
         }
 
-        val engine = ensureEngineLoaded(modelConfig)
-        if (engine == null) {
-            emit(StreamEvent.Error(GenerationError.LocalModel("Failed to load model: ${modelConfig.alias}")))
-            return@flow
-        }
+        // This Provider is the single owner of embedded chat-model serialization. The lock begins
+        // before load/reset/mmproj mutation and remains held through template rendering and native
+        // generation, so embedding work cannot evict or overlap the engine at either boundary.
+        LocalModelSerializer.mutex.lock()
+        try {
+            val engine = ensureEngineLoaded(modelConfig)
+            if (engine == null) {
+                emit(StreamEvent.Error(GenerationError.LocalModel("Failed to load model: ${modelConfig.alias}")))
+                return@flow
+            }
 
         // Build template messages, collecting images per-message with <__media__> markers
         val imagePaths = mutableListOf<String>()
@@ -99,68 +104,55 @@ class LocalProvider(
                     maxTokens = config.maxTokens ?: modelConfig.maxTokens
                 )
             }
-            // Serialize on-device model work process-wide: a resident chat model plus a
-            // concurrently-loaded embedding model can OOM the native heap. Replaces the
-            // former global GenerationQueue for the local path (remote generation no
-            // longer takes any global slot). Held only across the native sampling loop,
-            // not the whole generation, and withLock is cancellable so Stop releases it
-            // immediately.
-            // INVARIANT: local models never emit tool calls (no tool definitions are sent,
-            // and this provider parses none), so one generation acquires this mutex exactly
-            // once. If local tool-calling is ever added, the release between rounds would
-            // let another conversation's model load interleave — revisit the locking scope
-            // (see the matching note on LocalModelSerializer).
-            com.newoether.agora.api.LocalModelSerializer.mutex.withLock {
-                // Register while still holding the process-wide local-model mutex. This makes the
-                // handle generation-specific: it is removed before another conversation can begin
-                // native sampling on the shared engine.
-                val streamScope = HttpClient.boundStreamScope()
-                val nativeCancel = GenerationCancelHandle { engine.cancel() }
-                streamScope?.register(nativeCancel)
-                try {
-                    tokenFlow.collect { token ->
-                        if (!coroutineContext.isActive) {
-                            engine.cancel()
-                            return@collect
-                        }
-                        if (stopped) return@collect
-                        totalTokens++
+            // Register while still holding the process-wide local-model mutex. This makes the
+            // handle generation-specific: it is removed before another conversation can begin
+            // native sampling on the shared engine.
+            val streamScope = HttpClient.boundStreamScope()
+            val nativeCancel = GenerationCancelHandle { engine.cancel() }
+            streamScope?.register(nativeCancel)
+            try {
+                tokenFlow.collect { token ->
+                    if (!coroutineContext.isActive) {
+                        engine.cancel()
+                        return@collect
+                    }
+                    if (stopped) return@collect
+                    totalTokens++
 
-                        // Check for stop patterns in the rolling buffer
-                        rawBuf += token
-                        val hit = STOP_PATTERNS.firstOrNull { p -> rawBuf.contains(p) }
-                        if (hit != null) {
-                            // Strip the stop pattern and anything after it, then stop
-                            val cleanEnd = rawBuf.substringBefore(hit)
-                            if (cleanEnd.isNotEmpty()) {
-                                thinkParser.feed(
-                                    content = cleanEnd,
-                                    thinkingEnabled = config.thinkingEnabled,
-                                    onText = { emit(StreamEvent.TextChunk(it)) },
-                                    onThought = { emit(StreamEvent.ThoughtChunk(it)) }
-                                )
-                            }
-                            engine.cancel()
-                            stopped = true
-                            return@collect
-                        }
-
-                        // Keep buffer bounded — only as much as longest stop pattern
-                        val maxPatLen = STOP_PATTERNS.maxOf { it.length }
-                        if (rawBuf.length > maxPatLen * 2) {
-                            val emitPart = rawBuf.substring(0, rawBuf.length - maxPatLen)
+                    // Check for stop patterns in the rolling buffer
+                    rawBuf += token
+                    val hit = STOP_PATTERNS.firstOrNull { p -> rawBuf.contains(p) }
+                    if (hit != null) {
+                        // Strip the stop pattern and anything after it, then stop
+                        val cleanEnd = rawBuf.substringBefore(hit)
+                        if (cleanEnd.isNotEmpty()) {
                             thinkParser.feed(
-                                content = emitPart,
+                                content = cleanEnd,
                                 thinkingEnabled = config.thinkingEnabled,
                                 onText = { emit(StreamEvent.TextChunk(it)) },
                                 onThought = { emit(StreamEvent.ThoughtChunk(it)) }
                             )
-                            rawBuf = rawBuf.substring(rawBuf.length - maxPatLen)
                         }
+                        engine.cancel()
+                        stopped = true
+                        return@collect
                     }
-                } finally {
-                    streamScope?.unregister(nativeCancel)
+
+                    // Keep buffer bounded — only as much as longest stop pattern
+                    val maxPatLen = STOP_PATTERNS.maxOf { it.length }
+                    if (rawBuf.length > maxPatLen * 2) {
+                        val emitPart = rawBuf.substring(0, rawBuf.length - maxPatLen)
+                        thinkParser.feed(
+                            content = emitPart,
+                            thinkingEnabled = config.thinkingEnabled,
+                            onText = { emit(StreamEvent.TextChunk(it)) },
+                            onThought = { emit(StreamEvent.ThoughtChunk(it)) }
+                        )
+                        rawBuf = rawBuf.substring(rawBuf.length - maxPatLen)
+                    }
                 }
+            } finally {
+                streamScope?.unregister(nativeCancel)
             }
             // Flush remaining buffer (no stop pattern found)
             if (!stopped && rawBuf.isNotEmpty()) {
@@ -177,7 +169,6 @@ class LocalProvider(
             )
         } catch (e: kotlinx.coroutines.CancellationException) {
             engine.cancel()
-            emit(StreamEvent.Error(GenerationError.Cancelled))
             throw e
         } catch (e: Exception) {
             DebugLog.e(TAG, "Generation failed", e)
@@ -193,6 +184,9 @@ class LocalProvider(
                 )
             )
         )
+        } finally {
+            LocalModelSerializer.mutex.unlock()
+        }
     }.flowOn(Dispatchers.IO)
 
     private fun formatGenerationError(

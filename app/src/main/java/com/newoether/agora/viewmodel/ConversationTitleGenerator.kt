@@ -1,6 +1,5 @@
 package com.newoether.agora.viewmodel
 
-import com.newoether.agora.api.LocalModelSerializer
 import com.newoether.agora.api.ProviderConfig
 import com.newoether.agora.api.StreamEvent
 import com.newoether.agora.data.BuiltInPrompts
@@ -10,13 +9,9 @@ import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.ModelId
 import com.newoether.agora.model.Participant
-import com.newoether.agora.util.Constants
 import com.newoether.agora.util.DebugLog
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 
 private val TITLE_WHITESPACE = Regex("\\s+")
 
@@ -148,13 +143,9 @@ class ConversationTitleGenerator(
         }
 
         try {
-            if (providerName == Constants.PROVIDER_LOCAL) {
-                LocalModelSerializer.mutex.withLock {
-                    withContext(Dispatchers.IO) { collectTitle() }
-                }
-            } else {
-                collectTitle()
-            }
+            // LocalProvider owns process-wide local-model serialization. Acquiring that mutex
+            // here as well would re-enter the same non-reentrant lock while collecting its Flow.
+            collectTitle()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

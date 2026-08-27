@@ -1,5 +1,6 @@
 #include <jni.h>
 #include <algorithm>
+#include <atomic>
 #include <string>
 #include <vector>
 #include <cstring>
@@ -25,13 +26,13 @@ struct ChatHandle {
     const llama_vocab * vocab = nullptr;
     std::string path;
     int32_t n_ctx = 0;
-    volatile bool cancelled = false;
+    std::atomic<bool> cancelled{false};
     mtmd_context * mtmd_ctx = nullptr;  // multimodal context (for vision models)
 };
 
 static bool abort_callback(void * data) {
     ChatHandle * handle = (ChatHandle *)data;
-    return handle->cancelled;
+    return handle->cancelled.load(std::memory_order_relaxed);
 }
 
 // Returns the byte length of the largest prefix of `text` that ends on a
@@ -251,7 +252,7 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
     if (!handle->ctx || !handle->vocab) return -1;
 
     // Reset cancelled flag
-    handle->cancelled = false;
+    handle->cancelled.store(false, std::memory_order_relaxed);
 
     const char * prompt_str = env->GetStringUTFChars(prompt, nullptr);
     if (!prompt_str) return -1;
@@ -339,7 +340,7 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
     for (int32_t off = 0; off < n_tokens; off += n_batch) {
         // Cancellation is checked per chunk so Stop no longer has to wait out the whole prefill
         // of a long prompt (previously one uninterruptible decode).
-        if (handle->cancelled) {
+        if (handle->cancelled.load(std::memory_order_relaxed)) {
             LOGD("Cancelled during prefill at %d/%d tokens", off, n_tokens);
             llama_sampler_free(smpl);
             env->DeleteLocalRef(cb_class);
@@ -363,7 +364,7 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
 
     // Generation loop
     while (generated < max_tokens) {
-        if (handle->cancelled) {
+        if (handle->cancelled.load(std::memory_order_relaxed)) {
             LOGD("Generation cancelled at %d tokens", generated);
             break;
         }
@@ -515,7 +516,7 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
         return -1;
     }
 
-    handle->cancelled = false;
+    handle->cancelled.store(false, std::memory_order_relaxed);
 
     const char * prompt_str = env->GetStringUTFChars(prompt, nullptr);
     if (!prompt_str) return -1;
@@ -610,7 +611,7 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
     int32_t generated = 0;
     std::string utf8_buf; // holds bytes not yet on a UTF-8 boundary
     while (generated < max_tokens) {
-        if (handle->cancelled) break;
+        if (handle->cancelled.load(std::memory_order_relaxed)) break;
 
         int32_t n_ctx_used = llama_memory_seq_pos_max(llama_get_memory(handle->ctx), 0) + 1;
         if (n_ctx_used + 1 > n_ctx) break;
@@ -669,7 +670,7 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatCancel(
 
     if (!handle_ptr) return;
     ChatHandle * handle = reinterpret_cast<ChatHandle *>(handle_ptr);
-    handle->cancelled = true;
+    handle->cancelled.store(true, std::memory_order_relaxed);
     LOGD("Cancellation requested");
 }
 
