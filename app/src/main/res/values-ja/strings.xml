@@ -730,6 +730,10 @@
     <!-- Local Chat Provider -->
     <string name="local_chat_models">ローカルチャットモデル</string>
     <string name="local_models_title">ローカルモデル</string>
+    <string name="local_model_idle_retention">モデルのアイドル保持時間</string>
+    <string name="local_model_idle_retention_desc">未使用のローカルモデルをアンロードするまでメモリに保持する時間</string>
+    <string name="local_model_idle_retention_immediate">即時</string>
+    <string name="local_model_idle_retention_minutes">%1$d 分</string>
     <string name="local_chat_models_count">%1$d 個のモデルをインポート済み</string>
     <string name="local_title">ローカル</string>
     <string name="not_configured">未設定</string>

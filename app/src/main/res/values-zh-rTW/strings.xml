@@ -797,6 +797,10 @@
     <string name="provider_keys_summary">%1$d 個 API 金鑰</string>
     <string name="provider_connection">連線</string>
     <string name="local_models_title">本機模型</string>
+    <string name="local_model_idle_retention">模型閒置保留時間</string>
+    <string name="local_model_idle_retention_desc">本機模型閒置後在卸載前繼續保留於記憶體的時間</string>
+    <string name="local_model_idle_retention_immediate">立即</string>
+    <string name="local_model_idle_retention_minutes">%1$d 分鐘</string>
     <string name="local_mmproj_path">Vision Projector 路徑（選用）</string>
     <string name="local_mmproj_path_hint">選擇 vision 的 mmproj .gguf 檔案</string>
     <string name="local_mmproj_path_label">Vision projector (.mmproj)</string>

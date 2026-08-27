@@ -730,6 +730,10 @@
     <!-- Local Chat Provider -->
     <string name="local_chat_models">로컬 채팅 모델</string>
     <string name="local_models_title">로컬 모델</string>
+    <string name="local_model_idle_retention">모델 유휴 유지 시간</string>
+    <string name="local_model_idle_retention_desc">사용하지 않는 로컬 모델을 언로드하기 전까지 메모리에 유지하는 시간</string>
+    <string name="local_model_idle_retention_immediate">즉시</string>
+    <string name="local_model_idle_retention_minutes">%1$d분</string>
     <string name="local_chat_models_count">%1$d개의 모델 가져옴</string>
     <string name="local_title">로컬</string>
     <string name="not_configured">구성되지 않음</string>

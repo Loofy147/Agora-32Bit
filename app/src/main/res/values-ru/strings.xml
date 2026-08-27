@@ -730,6 +730,10 @@
     <!-- Local Chat Provider -->
     <string name="local_chat_models">Локальные модели чата</string>
     <string name="local_models_title">Локальные модели</string>
+    <string name="local_model_idle_retention">Хранение модели в простое</string>
+    <string name="local_model_idle_retention_desc">Как долго неактивная локальная модель остаётся в памяти перед выгрузкой</string>
+    <string name="local_model_idle_retention_immediate">Сразу</string>
+    <string name="local_model_idle_retention_minutes">%1$d мин</string>
     <string name="local_chat_models_count">Импортировано моделей: %1$d</string>
     <string name="local_title">Локальная</string>
     <string name="not_configured">Не настроено</string>

@@ -1,7 +1,15 @@
 package com.newoether.agora.api
 
+import com.newoether.agora.data.DEFAULT_LOCAL_MODEL_IDLE_RETENTION_MINUTES
+import com.newoether.agora.data.normalizeLocalModelIdleRetentionMinutes
 import com.newoether.agora.util.DebugLog
 import java.io.File
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
@@ -19,10 +27,42 @@ internal sealed interface LocalModelIdentity {
 }
 
 /** Fair process-wide admission gate for every embedded llama.cpp operation. */
-internal class LocalModelTaskQueue {
+internal class LocalModelTaskQueue(
+    private val onTaskArrived: () -> Unit = {},
+    private val onQueueIdle: () -> Unit = {},
+) {
     private val permit = Semaphore(1)
+    private val stateLock = Any()
+    private var submittedTasks = 0
 
-    suspend fun <T> run(block: suspend () -> T): T = permit.withPermit { block() }
+    suspend fun <T> run(block: suspend () -> T): T {
+        synchronized(stateLock) {
+            submittedTasks++
+            onTaskArrived()
+        }
+        try {
+            return permit.withPermit { block() }
+        } finally {
+            synchronized(stateLock) {
+                submittedTasks--
+                if (submittedTasks == 0) onQueueIdle()
+            }
+        }
+    }
+
+    fun signalIdleIfEmpty(): Boolean = synchronized(stateLock) {
+        if (submittedTasks != 0) return@synchronized false
+        onQueueIdle()
+        true
+    }
+
+    suspend fun runIfIdle(block: () -> Unit): Boolean = permit.withPermit {
+        synchronized(stateLock) {
+            if (submittedTasks != 0) return@synchronized false
+            block()
+            true
+        }
+    }
 }
 
 /**
@@ -35,6 +75,7 @@ internal class LocalModelTaskQueue {
  */
 internal object LocalModelRuntime {
     private const val TAG = "LocalModelRuntime"
+    private const val MILLIS_PER_MINUTE = 60_000L
 
     private sealed interface Resident {
         val identity: LocalModelIdentity
@@ -49,8 +90,17 @@ internal object LocalModelRuntime {
         ) : Resident
     }
 
-    private val tasks = LocalModelTaskQueue()
+    private val lifecycleLock = Any()
+    private val tasks = LocalModelTaskQueue(
+        onTaskArrived = ::cancelIdleDeadline,
+        onQueueIdle = ::startIdleDeadline,
+    )
     private var resident: Resident? = null
+    private var idleScope: CoroutineScope? = null
+    private var idleBindingJob: Job? = null
+    private var idleDeadlineJob: Job? = null
+    private var idleEpoch = 0L
+    private var idleRetentionMinutes = DEFAULT_LOCAL_MODEL_IDLE_RETENTION_MINUTES
 
     @Volatile
     private var activeChatEngine: LlamaChatEngine? = null
@@ -100,6 +150,58 @@ internal object LocalModelRuntime {
 
     fun cancelActiveChat() {
         activeChatEngine?.cancel()
+    }
+
+    fun bindIdleRetention(
+        retentionMinutes: StateFlow<Int>,
+        scope: CoroutineScope,
+    ) {
+        synchronized(lifecycleLock) {
+            if (idleBindingJob != null) return
+            idleScope = scope
+            idleBindingJob = scope.launch {
+                retentionMinutes.collect(::updateIdleRetention)
+            }
+        }
+    }
+
+    private fun updateIdleRetention(minutes: Int) {
+        synchronized(lifecycleLock) {
+            idleRetentionMinutes = normalizeLocalModelIdleRetentionMinutes(minutes)
+            invalidateIdleDeadlineLocked()
+        }
+        tasks.signalIdleIfEmpty()
+    }
+
+    private fun cancelIdleDeadline() {
+        synchronized(lifecycleLock) {
+            invalidateIdleDeadlineLocked()
+        }
+    }
+
+    private fun startIdleDeadline() {
+        synchronized(lifecycleLock) {
+            val scope = idleScope ?: return
+            invalidateIdleDeadlineLocked()
+            val epoch = idleEpoch
+            val delayMillis = idleRetentionMinutes * MILLIS_PER_MINUTE
+            idleDeadlineJob = scope.launch {
+                if (delayMillis > 0) delay(delayMillis)
+                tasks.runIfIdle {
+                    synchronized(lifecycleLock) {
+                        if (epoch != idleEpoch) return@runIfIdle
+                        idleDeadlineJob = null
+                        unloadResident()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun invalidateIdleDeadlineLocked() {
+        idleEpoch++
+        idleDeadlineJob?.cancel()
+        idleDeadlineJob = null
     }
 
     private fun unloadResident() {

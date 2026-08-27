@@ -29,6 +29,39 @@ class SettingsResourceContractTest {
     }
 
     @Test
+    fun localModelIdleRetentionCopyIsLocalizedWithMatchingPlaceholder() {
+        val resourceDirectory = locateResourceDirectory()
+        val defaultValues = readStringValues(File(resourceDirectory, "values"))
+        val keys = setOf(
+            "local_model_idle_retention",
+            "local_model_idle_retention_desc",
+            "local_model_idle_retention_immediate",
+            "local_model_idle_retention_minutes",
+        )
+        val localeDirectoryPattern = Regex("""values-[a-z]{2,3}(?:-r[A-Z]{2})?""")
+
+        resourceDirectory.listFiles().orEmpty()
+            .filter { it.isDirectory && localeDirectoryPattern.matches(it.name) }
+            .forEach { localeDirectory ->
+                val localized = readStringValues(localeDirectory)
+                assertTrue(keys.all(localized::containsKey))
+                assertTrue(
+                    "${localeDirectory.name} must localize retention copy",
+                    keys.minus("local_model_idle_retention_minutes").all {
+                        localized.getValue(it) != defaultValues.getValue(it)
+                    },
+                )
+                val placeholder = Regex("""%\d+\$[a-z]""")
+                assertEquals(
+                    placeholder.findAll(defaultValues.getValue("local_model_idle_retention_minutes"))
+                        .map { it.value }.toSet(),
+                    placeholder.findAll(localized.getValue("local_model_idle_retention_minutes"))
+                        .map { it.value }.toSet(),
+                )
+            }
+    }
+
+    @Test
     fun complexVectorTopologyIsPreserved() {
         val resourceDirectory = locateResourceDirectory()
         val drawableDirectory = File(resourceDirectory, "drawable")
@@ -101,6 +134,22 @@ class SettingsResourceContractTest {
                     }
             }
             .toSet()
+
+    private fun readStringValues(directory: File): Map<String, String> =
+        directory.listFiles { file -> file.isFile && file.extension == "xml" }
+            .orEmpty()
+            .flatMap { file ->
+                parse(file).getElementsByTagName("string").let { nodes ->
+                    (0 until nodes.length).mapNotNull { index ->
+                        (nodes.item(index) as? Element)?.let { element ->
+                            element.getAttribute("name")
+                                .takeIf(String::isNotBlank)
+                                ?.let { it to element.textContent.orEmpty() }
+                        }
+                    }
+                }
+            }
+            .toMap()
 
     private fun readSvgPathData(file: File): String {
         assertTrue("Missing SVG source: ${file.path}", file.isFile)

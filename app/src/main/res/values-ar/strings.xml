@@ -730,6 +730,10 @@
     <!-- Local Chat Provider -->
     <string name="local_chat_models">نماذج الدردشة المحلية</string>
     <string name="local_models_title">النماذج المحلية</string>
+    <string name="local_model_idle_retention">الاحتفاظ بالنموذج أثناء الخمول</string>
+    <string name="local_model_idle_retention_desc">مدة إبقاء النموذج المحلي الخامل في الذاكرة قبل إلغاء تحميله</string>
+    <string name="local_model_idle_retention_immediate">فورًا</string>
+    <string name="local_model_idle_retention_minutes">%1$d د</string>
     <string name="local_chat_models_count">تم استيراد %1$d نموذج</string>
     <string name="local_title">محلي</string>
     <string name="not_configured">غير مهيأ</string>

@@ -20,6 +20,12 @@ internal const val DEFAULT_CONTEXT_COMPACT_ENABLED = true
 internal const val DEFAULT_CONTEXT_COMPACT_RETAIN_COUNT = 0
 internal const val DEFAULT_CONTEXT_COMPACT_THRESHOLD_PERCENT = 90
 internal val CONTEXT_COMPACT_THRESHOLD_PERCENT_RANGE = 50..100
+internal const val DEFAULT_LOCAL_MODEL_IDLE_RETENTION_MINUTES = 5
+internal val LOCAL_MODEL_IDLE_RETENTION_PRESETS = intArrayOf(0, 1, 2, 5, 10, 15, 30)
+
+internal fun normalizeLocalModelIdleRetentionMinutes(value: Int?): Int =
+    value?.takeIf { it in LOCAL_MODEL_IDLE_RETENTION_PRESETS }
+        ?: DEFAULT_LOCAL_MODEL_IDLE_RETENTION_MINUTES
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
 
@@ -158,6 +164,9 @@ class SettingsManager(private val context: Context) {
     val autoUpdateCheck: Flow<Boolean> = context.dataStore.data.map { it[AUTO_UPDATE_CHECK] ?: true }
     val lastUpdateCheckTime: Flow<Long> = context.dataStore.data.map { it[LAST_UPDATE_CHECK_TIME] ?: 0L }
     val localChatModels: Flow<List<LocalChatModelConfig>> = modelPreferenceStore.localChatModels
+    val localModelIdleRetentionMinutes: Flow<Int> = context.dataStore.data.map {
+        normalizeLocalModelIdleRetentionMinutes(it[LOCAL_MODEL_IDLE_RETENTION_MINUTES])
+    }
     val customProviders: Flow<List<CustomProviderConfig>> = modelPreferenceStore.customProviders
 
     val showDocumentationFab: Flow<Boolean> = context.dataStore.data.map { it[SHOW_DOCUMENTATION_FAB] ?: true }
@@ -565,6 +574,13 @@ class SettingsManager(private val context: Context) {
     }
     suspend fun saveLocalChatModels(models: List<LocalChatModelConfig>) =
         modelPreferenceStore.saveLocalChatModels(models)
+
+    suspend fun saveLocalModelIdleRetentionMinutes(minutes: Int) {
+        context.dataStore.edit {
+            it[LOCAL_MODEL_IDLE_RETENTION_MINUTES] =
+                normalizeLocalModelIdleRetentionMinutes(minutes)
+        }
+    }
 
     suspend fun saveCustomProviders(providers: List<CustomProviderConfig>) =
         modelPreferenceStore.saveCustomProviders(providers)

@@ -730,6 +730,10 @@
     <!-- Local Chat Provider -->
     <string name="local_chat_models">Modelos de chat locais</string>
     <string name="local_models_title">Modelos locais</string>
+    <string name="local_model_idle_retention">Retenção do modelo ocioso</string>
+    <string name="local_model_idle_retention_desc">Tempo que um modelo local ocioso permanece na memória antes de ser descarregado</string>
+    <string name="local_model_idle_retention_immediate">Imediato</string>
+    <string name="local_model_idle_retention_minutes">%1$d min</string>
     <string name="local_chat_models_count">%1$d modelo(s) importado(s)</string>
     <string name="local_title">Local</string>
     <string name="not_configured">Não configurado</string>

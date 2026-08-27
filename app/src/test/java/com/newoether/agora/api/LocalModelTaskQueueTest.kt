@@ -8,7 +8,9 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -58,7 +60,12 @@ class LocalModelTaskQueueTest {
 
     @Test
     fun `cancelled waiter is removed without disturbing later work`() = runTest {
-        val queue = LocalModelTaskQueue()
+        var arrivals = 0
+        var idleTransitions = 0
+        val queue = LocalModelTaskQueue(
+            onTaskArrived = { arrivals++ },
+            onQueueIdle = { idleTransitions++ },
+        )
         val firstStarted = CompletableDeferred<Unit>()
         val releaseFirst = CompletableDeferred<Unit>()
         val events = mutableListOf<String>()
@@ -76,10 +83,45 @@ class LocalModelTaskQueueTest {
 
         runCurrent()
         cancelled.cancelAndJoin()
+        assertEquals(0, idleTransitions)
         releaseFirst.complete(Unit)
         advanceUntilIdle()
 
         assertEquals(listOf("first", "last"), events)
+        assertEquals(3, arrivals)
+        assertEquals(1, idleTransitions)
+    }
+
+    @Test
+    fun `conditional idle maintenance shares the task permit`() = runTest {
+        var idleSignals = 0
+        val queue = LocalModelTaskQueue(onQueueIdle = { idleSignals++ })
+        val firstStarted = CompletableDeferred<Unit>()
+        val releaseFirst = CompletableDeferred<Unit>()
+        val events = mutableListOf<String>()
+
+        launch {
+            queue.run {
+                events += "task-start"
+                firstStarted.complete(Unit)
+                releaseFirst.await()
+                events += "task-end"
+            }
+        }
+        firstStarted.await()
+        assertFalse(queue.signalIdleIfEmpty())
+        assertEquals(0, idleSignals)
+        val maintenance = launch {
+            assertTrue(queue.runIfIdle { events += "maintenance" })
+        }
+
+        runCurrent()
+        assertEquals(listOf("task-start"), events)
+        releaseFirst.complete(Unit)
+        maintenance.join()
+
+        assertEquals(listOf("task-start", "task-end", "maintenance"), events)
+        assertEquals(1, idleSignals)
     }
 
     @Test

@@ -733,6 +733,10 @@
     <!-- Local Chat Provider -->
     <string name="local_chat_models">Mô hình trò chuyện cục bộ</string>
     <string name="local_models_title">Mô hình cục bộ</string>
+    <string name="local_model_idle_retention">Thời gian giữ mô hình khi rảnh</string>
+    <string name="local_model_idle_retention_desc">Khoảng thời gian giữ mô hình cục bộ không hoạt động trong bộ nhớ trước khi dỡ tải</string>
+    <string name="local_model_idle_retention_immediate">Ngay lập tức</string>
+    <string name="local_model_idle_retention_minutes">%1$d phút</string>
     <string name="local_chat_models_count">Đã nhập %1$d mô hình</string>
     <string name="local_title">Cục bộ</string>
     <string name="not_configured">Chưa được cấu hình</string>

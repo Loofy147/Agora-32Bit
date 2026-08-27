@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
 import com.newoether.agora.ui.motion.MotionAwareCircularProgressIndicator as CircularProgressIndicator
@@ -41,6 +42,8 @@ import com.newoether.agora.data.ApiKeyEntry
 import com.newoether.agora.data.CustomEndpointProtocol
 import com.newoether.agora.data.CustomProviderNamePolicy
 import com.newoether.agora.data.LocalChatModelConfig
+import com.newoether.agora.data.LOCAL_MODEL_IDLE_RETENTION_PRESETS
+import com.newoether.agora.ui.common.PersistedSliderFeedbackGate
 import com.newoether.agora.ui.components.CustomEndpointProtocolSelector
 import com.newoether.agora.ui.components.clearFocusOnTap
 import com.newoether.agora.util.Constants
@@ -50,6 +53,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,6 +69,8 @@ fun SettingsProviderDetailPage(
     val customProviders by viewModel.settings.customProviders.collectAsState()
     val openAiResponsesApiEnabled by viewModel.settings.openAiResponsesApiEnabled.collectAsState()
     val localChatModels by viewModel.settings.localChatModels.collectAsState()
+    val localModelIdleRetentionMinutes by
+        viewModel.settings.localModelIdleRetentionMinutes.collectAsState()
 
     var currentName by rememberSaveable(providerName) { mutableStateOf(providerName) }
 
@@ -422,6 +429,16 @@ fun SettingsProviderDetailPage(
                         }
                     }
                 )
+                SettingsGroup(
+                    title = stringResource(R.string.advanced_title),
+                    items = listOf {
+                        LocalModelIdleRetentionSlider(
+                            value = localModelIdleRetentionMinutes,
+                            onValueChange =
+                                viewModel.settings::setLocalModelIdleRetentionMinutes,
+                        )
+                    },
+                )
             }
 
             // API Keys (non-Local)
@@ -690,5 +707,100 @@ fun SettingsProviderDetailPage(
     // Delete custom provider
     if (showDeleteProvider) {
         AlertDialog(containerColor = MaterialTheme.colorScheme.surfaceContainer, onDismissRequest = { showDeleteProvider = false }, title = { Text(stringResource(R.string.custom_provider_delete_title), fontWeight = FontWeight.Bold) }, text = { Text(stringResource(R.string.custom_provider_delete_text, currentName)) }, confirmButton = { TextButton(onClick = { viewModel.deleteCustomProvider(currentName); showDeleteProvider = false; onBack() }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.provider_delete)) } }, dismissButton = { TextButton(onClick = { showDeleteProvider = false }) { Text(stringResource(R.string.cancel)) } })
+    }
+}
+
+@Composable
+private fun LocalModelIdleRetentionSlider(
+    value: Int,
+    onValueChange: (Int) -> Unit,
+) {
+    val presets = LOCAL_MODEL_IDLE_RETENTION_PRESETS
+    fun indexOfNearest(candidate: Int): Int = presets.indices.minByOrNull {
+        abs(presets[it] - candidate)
+    } ?: 0
+
+    val sliderGate = remember {
+        PersistedSliderFeedbackGate(
+            initialPersisted = value,
+            toDisplay = { indexOfNearest(it).toFloat() },
+        )
+    }
+    LaunchedEffect(value) {
+        sliderGate.reconcile(value)
+    }
+    val sliderPosition = sliderGate.displayed
+    val selectedIndex = sliderPosition.roundToInt().coerceIn(presets.indices)
+    val selectedMinutes = presets[selectedIndex]
+    val valueLabel = if (selectedMinutes == 0) {
+        stringResource(R.string.local_model_idle_retention_immediate)
+    } else {
+        stringResource(R.string.local_model_idle_retention_minutes, selectedMinutes)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Icon(
+                Icons.Default.Tune,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(R.string.local_model_idle_retention),
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontWeight = FontWeight.Medium,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        text = valueLabel,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.local_model_idle_retention_desc),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                Slider(
+                    value = sliderPosition,
+                    onValueChange = sliderGate::updateFromGesture,
+                    onValueChangeFinished = {
+                        val committedIndex = sliderPosition.roundToInt()
+                            .coerceIn(presets.indices)
+                        val committedValue = presets[committedIndex]
+                        if (committedValue != value) {
+                            sliderGate.expectPersisted(
+                                committedValue,
+                                committedIndex.toFloat(),
+                            )
+                            onValueChange(committedValue)
+                        } else {
+                            sliderGate.settleWithoutWrite(value, committedIndex.toFloat())
+                        }
+                    },
+                    valueRange = 0f..presets.lastIndex.toFloat(),
+                    steps = presets.size - 2,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                )
+            }
+        }
     }
 }

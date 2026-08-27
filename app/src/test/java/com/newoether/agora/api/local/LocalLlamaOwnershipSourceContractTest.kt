@@ -116,6 +116,55 @@ class LocalLlamaOwnershipSourceContractTest {
     }
 
     @Test
+    fun `idle offload is generation safe and uses the canonical permit`() {
+        val runtime = mainSource("com/newoether/agora/api/LocalModelRuntime.kt")
+        val queue = runtime.substringAfter("internal class LocalModelTaskQueue(")
+            .substringBefore("internal object LocalModelRuntime")
+
+        assertTrue(queue.contains("submittedTasks++"))
+        assertTrue(queue.contains("submittedTasks--"))
+        assertTrue(queue.contains("if (submittedTasks == 0) onQueueIdle()"))
+        assertTrue(queue.contains("suspend fun runIfIdle"))
+        assertTrue(queue.contains("permit.withPermit"))
+        assertTrue(runtime.contains("onTaskArrived = ::cancelIdleDeadline"))
+        assertTrue(runtime.contains("onQueueIdle = ::startIdleDeadline"))
+        assertTrue(runtime.contains("tasks.signalIdleIfEmpty()"))
+        assertTrue(runtime.contains("if (delayMillis > 0) delay(delayMillis)"))
+        assertTrue(runtime.contains("tasks.runIfIdle"))
+        assertTrue(runtime.contains("if (epoch != idleEpoch) return@runIfIdle"))
+        val epochCheck = runtime.indexOf("if (epoch != idleEpoch)")
+        assertTrue(runtime.indexOf("unloadResident()", epochCheck) > epochCheck)
+    }
+
+    @Test
+    fun `idle retention is bound once and remains device local`() {
+        val appContainer = mainSource("com/newoether/agora/di/AppContainer.kt")
+        val settingsPage = mainSource(
+            "com/newoether/agora/ui/settings/SettingsProviderDetailPage.kt",
+        )
+        val portable = mainSource("com/newoether/agora/data/PortableSettingsArchive.kt")
+        val settingsManager = mainSource("com/newoether/agora/data/SettingsManager.kt")
+        val portableReset = settingsManager
+            .substringAfter("suspend fun resetPortableSettingsForImport()")
+            .substringBefore("suspend fun invalidatePortableModelCaches")
+        val localModelsGroup = settingsPage.indexOf("R.string.local_models_title")
+        val advancedGroup = settingsPage.indexOf("R.string.advanced_title", localModelsGroup)
+
+        assertEquals(
+            1,
+            Regex.escape("LocalModelRuntime.bindIdleRetention(").toRegex()
+                .findAll(appContainer).count(),
+        )
+        assertTrue(appContainer.contains("it.localModelIdleRetentionMinutes, appScope"))
+        assertTrue(localModelsGroup >= 0 && advancedGroup > localModelsGroup)
+        assertTrue(settingsPage.contains("LOCAL_MODEL_IDLE_RETENTION_PRESETS"))
+        assertTrue(settingsPage.contains("PersistedSliderFeedbackGate"))
+        assertFalse(portable.contains("localModelIdleRetentionMinutes"))
+        assertFalse(portable.contains("local_model_idle_retention_minutes"))
+        assertFalse(portableReset.contains("LOCAL_MODEL_IDLE_RETENTION_MINUTES"))
+    }
+
+    @Test
     fun `projector is image gated and reused by path`() {
         val provider = mainSource("com/newoether/agora/api/local/LocalProvider.kt")
         val engine = mainSource("com/newoether/agora/api/LlamaChatEngine.kt")
