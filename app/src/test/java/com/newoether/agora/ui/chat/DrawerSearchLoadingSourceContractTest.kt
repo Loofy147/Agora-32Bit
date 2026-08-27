@@ -13,6 +13,7 @@ class DrawerSearchLoadingSourceContractTest {
         val viewModel = source("viewmodel/ChatViewModel.kt")
         val drawer = source("ui/chat/ChatDrawerContent.kt")
         val searchState = source("ui/chat/search/DrawerSearchState.kt")
+        val normalizedSearchState = searchState.replace("\r\n", "\n")
         val searchBar = source("ui/chat/search/DrawerSearchBar.kt")
 
         assertTrue(dao.contains("SELECT id, title, systemPromptId, modelId, taskId, origin, graduated, hasUnreadGeneration, selectedBranchesJson FROM conversations"))
@@ -47,7 +48,7 @@ class DrawerSearchLoadingSourceContractTest {
         assertFalse(drawer.contains("fadeInSpec = tween(180)"))
         assertTrue(searchState.contains("var isSearching by mutableStateOf(false)"))
         assertTrue(searchState.contains("isSearching = true"))
-        assertTrue(searchState.contains("} finally {\n            isSearching = false"))
+        assertTrue(normalizedSearchState.contains("} finally {\n            isSearching = false"))
         assertTrue(searchBar.contains("searching: Boolean = false"))
         assertTrue(searchBar.contains("visible = searching"))
         assertTrue(searchBar.contains("CircularProgressIndicator("))
