@@ -101,8 +101,9 @@ class StreamingMarkdownMessageSourceContractTest {
     }
 
     @Test
-    fun `Compact detail uses real empty content and ordinary durable error state`() {
+    fun `Compact detail and pill use stable content geometry and neutral error state`() {
         val source = source(locateMainSourceRoot(), "MessageItem.kt")
+        val pillSource = source.substringAfter("internal fun ContextCompactPill(")
 
         assertTrue(source.contains("R.string.context_compact_streaming"))
         assertTrue(source.contains("directMarkdownContent = compactDetailText"))
@@ -110,11 +111,31 @@ class StreamingMarkdownMessageSourceContractTest {
         assertFalse(source.contains("\\u200B"))
         assertTrue(source.contains("R.string.context_compact_error"))
         assertTrue(source.contains("R.string.context_compact_stopped"))
-        assertTrue(source.contains("animateColorAsState("))
-        assertTrue(source.contains("Icons.Default.Error"))
-        assertTrue(source.contains("MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)"))
-        assertTrue(source.contains("MaterialTheme.colorScheme.error.copy(alpha = 0.8f)"))
-        assertFalse(source.contains("targetValue = if (error) {\n            MaterialTheme.colorScheme.errorContainer\n"))
+        assertTrue(pillSource.contains("animateColorAsState("))
+        assertTrue(pillSource.contains("Icons.Default.Error"))
+        assertTrue(pillSource.contains("MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)"))
+        assertTrue(pillSource.contains("MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)"))
+        assertTrue(
+            pillSource.contains(
+                "targetValue = if (error) {\n            MaterialTheme.colorScheme.onSurfaceVariant\n",
+            ),
+        )
+        assertFalse(pillSource.contains("MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)"))
+        assertFalse(pillSource.contains("MaterialTheme.colorScheme.error.copy(alpha = 0.8f)"))
+        assertTrue(pillSource.contains(".padding(horizontal = 7.dp)"))
+        assertTrue(
+            pillSource.contains(
+                "modifier = Modifier.size(32.dp),\n                contentAlignment = Alignment.Center,",
+            ),
+        )
+        assertEquals(
+            2,
+            Regex("modifier = Modifier\\.size\\(32\\.dp\\)").findAll(pillSource).count(),
+        )
+        assertEquals(
+            3,
+            Regex("modifier = Modifier\\.size\\(18\\.dp\\)").findAll(pillSource).count(),
+        )
     }
 
     @Test

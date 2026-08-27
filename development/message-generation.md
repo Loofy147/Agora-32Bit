@@ -218,9 +218,10 @@ failure; only a later explicit user action may resume ordinary queue admission.
 
 Compact may own a capsule renderer, message label/menu, haptic exclusion, and stable presentation.
 Its outer row height/padding and internal icon/text/action slots must remain stable across
-SENDING/THINKING/terminal/error transitions. The capsule Row uses a 14 dp start inset and a tighter
-7 dp end inset so the 32 dp overflow-action touch target remains visually balanced; its 18 dp icon,
-leading spacing, minimum height, menu behavior, and action enablement remain unchanged. UI
+SENDING/THINKING/terminal/error transitions. The capsule Row uses a 7 dp horizontal inset and 7 dp
+spacing between each slot so its 32 dp leading icon slot and 32 dp overflow-action touch target are
+visually balanced around the text. Both slots render an 18 dp glyph; minimum height, menu behavior,
+and action enablement remain unchanged. UI
 specialization cannot redefine generation or context contracts.
 
 When the Compact detail Bottom Sheet is open and the ordinary durable message is
@@ -234,10 +235,11 @@ A terminal Compact error remains visible in both locations:
 
 - the detail Bottom Sheet places the shared neutral-gray generation error bar beside the Markdown
   body;
-- the capsule retains its existing theme-derived error palette independently of the neutral terminal
-  bar, without changing its bounds, and shows an error icon plus the localized equivalent of
-  `Compact error`. Its container uses `errorContainer`, its icon uses `error`, and its text uses alpha-adjusted
-  `error`; saturated hard-coded red or a different error token is forbidden.
+- the capsule uses a theme-derived neutral-gray palette independently of the neutral terminal bar,
+  without changing its bounds, and shows an error icon plus the localized equivalent of
+  `Compact error`. Its container uses alpha-adjusted `surfaceVariant`, its icon uses
+  `onSurfaceVariant`, and its text uses alpha-adjusted `onSurfaceVariant`; a semantic error color or
+  hard-coded gray is forbidden.
 
 A stopped Compact is a non-error terminal presentation. Its capsule keeps the same stable bounds,
 shows a stopped icon plus the localized equivalent of `Compact stopped`, and emits no Snackbar. A

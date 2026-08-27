@@ -459,7 +459,7 @@ internal fun ContextCompactPill(
     val pillShape = RoundedCornerShape(100.dp)
     val containerColor by animateColorAsState(
         targetValue = if (error) {
-            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
         } else {
             MaterialTheme.colorScheme.secondaryContainer
         },
@@ -468,7 +468,7 @@ internal fun ContextCompactPill(
     )
     val contentColor by animateColorAsState(
         targetValue = if (error) {
-            MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
         } else {
             MaterialTheme.colorScheme.onSecondaryContainer
         },
@@ -477,7 +477,7 @@ internal fun ContextCompactPill(
     )
     val iconColor by animateColorAsState(
         targetValue = if (error) {
-            MaterialTheme.colorScheme.error
+            MaterialTheme.colorScheme.onSurfaceVariant
         } else {
             MaterialTheme.colorScheme.onSecondaryContainer
         },
@@ -502,17 +502,17 @@ internal fun ContextCompactPill(
         Row(
             modifier = Modifier
                 .heightIn(min = 42.dp)
-                .padding(start = 14.dp, end = 7.dp),
+                .padding(horizontal = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
             Box(
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(32.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 if (inProgress) {
                     com.newoether.agora.ui.motion.MotionAwareCircularProgressIndicator(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.size(18.dp),
                         strokeWidth = 2.dp,
                     )
                 } else {
@@ -525,7 +525,7 @@ internal fun ContextCompactPill(
                             else -> androidx.compose.material.icons.Icons.Default.Compress
                         },
                         contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.size(18.dp),
                         tint = iconColor,
                     )
                 }
