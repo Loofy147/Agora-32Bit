@@ -79,11 +79,13 @@ class LlamaChatEngine(
     private external fun nativeChatHasMmproj(handle: Long): Boolean
     private external fun nativeChatGenerateWithImages(
         handle: Long, prompt: String, imagePaths: Array<String>,
-        temperature: Float, topP: Float, maxTokens: Int, callback: NativeChatCallback
+        temperature: Float, topP: Float, frequencyPenalty: Float, presencePenalty: Float,
+        maxTokens: Int, callback: NativeChatCallback,
     ): Int
     private external fun nativeChatGenerate(
-        handle: Long, prompt: String, temperature: Float, topP: Float, maxTokens: Int,
-        callback: NativeChatCallback
+        handle: Long, prompt: String, temperature: Float, topP: Float,
+        frequencyPenalty: Float, presencePenalty: Float, maxTokens: Int,
+        callback: NativeChatCallback,
     ): Int
     private external fun nativeChatReset(handle: Long)
     private external fun nativeChatFreeModel(handle: Long)
@@ -146,7 +148,9 @@ class LlamaChatEngine(
         prompt: String,
         temperature: Float = 0.7f,
         topP: Float = 0.9f,
-        maxTokens: Int = 4096
+        frequencyPenalty: Float = 0f,
+        presencePenalty: Float = 0f,
+        maxTokens: Int = 4096,
     ): Flow<LlamaGenerationEvent> = callbackFlow {
         if (nativeHandle == 0L) {
             close(RuntimeException("Model not loaded"))
@@ -198,7 +202,8 @@ class LlamaChatEngine(
                 val handle = nativeHandle
                 if (handle != 0L) {
                     val result = nativeChatGenerate(
-                        handle, prompt, temperature, topP, maxTokens, callback
+                        handle, prompt, temperature, topP, frequencyPenalty, presencePenalty,
+                        maxTokens, callback,
                     )
                     if (result < 0 && !terminalSignalled.get()) {
                         callback.onError("Native generation ended without a terminal result", 0, 0)
@@ -271,7 +276,9 @@ class LlamaChatEngine(
         imagePaths: List<String>,
         temperature: Float = 0.7f,
         topP: Float = 0.9f,
-        maxTokens: Int = 4096
+        frequencyPenalty: Float = 0f,
+        presencePenalty: Float = 0f,
+        maxTokens: Int = 4096,
     ): Flow<LlamaGenerationEvent> = callbackFlow {
         if (nativeHandle == 0L) {
             close(RuntimeException("Model not loaded"))
@@ -321,7 +328,8 @@ class LlamaChatEngine(
                 if (handle != 0L) {
                     val result = nativeChatGenerateWithImages(
                         handle, prompt, imagePaths.toTypedArray(),
-                        temperature, topP, maxTokens, callback
+                        temperature, topP, frequencyPenalty, presencePenalty,
+                        maxTokens, callback,
                     )
                     if (result < 0 && !terminalSignalled.get()) {
                         callback.onError("Native generation ended without a terminal result", 0, 0)

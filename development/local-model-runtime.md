@@ -29,8 +29,8 @@ Exactly one of these identities may be resident:
 - `Embedding(canonicalModelPath)` using the fixed native Embedding context parameters.
 
 Chat and Embedding are different identities even when their canonical model paths match. Chat
-sampling values such as temperature, top P, and maximum output tokens do not construct the native
-context and therefore do not change identity.
+sampling values such as temperature, top P, frequency/presence penalties, and maximum output tokens
+do not construct the native context and therefore do not change identity.
 
 New Local Chat model records created through Settings or onboarding default to `nCtx=4096` and
 `maxTokens=1024`. Existing records are not migrated: the serialized `LocalChatModelConfig` fallback
@@ -56,6 +56,12 @@ template bundle is Chat resident substate and is released before its model.
 Each request passes its effective `thinkingEnabled` value into the model template. This value may
 change the rendered prompt but does not construct the model/context or change resident identity.
 Model-emitted reasoning delimiters are separated by the shared incremental thinking parser.
+
+Each Local request also carries its effective temperature, top P, maximum output tokens, frequency
+penalty, and presence penalty into both text and multimodal native generation. Nullable penalties
+become neutral zero. Both native sampler chains use llama.cpp's penalties sampler with its default
+64-token history window, neutral repeat penalty `1.0`, and the captured frequency/presence values;
+they must not replace those values with a repeat-penalty approximation.
 
 ## 4. Strict FIFO admission
 

@@ -72,6 +72,31 @@ class LocalLlamaOwnershipSourceContractTest {
     }
 
     @Test
+    fun `frequency and presence penalties reach both native sampler chains`() {
+        val provider = mainSource("com/newoether/agora/api/local/LocalProvider.kt")
+        val engine = mainSource("com/newoether/agora/api/LlamaChatEngine.kt")
+        val native = mainCppSource("llama_chat_jni.cpp")
+
+        assertEquals(2, Regex("frequencyPenalty = config\\.frequencyPenalty \\?: 0f")
+            .findAll(provider).count())
+        assertEquals(2, Regex("presencePenalty = config\\.presencePenalty \\?: 0f")
+            .findAll(provider).count())
+        assertEquals(4, Regex("frequencyPenalty: Float").findAll(engine).count())
+        assertEquals(4, Regex("presencePenalty: Float").findAll(engine).count())
+        assertTrue(native.contains("static constexpr int32_t PENALTY_LAST_N = 64;"))
+        listOf("nativeChatGenerate", "nativeChatGenerateWithImages").forEach { functionName ->
+            val function = nativeFunctionSection(native, functionName)
+            val penalties = function.indexOf("llama_sampler_init_penalties(")
+            val truncation = function.indexOf("llama_sampler_init_min_p(")
+
+            assertTrue(function.contains(
+                "PENALTY_LAST_N, 1.0f, frequency_penalty, presence_penalty"
+            ))
+            assertTrue(penalties >= 0 && penalties < truncation)
+        }
+    }
+
+    @Test
     fun `text and multimodal loops decode before lossless dynamic delivery`() {
         val native = mainCppSource("llama_chat_jni.cpp")
 

@@ -115,14 +115,18 @@ class LocalProvider(
                     imagePaths = imagePaths,
                     temperature = config.temperature ?: modelConfig.temperature,
                     topP = config.topP ?: modelConfig.topP,
-                    maxTokens = config.maxTokens ?: modelConfig.maxTokens
+                    frequencyPenalty = config.frequencyPenalty ?: 0f,
+                    presencePenalty = config.presencePenalty ?: 0f,
+                    maxTokens = config.maxTokens ?: modelConfig.maxTokens,
                 )
             } else {
                 engine.generate(
                     prompt = prompt,
                     temperature = config.temperature ?: modelConfig.temperature,
                     topP = config.topP ?: modelConfig.topP,
-                    maxTokens = config.maxTokens ?: modelConfig.maxTokens
+                    frequencyPenalty = config.frequencyPenalty ?: 0f,
+                    presencePenalty = config.presencePenalty ?: 0f,
+                    maxTokens = config.maxTokens ?: modelConfig.maxTokens,
                 )
             }
             // Register while still holding the process-wide runtime task. The handle is removed

@@ -603,6 +603,11 @@ Ollama continues forwarding temperature, top-p, and max tokens as `options.tempe
 `options.top_p`, and `options.num_predict`. Frequency/presence penalties are protocol N/A and are
 not approximated with Ollama's different repeat-penalty semantics.
 
+Embedded Local requests forward temperature, top-p, max tokens, frequency penalty, and presence
+penalty through `LlamaChatEngine` into both text and multimodal llama.cpp generation. Missing
+penalties use neutral zero; native sampling applies the configured frequency/presence values with a
+neutral repeat penalty rather than dropping or approximating either control.
+
 OpenAI Responses reasoning summaries are public summary content, not raw chain-of-thought. When
 thinking is enabled on an official or custom OpenAI-compatible Responses transport, the request opts
 into the most detailed available summary with `reasoning.summary = auto`. Summary text deltas enter

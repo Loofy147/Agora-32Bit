@@ -24,6 +24,7 @@
 
 static constexpr int32_t CALLBACK_TOKEN_BATCH = 4;
 static constexpr size_t CALLBACK_BYTE_BATCH = 64;
+static constexpr int32_t PENALTY_LAST_N = 64;
 
 struct ChatHandle {
     llama_model * model   = nullptr;
@@ -347,7 +348,8 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatApplyTemplate(
 JNIEXPORT jint JNICALL
 Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
     JNIEnv * env, jclass /*clazz*/, jlong handle_ptr,
-    jstring prompt, jfloat temperature, jfloat top_p, jint max_tokens,
+    jstring prompt, jfloat temperature, jfloat top_p,
+    jfloat frequency_penalty, jfloat presence_penalty, jint max_tokens,
     jobject callback) {
 
     NativeChatCallbacks callbacks;
@@ -406,6 +408,9 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
 
     auto sparams = llama_sampler_chain_default_params();
     llama_sampler * smpl = llama_sampler_chain_init(sparams);
+    llama_sampler_chain_add(smpl, llama_sampler_init_penalties(
+        PENALTY_LAST_N, 1.0f, frequency_penalty, presence_penalty
+    ));
     llama_sampler_chain_add(smpl, llama_sampler_init_min_p(0.05f, 1));
     llama_sampler_chain_add(smpl, llama_sampler_init_top_p(top_p, 1));
     llama_sampler_chain_add(smpl, llama_sampler_init_temp(temperature));
@@ -635,7 +640,8 @@ JNIEXPORT jint JNICALL
 Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
     JNIEnv * env, jclass /*clazz*/, jlong handle_ptr,
     jstring prompt, jobjectArray image_paths,
-    jfloat temperature, jfloat top_p, jint max_tokens,
+    jfloat temperature, jfloat top_p,
+    jfloat frequency_penalty, jfloat presence_penalty, jint max_tokens,
     jobject callback) {
 
     NativeChatCallbacks callbacks;
@@ -777,6 +783,9 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
     // --- Generation loop (same as text-only path) ---
     auto sparams = llama_sampler_chain_default_params();
     llama_sampler * smpl = llama_sampler_chain_init(sparams);
+    llama_sampler_chain_add(smpl, llama_sampler_init_penalties(
+        PENALTY_LAST_N, 1.0f, frequency_penalty, presence_penalty
+    ));
     llama_sampler_chain_add(smpl, llama_sampler_init_min_p(0.05f, 1));
     llama_sampler_chain_add(smpl, llama_sampler_init_top_p(top_p, 1));
     llama_sampler_chain_add(smpl, llama_sampler_init_temp(temperature));
