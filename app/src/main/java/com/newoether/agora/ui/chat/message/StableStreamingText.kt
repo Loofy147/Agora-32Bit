@@ -27,7 +27,7 @@ internal fun StableStreamingText(
 ) {
     val content = AnnotatedString(text)
     val renderedText = if (streaming && useToolSummaryTailFade) {
-        toolSummaryTailAnnotatedString(content, color)
+        rememberToolSummaryGlyphFade(content = content, color = color, enabled = true)
     } else {
         rememberStreamingGlyphFade(content = content, color = color, enabled = streaming)
     }

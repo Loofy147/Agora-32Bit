@@ -142,10 +142,48 @@ class IncrementalStreamingMarkdownTest {
         val text = "x" + "🙂".repeat(42)
         val faded = toolSummaryTailAnnotatedString(AnnotatedString(text), Color.White)
 
-        assertEquals(TOOL_SUMMARY_TAIL_CODE_POINTS, faded.spanStyles.size)
+        assertEquals(6, faded.spanStyles.size)
         assertEquals(1, faded.spanStyles.first().start)
-        assertEquals(0.38f, faded.spanStyles.last().item.color.alpha, 0.002f)
+        assertEquals(0f, faded.spanStyles.last().item.color.alpha, 0.002f)
         faded.spanStyles.forEach { assertFalse(it.start.splitsSurrogatePair(text) || it.end.splitsSurrogatePair(text)) }
+    }
+
+    @Test
+    fun toolSummaryRestoresSpatialBandsAndAgesTheNewestGlyphFromZero() {
+        val births = LongArray(42) { 1_000L }
+
+        val initial = toolSummaryTailAnnotatedString(
+            text = AnnotatedString("x".repeat(42)),
+            color = Color.White,
+            birthTimesMs = births,
+            nowMs = 1_000L,
+        )
+        val aged = toolSummaryTailAnnotatedString(
+            text = AnnotatedString("x".repeat(42)),
+            color = Color.White,
+            birthTimesMs = births,
+            nowMs = 1_100L,
+        )
+
+        assertEquals(6, initial.spanStyles.size)
+        assertEquals(5f / 6f, initial.spanStyles.first().item.color.alpha, 0.002f)
+        assertEquals(0f, initial.spanStyles.last().item.color.alpha, 0.002f)
+        assertEquals(0.2f, aged.spanStyles.last().item.color.alpha, 0.002f)
+    }
+
+    @Test
+    fun toolSummaryTrackerRetainsOnlyTheBoundedTailAndBecomesSolid() {
+        val tracker = StreamingTailFadeTracker(TOOL_SUMMARY_TAIL_CODE_POINTS)
+        val sample = tracker.update("x".repeat(100), nowMs = 2_000L)
+
+        assertEquals(TOOL_SUMMARY_TAIL_CODE_POINTS, sample.birthTimesMs.size)
+        val solid = toolSummaryTailAnnotatedString(
+            text = AnnotatedString("x".repeat(100)),
+            color = Color.White,
+            birthTimesMs = sample.birthTimesMs,
+            nowMs = 2_500L,
+        )
+        assertTrue(solid.spanStyles.isEmpty())
     }
 
     @Test

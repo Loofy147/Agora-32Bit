@@ -46,7 +46,7 @@ import kotlin.math.min
 private const val STREAM_TAIL_ALPHA_PER_SECOND = 2f
 internal const val TOOL_SUMMARY_TAIL_CODE_POINTS = 42
 private const val TOOL_SUMMARY_TAIL_BANDS = 6
-private const val TOOL_SUMMARY_NEWEST_ALPHA = 0.38f
+private const val TOOL_SUMMARY_NEWEST_ALPHA = 0f
 private const val STREAM_TAIL_FADE_TICK_MS = 40L
 private const val LONG_DOCUMENT_THRESHOLD_CHARS = 8_000
 private const val LONG_DOCUMENT_RENDER_INTERVAL_MS = 120L
@@ -191,7 +191,9 @@ private data class StreamingFadingGlyph(
 )
 
 /** Owns published glyph timing; conflated inputs cannot age unpublished deltas. */
-internal class StreamingTailFadeTracker {
+internal class StreamingTailFadeTracker(
+    private val capacity: Int? = null,
+) {
     private var previousText = ""
     private val fadingGlyphs = java.util.ArrayDeque<StreamingFadingGlyph>()
 
@@ -242,7 +244,14 @@ internal class StreamingTailFadeTracker {
     }
 
     private fun appendPublishedGlyphs(codePointCount: Int, nowMs: Long) {
-        repeat(codePointCount.coerceAtLeast(0)) { fadingGlyphs.addLast(StreamingFadingGlyph(nowMs)) }
+        val retainedCount = capacity
+            ?.coerceAtLeast(0)
+            ?.let { min(codePointCount.coerceAtLeast(0), it) }
+            ?: codePointCount.coerceAtLeast(0)
+        repeat(retainedCount) { fadingGlyphs.addLast(StreamingFadingGlyph(nowMs)) }
+        capacity?.coerceAtLeast(0)?.let { limit ->
+            while (fadingGlyphs.size > limit) fadingGlyphs.removeFirst()
+        }
     }
 
     private fun streamingGlyphAlpha(glyph: StreamingFadingGlyph, nowMs: Long): Float {
@@ -685,22 +694,62 @@ private fun ParsedMarkdownBlockContent(
     )
 }
 
-/** Fixed spatial tail used only by live Tool summaries; Markdown remains time-only. */
-internal fun toolSummaryTailAnnotatedString(text: AnnotatedString, color: Color): AnnotatedString {
+/** Historical bounded spatial-plus-temporal tail used only by live Tool summaries. */
+internal fun toolSummaryTailAnnotatedString(
+    text: AnnotatedString,
+    color: Color,
+    birthTimesMs: LongArray? = null,
+    nowMs: Long = 0L,
+    alphaPerSecond: Float = STREAM_TAIL_ALPHA_PER_SECOND,
+): AnnotatedString {
     val raw = text.text
     val total = raw.codePointCount(0, raw.length)
     val faded = min(total, TOOL_SUMMARY_TAIL_CODE_POINTS)
     if (faded == 0) return text
+    if (birthTimesMs != null && birthTimesMs.isEmpty()) return text
     val bands = min(TOOL_SUMMARY_TAIL_BANDS, faded)
-    return AnnotatedString.Builder().apply {
-        append(text)
-        repeat(faded) { index ->
-            val alpha = 1f - ((index * bands / faded + 1f) / bands) * (1f - TOOL_SUMMARY_NEWEST_ALPHA)
-            val start = total - faded + index
-            addStyle(SpanStyle(color.copy(alpha = color.alpha * alpha)),
-                raw.offsetByCodePoints(0, start), raw.offsetByCodePoints(0, start + 1))
+    val trackedCount = min(faded, birthTimesMs?.size ?: faded)
+    val trackedStart = faded - trackedCount
+    val birthStart = (birthTimesMs?.size ?: trackedCount) - trackedCount
+    val builder = AnnotatedString.Builder().apply { append(text) }
+    var rangeStart = total - faded
+    var rangeAlpha: Float? = null
+
+    fun flushRange(endCodePoint: Int) {
+        val alpha = rangeAlpha ?: return
+        if (alpha < 0.999f) {
+            builder.addStyle(
+                SpanStyle(color.copy(alpha = color.alpha * alpha)),
+                raw.offsetByCodePoints(0, rangeStart),
+                raw.offsetByCodePoints(0, endCodePoint),
+            )
         }
-    }.toAnnotatedString()
+    }
+
+    repeat(faded) { index ->
+        val band = index * bands / faded
+        val progress = (band + 1).toFloat() / bands.toFloat()
+        val spatialAlpha = 1f - progress * (1f - TOOL_SUMMARY_NEWEST_ALPHA)
+        val alpha = if (birthTimesMs != null && index < trackedStart) {
+            1f
+        } else {
+            val bornAt = birthTimesMs?.get(birthStart + index - trackedStart)
+            val ageSeconds = bornAt
+                ?.let { (nowMs - it).coerceAtLeast(0L) / 1_000f }
+                ?: 0f
+            (spatialAlpha + alphaPerSecond.coerceAtLeast(0f) * ageSeconds)
+                .coerceIn(0f, 1f)
+        }
+        if (rangeAlpha == null) {
+            rangeAlpha = alpha
+        } else if (kotlin.math.abs(checkNotNull(rangeAlpha) - alpha) > 0.0001f) {
+            flushRange(total - faded + index)
+            rangeStart = total - faded + index
+            rangeAlpha = alpha
+        }
+    }
+    flushRange(total)
+    return builder.toAnnotatedString()
 }
 
 /** Applies clamp(k * elapsed, 0, 1) without changing layout. */
@@ -831,6 +880,37 @@ internal fun rememberStreamingGlyphFade(
             color = color,
             fadeCodePoints = effective.tailCodePoints,
             birthTimesMs = effective.birthTimesMs,
+            nowMs = fadeClockMs,
+        )
+    }
+}
+
+@Composable
+internal fun rememberToolSummaryGlyphFade(
+    content: AnnotatedString,
+    color: Color,
+    enabled: Boolean,
+): AnnotatedString {
+    if (!enabled || content.isEmpty()) return content
+
+    val fadeTracker = remember { StreamingTailFadeTracker(TOOL_SUMMARY_TAIL_CODE_POINTS) }
+    val fadeSample = remember(content.text, fadeTracker) {
+        fadeTracker.update(content.text, SystemClock.uptimeMillis())
+    }
+    var fadeClockMs by remember(fadeSample) {
+        mutableLongStateOf(fadeSample.observedAtMs)
+    }
+    LaunchedEffect(fadeSample) {
+        while (streamingTailFadeActive(fadeSample.birthTimesMs, fadeClockMs)) {
+            delay(STREAM_TAIL_FADE_TICK_MS)
+            fadeClockMs = SystemClock.uptimeMillis()
+        }
+    }
+    return remember(content, color, fadeSample, fadeClockMs) {
+        toolSummaryTailAnnotatedString(
+            text = content,
+            color = color,
+            birthTimesMs = fadeSample.birthTimesMs,
             nowMs = fadeClockMs,
         )
     }
