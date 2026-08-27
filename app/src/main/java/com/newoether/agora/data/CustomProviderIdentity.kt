@@ -9,6 +9,8 @@ import com.newoether.agora.model.ToolCallData
 import com.newoether.agora.model.apiModelName
 import com.newoether.agora.util.SnackbarEvent
 import java.nio.charset.StandardCharsets
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.UUID
 
@@ -280,6 +282,163 @@ fun modelApiDisplayName(
     customProviders,
 )
 
+private val aliasSeparators = Regex("[-_\\s]+")
+private val batchAliasSuffix = Regex(":batch$", RegexOption.IGNORE_CASE)
+private val novaAliasPattern = Regex(
+    "^nova-(\\d+(?:\\.\\d+)?)-(.+)-v\\d+(?::\\d+)?$",
+    RegexOption.IGNORE_CASE,
+)
+private val claudeFamilyFirstAliasPattern = Regex(
+    "^claude-([a-z][a-z0-9]*(?:-[a-z][a-z0-9]*)*)-(\\d{1,2})(?:-(\\d{1,2}))?" +
+        "(?:-(\\d{8}))?(?:-fast)?$",
+    RegexOption.IGNORE_CASE,
+)
+private val claudeVersionFirstAliasPattern = Regex(
+    "^claude-(\\d{1,2})(?:-(\\d{1,2}))?-([a-z][a-z0-9]*(?:-[a-z][a-z0-9]*)*)" +
+        "(?:-(\\d{8}))?(?:-fast)?$",
+    RegexOption.IGNORE_CASE,
+)
+private val deepSeekSnapshotAliasPattern = Regex(
+    "^deepseek-((?:v|r)\\d+(?:\\.\\d+)?)(?:-([a-z0-9][a-z0-9-]*))?-(\\d{4})$",
+    RegexOption.IGNORE_CASE,
+)
+private val snapshotDateFormatter = DateTimeFormatter.BASIC_ISO_DATE
+private val aliasTokenDisplayNames = mapOf(
+    "ai" to "AI",
+    "api" to "API",
+    "claude" to "Claude",
+    "cohere" to "Cohere",
+    "command" to "Command",
+    "deepseek" to "DeepSeek",
+    "gemini" to "Gemini",
+    "gemma" to "Gemma",
+    "gpt" to "GPT",
+    "grok" to "Grok",
+    "kimi" to "Kimi",
+    "llama" to "Llama",
+    "llm" to "LLM",
+    "mistral" to "Mistral",
+    "mixtral" to "Mixtral",
+    "nova" to "Nova",
+    "phi" to "Phi",
+    "qwen" to "Qwen",
+    "qwq" to "QwQ",
+    "vl" to "VL",
+    "vlm" to "VLM",
+)
+
+/** Human-readable display fallback only; the original model ID remains authoritative. */
+internal fun inferModelAlias(modelName: String): String {
+    val trimmed = modelName.trim()
+    if (trimmed.isEmpty()) return trimmed
+
+    val pathTail = trimmed.substringAfterLast('/').trim().ifEmpty { trimmed }
+    val withoutBatch = pathTail.replace(batchAliasSuffix, "").ifEmpty { pathTail }
+    inferClaudeAlias(withoutBatch)?.let { return it }
+    inferNovaAlias(withoutBatch)?.let { return it }
+    inferDeepSeekAlias(withoutBatch)?.let { return it }
+    return humanizeModelAlias(withoutBatch).ifEmpty { trimmed }
+}
+
+private fun inferClaudeAlias(slug: String): String? {
+    claudeFamilyFirstAliasPattern.matchEntire(slug)?.let { match ->
+        val snapshot = match.groupValues[4].takeIf(String::isNotEmpty)
+        if (snapshot != null && !isValidSnapshotDate(snapshot)) return null
+        return buildClaudeAlias(
+            family = match.groupValues[1],
+            major = match.groupValues[2],
+            minor = match.groupValues[3].takeIf(String::isNotEmpty),
+        )
+    }
+    claudeVersionFirstAliasPattern.matchEntire(slug)?.let { match ->
+        val snapshot = match.groupValues[4].takeIf(String::isNotEmpty)
+        if (snapshot != null && !isValidSnapshotDate(snapshot)) return null
+        return buildClaudeAlias(
+            family = match.groupValues[3],
+            major = match.groupValues[1],
+            minor = match.groupValues[2].takeIf(String::isNotEmpty),
+            versionFirst = true,
+        )
+    }
+    return null
+}
+
+private fun buildClaudeAlias(
+    family: String,
+    major: String,
+    minor: String?,
+    versionFirst: Boolean = false,
+): String {
+    val version = listOfNotNull(major, minor).joinToString(".")
+    val familyName = humanizeModelAlias(family)
+    return if (versionFirst) {
+        "Claude $version $familyName"
+    } else {
+        "Claude $familyName $version"
+    }
+}
+
+private fun inferNovaAlias(slug: String): String? {
+    val match = novaAliasPattern.matchEntire(slug) ?: return null
+    return "Nova ${match.groupValues[1]} ${humanizeModelAlias(match.groupValues[2])}"
+}
+
+private fun inferDeepSeekAlias(slug: String): String? {
+    val match = deepSeekSnapshotAliasPattern.matchEntire(slug) ?: return null
+    if (!isValidMonthDay(match.groupValues[3])) return null
+    val version = formatAliasToken(match.groupValues[1])
+    val variant = match.groupValues[2]
+        .takeIf(String::isNotEmpty)
+        ?.let(::humanizeModelAlias)
+    return listOfNotNull("DeepSeek", version, variant).joinToString(" ")
+}
+
+private fun humanizeModelAlias(value: String): String = value
+    .split(aliasSeparators)
+    .filter(String::isNotEmpty)
+    .joinToString(" ", transform = ::formatAliasToken)
+
+private fun formatAliasToken(value: String): String {
+    val normalized = value.lowercase(Locale.ROOT)
+    aliasTokenDisplayNames[normalized]?.let { return it }
+    aliasTokenDisplayNames.entries.firstOrNull { (token, _) ->
+        normalized.length > token.length &&
+            normalized.startsWith(token) &&
+            normalized[token.length].isDigit()
+    }?.let { (token, displayName) ->
+        return displayName + normalized.removePrefix(token)
+    }
+    if (normalized.matches(Regex("[vr]\\d+(?:\\.\\d+)?"))) {
+        return normalized.replaceFirstChar(Char::uppercaseChar)
+    }
+    if (normalized.matches(Regex("o\\d+(?:\\.\\d+)?"))) {
+        return normalized.replaceFirstChar(Char::uppercaseChar)
+    }
+    if (normalized.matches(Regex("\\d+(?:\\.\\d+)?[bkmt]"))) {
+        return normalized.dropLast(1) + normalized.last().uppercaseChar()
+    }
+    return normalized.replaceFirstChar { character ->
+        if (character.isLetter()) character.titlecase(Locale.ROOT) else character.toString()
+    }
+}
+
+private fun isValidSnapshotDate(value: String): Boolean = runCatching {
+    LocalDate.parse(value, snapshotDateFormatter)
+}.isSuccess
+
+private fun isValidMonthDay(value: String): Boolean {
+    if (value.length != 4 || value.any { !it.isDigit() }) return false
+    val month = value.substring(0, 2).toInt()
+    val day = value.substring(2, 4).toInt()
+    val maximumDay = when (month) {
+        2 -> 29
+        4, 6, 9, 11 -> 30
+        1, 3, 5, 7, 8, 10, 12 -> 31
+        else -> return false
+    }
+    return day in 1..maximumDay
+}
+
 fun modelAliasDisplayName(
     modelId: String,
     aliases: Map<String, String>,
@@ -287,7 +446,7 @@ fun modelAliasDisplayName(
 ): String = aliases[modelId]
     ?.takeIf(String::isNotBlank)
     ?.let { replaceCustomProviderIdsForDisplay(it, customProviders) }
-    ?: modelApiDisplayName(modelId, customProviders)
+    ?: inferModelAlias(modelApiDisplayName(modelId, customProviders))
 
 fun modelDisplayName(
     modelId: String,
@@ -298,5 +457,5 @@ fun modelDisplayName(
         return modelAliasDisplayName(modelId, aliases, customProviders)
     }
     val parsed = ModelId.parse(modelId)
-    return "${modelApiDisplayName(modelId, customProviders)} (${providerDisplayName(parsed.providerName, customProviders)})"
+    return "${modelAliasDisplayName(modelId, aliases, customProviders)} (${providerDisplayName(parsed.providerName, customProviders)})"
 }

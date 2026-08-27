@@ -205,6 +205,30 @@ Conversation search exposes a separate in-flight state from the moment a nonblan
 
 The drawer's first-list state is not a second conversation authority or a new search architecture; Room remains the durable source and the existing search methods remain authoritative.
 
+## 17. Model alias display fallback
+
+A model alias is presentation text, never a model identity. An explicit nonblank alias stored under
+the complete model ID remains authoritative. When none exists, the shared model-display resolver
+derives a human-readable fallback from the API model name without persisting it. Provider requests,
+routing, capabilities, pricing, history, import/export, grouping, deduplication, and settings keys
+continue to use the complete original model ID.
+
+Inference removes a provider path for display and recognizes only bounded family-specific suffixes:
+the exact `:batch` transport suffix, a terminal Claude `fast` serving marker, valid Claude snapshot
+dates and version grammar, valid DeepSeek `MMDD` snapshots in V/R family grammar, and Amazon Nova's
+terminal API revision. Core family, tier, size, speed, capability, and version tokens remain. Unknown
+or malformed names receive separator/case humanization without deleting ambiguous tokens such as an
+unrecognized date, number, `vN`, `latest`, `fast`, or colon suffix. The resolver is deterministic,
+case-insensitive for recognized grammar, and idempotent for its formatted output.
+
+Settings Models renders the resolved alias as every model row's headline and the raw API model name
+as supporting text, so distinct IDs remain distinguishable even when serving variants share one
+fallback. Search matches provider/raw ID, explicit alias, and inferred fallback without coalescing
+results. Existing-model alias editors are seeded with the resolved fallback when no explicit alias
+exists. Saving that seed unchanged does not materialize it in DataStore; editing it creates an
+explicit alias, while clearing an explicit alias restores fallback behavior. The new-custom-model
+form remains blank until the user enters an alias.
+
 ## 15. Verification
 
 Focused verification must cover the onboarding action's fixed 32 dp inset and 48 dp height, absence
@@ -227,5 +251,8 @@ close waiting, immediate non-video handoff, and absence of a duplicate pager clo
 verification also covers Dialog-over-sheet ordering, viewer-owned action-sheet ordering, unscaled
 full-screen backdrop, and no scale-below-one corner exposure. Composer verification covers single and
 multiple image URI paste, mixed image/text pass-through, unsupported content pass-through, immediate
-private-copy routing, and failure cleanup. The project-defined full build gate remains required after
+private-copy routing, and failure cleanup. Model-alias verification covers explicit precedence, all
+approved family-specific suffixes, generic preservation of ambiguous tokens, casing/separator
+normalization, idempotence, inferred search, duplicate-display preservation, raw-ID supporting text,
+and unchanged-fallback non-persistence. The project-defined full build gate remains required after
 final code or resource changes.

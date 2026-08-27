@@ -3,6 +3,7 @@ package com.newoether.agora.data
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.CitationAnchor
 import com.newoether.agora.model.CitationPolicy
+import com.newoether.agora.model.ModelId
 import com.newoether.agora.model.Participant
 import com.newoether.agora.model.citationRecords
 import com.newoether.agora.model.toMessageSegment
@@ -107,8 +108,70 @@ class CustomProviderIdentityPolicyTest {
         val model = "$id:gemini-3.1-pro"
         val providers = listOf(CustomProviderConfig(name = "Relay X", id = id))
 
-        assertEquals("gemini-3.1-pro (Relay X)", modelDisplayName(model, emptyMap(), providers))
+        assertEquals("Gemini 3.1 Pro (Relay X)", modelDisplayName(model, emptyMap(), providers))
         assertEquals("Fast", modelDisplayName(model, mapOf(model to "Fast"), providers))
+    }
+
+    @Test
+    fun inferredAliasesCoverApprovedMainstreamNamingPatterns() {
+        val cases = linkedMapOf(
+            "amazon/nova-2-lite-v1" to "Nova 2 Lite",
+            "anthropic/claude-fable-5:batch" to "Claude Fable 5",
+            "anthropic/claude-opus-5-fast" to "Claude Opus 5",
+            "deepseek/deepseek-v4-flash-0731" to "DeepSeek V4 Flash",
+            "claude-sonnet-4-5-20250929" to "Claude Sonnet 4.5",
+            "anthropic/claude-3-5-sonnet-20241022" to "Claude 3.5 Sonnet",
+            "deepseek/deepseek-r1-0528" to "DeepSeek R1",
+            "openai/gpt-4o-mini" to "GPT 4o Mini",
+            "qwen/qwen3.5-27b-vl" to "Qwen3.5 27B VL",
+        )
+
+        cases.forEach { (modelName, expectedAlias) ->
+            assertEquals(modelName, expectedAlias, inferModelAlias(modelName))
+        }
+    }
+
+    @Test
+    fun ambiguousSuffixesAndIdentityTokensSurviveGenericFallback() {
+        val cases = linkedMapOf(
+            "vendor/vision-2-fast" to "Vision 2 Fast",
+            "vendor/model-0731" to "Model 0731",
+            "vendor/model-20250929" to "Model 20250929",
+            "vendor/bar-v1" to "Bar V1",
+            "claude-fast-5" to "Claude Fast 5",
+            "claude-opus-5-thinking" to "Claude Opus 5 Thinking",
+            "claude-opus-5:thinking" to "Claude Opus 5:thinking",
+            "claude-opus-5-20251340" to "Claude Opus 5 20251340",
+            "deepseek-v4-flash-1332" to "DeepSeek V4 Flash 1332",
+        )
+
+        cases.forEach { (modelName, expectedAlias) ->
+            assertEquals(modelName, expectedAlias, inferModelAlias(modelName))
+        }
+    }
+
+    @Test
+    fun inferredAliasNormalizationIsIdempotentAndBoundarySafe() {
+        assertEquals("Claude Opus 5", inferModelAlias("Claude Opus 5"))
+        assertEquals("Qwen 3.5 VL", inferModelAlias("  qwen__3.5--vl  "))
+        assertEquals("", inferModelAlias("   "))
+        assertEquals("Vendor/trailing/", inferModelAlias("vendor/trailing/"))
+    }
+
+    @Test
+    fun explicitAliasWinsWhileBlankAliasFallsBackWithoutChangingModelId() {
+        val model = "OpenRouter:anthropic/claude-opus-5-fast"
+
+        assertEquals("Claude Opus 5", modelAliasDisplayName(model, emptyMap(), emptyList()))
+        assertEquals(
+            "Claude Opus 5",
+            modelAliasDisplayName(model, mapOf(model to "   "), emptyList()),
+        )
+        assertEquals(
+            "My Production Model",
+            modelAliasDisplayName(model, mapOf(model to "My Production Model"), emptyList()),
+        )
+        assertEquals(model, ModelId.parse(model).prefixed)
     }
 
     @Test
@@ -136,7 +199,7 @@ class CustomProviderIdentityPolicyTest {
         val id = "custom-provider-00000000-0000-4000-8000-000000000001"
 
         assertEquals("Custom", providerDisplayName(id, emptyList()))
-        assertEquals("model (Custom)", modelDisplayName("$id:model", emptyMap(), emptyList()))
+        assertEquals("Model (Custom)", modelDisplayName("$id:model", emptyMap(), emptyList()))
     }
 
     @Test
