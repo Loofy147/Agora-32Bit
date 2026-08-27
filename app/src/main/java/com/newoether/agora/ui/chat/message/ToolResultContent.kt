@@ -273,12 +273,10 @@ private fun ToolSectionLabel(text: String) {
 
 @Composable
 private fun ToolActiveContent(text: String, output: String?) {
-    StableStreamingText(
+    Text(
         text = text,
-        streaming = true,
         style = ChatType.metaNormal,
         color = MaterialTheme.colorScheme.primary,
-        tailFadeEnabled = false,
     )
     if (!output.isNullOrBlank()) {
         Spacer(Modifier.height(8.dp))

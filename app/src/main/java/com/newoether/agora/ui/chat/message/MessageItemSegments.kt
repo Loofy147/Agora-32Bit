@@ -391,6 +391,7 @@ internal fun AnimatedTimelineBlockAppearance(
     animate: Boolean? = null,
     appearanceRegistry: SegmentAppearanceRegistry? = null,
     isStreaming: Boolean = false,
+    forceOpaque: Boolean = false,
     content: @Composable () -> Unit
 ) {
     key(animationKey) {
@@ -408,6 +409,7 @@ internal fun AnimatedTimelineBlockAppearance(
             animate = play,
             durationMillis = SEGMENT_ENTER_DURATION_MS,
             initialScale = SEGMENT_ENTER_INITIAL_SCALE,
+            forceOpaque = forceOpaque,
         )
         Box(
             modifier = appearanceModifier,

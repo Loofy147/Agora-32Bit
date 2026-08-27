@@ -189,6 +189,22 @@ class ApprovedFeatureSourceContractTest {
             root,
             "com/newoether/agora/ui/chat/message/StableStreamingText.kt",
         )
+        val lifecycle = source(
+            root,
+            "com/newoether/agora/ui/chat/message/GenerationLifecycleMotion.kt",
+        )
+        val messageItem = source(
+            root,
+            "com/newoether/agora/ui/chat/message/MessageItem.kt",
+        )
+        val assistant = source(
+            root,
+            "com/newoether/agora/ui/chat/message/AssistantMessageContent.kt",
+        )
+        val segments = source(
+            root,
+            "com/newoether/agora/ui/chat/message/MessageItemSegments.kt",
+        )
 
         assertTrue(fade.contains("fun streamingTailAnnotatedString("))
         assertTrue(fade.contains("fun rememberStreamingGlyphFade("))
@@ -198,14 +214,25 @@ class ApprovedFeatureSourceContractTest {
         assertTrue(assets.contains("rememberStreamingGlyphFade("))
         assertFalse(assets.contains(".stableStreamingGlyphFade("))
         assertTrue(timeline.contains("StableStreamingText("))
-        assertTrue(tool.contains("StableStreamingText("))
-        assertTrue(Regex("tailFadeEnabled =").findAll(timeline).count() == 2)
-        assertTrue(timeline.contains("tailFadeEnabled = false"))
-        assertTrue(timeline.contains("tailFadeEnabled = seg.type != \"tool\""))
-        assertTrue(timeline.contains("text = collapsedTitle"))
-        assertFalse(timeline.contains("targetState = collapsedTitle"))
-        assertFalse(timeline.contains("compactSegmentTitle:\$expansionKey"))
-        assertTrue(tool.contains("tailFadeEnabled = false"))
+        assertFalse(tool.contains("StableStreamingText("))
+        assertFalse(timeline.contains("tailFadeEnabled ="))
+        assertFalse(tool.contains("tailFadeEnabled ="))
+        assertTrue(timeline.contains("text = toolSummary(seg)"))
+        assertTrue(timeline.contains("targetState = collapsedTitle"))
+        assertTrue(timeline.contains("compactSegmentTitle:\$expansionKey"))
+        assertTrue(timeline.contains("val containsToolSummary = segs.any { it.type == \"tool\" }"))
+        assertTrue(timeline.contains("forceOpaque = containsToolSummary"))
+        assertTrue(Regex("forceOpaque = seg.type == \"tool\"").findAll(timeline).count() == 2)
+        assertTrue(timeline.contains("containsToolSummary && allowSpatialTransitions ->"))
+        assertTrue(timeline.contains("EnterTransition.None"))
+        assertTrue(timeline.contains("ExitTransition.None"))
+        assertTrue(tool.contains("private fun ToolActiveContent(text: String, output: String?) {\n    Text("))
+        assertTrue(lifecycle.contains("alpha = if (forceOpaque) 1f else value"))
+        assertTrue(messageItem.contains(
+            "forceOpaque = displayMessage.segments.orEmpty().any { it.type == \"tool\" }",
+        ))
+        assertTrue(assistant.contains("forceOpaque = detailSegments.any { it.type == \"tool\" }"))
+        assertTrue(segments.contains("forceOpaque = forceOpaque"))
         assertTrue(stableText.contains("enabled = streaming && tailFadeEnabled"))
         assertFalse(fade.contains("TOOL_SUMMARY_"))
         assertFalse(fade.contains("toolSummaryTailAnnotatedString"))

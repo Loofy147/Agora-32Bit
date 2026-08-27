@@ -232,6 +232,7 @@ internal fun MessageItem(
         animationKey = "message:${message.id}",
         animate = animateEntrance && !isSwitching,
         durationMillis = MESSAGE_ENTER_DURATION_MS,
+        forceOpaque = displayMessage.segments.orEmpty().any { it.type == "tool" },
     )
 
     Row(

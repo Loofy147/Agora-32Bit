@@ -16,6 +16,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 
 import androidx.compose.animation.core.*
 import androidx.compose.animation.expandVertically
@@ -231,6 +233,7 @@ internal fun CompactSegmentBlock(
 ) {
     if (segs.isEmpty()) return
     val allowSpatialTransitions = LocalAgoraMotionPolicy.current.allowSpatialTransitions
+    val containsToolSummary = segs.any { it.type == "tool" }
     val animateCardAppearance = rememberSegmentAppearance(
         registry = segmentAppearanceRegistry,
         animationKey = cardAppearanceKey,
@@ -241,6 +244,7 @@ internal fun CompactSegmentBlock(
         animate = animateCardAppearance,
         durationMillis = SEGMENT_ENTER_DURATION_MS,
         initialScale = SEGMENT_ENTER_INITIAL_SCALE,
+        forceOpaque = containsToolSummary,
     )
     val isExpanded by remember(expansionKey) {
         derivedStateOf { expandedStates[expansionKey] ?: false }
@@ -477,28 +481,39 @@ internal fun CompactSegmentBlock(
                     }
                 }
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = collapsedTitle,
-                    style = compactTitleStyle,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                Crossfade(
+                    targetState = collapsedTitle,
+                    animationSpec = tween(
+                        durationMillis = STATUS_CROSSFADE_DURATION_MS,
+                        easing = LinearEasing,
+                    ),
+                    label = "compactSegmentTitle:$expansionKey",
                     modifier = Modifier.weight(1f),
-                )
+                ) { title ->
+                    Text(
+                        text = title,
+                        style = compactTitleStyle,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Spacer(modifier = Modifier.width(26.dp))
             }
             Box(modifier = Modifier.fillMaxWidth()) {
             expansionTransition.AnimatedVisibility(
                 visible = { it },
-                enter = if (allowSpatialTransitions) {
-                    fadeIn(tween(400)) + expandVertically(tween(400))
-                } else {
-                    fadeIn(tween(400))
+                enter = when {
+                    containsToolSummary && allowSpatialTransitions -> expandVertically(tween(400))
+                    containsToolSummary -> EnterTransition.None
+                    allowSpatialTransitions -> fadeIn(tween(400)) + expandVertically(tween(400))
+                    else -> fadeIn(tween(400))
                 },
-                exit = if (allowSpatialTransitions) {
-                    fadeOut(tween(400)) + shrinkVertically(tween(400))
-                } else {
-                    fadeOut(tween(400))
+                exit = when {
+                    containsToolSummary && allowSpatialTransitions -> shrinkVertically(tween(400))
+                    containsToolSummary -> ExitTransition.None
+                    allowSpatialTransitions -> fadeOut(tween(400)) + shrinkVertically(tween(400))
+                    else -> fadeOut(tween(400))
                 },
             ) {
                 Column {
@@ -513,6 +528,7 @@ internal fun CompactSegmentBlock(
                         ),
                         appearanceRegistry = segmentAppearanceRegistry,
                         isStreaming = isStreaming,
+                        forceOpaque = seg.type == "tool",
                       ) {
                        Column {
                         if ((seg.type == "thought" && seg.content.isNotBlank()) || seg.type == "transcription") {
@@ -573,17 +589,12 @@ internal fun CompactSegmentBlock(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.SemiBold
                                 )
-                                StableStreamingText(
+                                Text(
                                     text = toolSummary(seg),
-                                    streaming =
-                                        isStreaming &&
-                                            useLiveStatus &&
-                                            idx == segs.lastIndex,
                                     style = ChatType.metaNormal,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
-                                    tailFadeEnabled = false,
                                 )
                             }
                         }
@@ -832,12 +843,6 @@ internal fun TimelineInfoSegmentCard(
         animationKey = cardAnimationKey,
         isStreaming = animateAppearance,
     )
-    val cardAppearanceModifier = generationLifecycleAppearanceModifier(
-        animationKey = cardAnimationKey,
-        animate = animateCardAppearance,
-        durationMillis = SEGMENT_ENTER_DURATION_MS,
-        initialScale = SEGMENT_ENTER_INITIAL_SCALE,
-    )
     val groupShape = rememberAnimatedSegmentGroupShape(groupPosition)
     val cardColor = if (neutralPalette) {
         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
@@ -847,6 +852,13 @@ internal fun TimelineInfoSegmentCard(
     val iconTint = if (neutralPalette) MaterialTheme.colorScheme.primary
     else MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val cardAppearanceModifier = generationLifecycleAppearanceModifier(
+            animationKey = cardAnimationKey,
+            animate = animateCardAppearance,
+            durationMillis = SEGMENT_ENTER_DURATION_MS,
+            initialScale = SEGMENT_ENTER_INITIAL_SCALE,
+            forceOpaque = seg.type == "tool",
+        )
         val requestedCardWidth = if (extendIntoMessageInsets) {
             maxWidth + (AUXILIARY_CARD_START_EXTENSION_DP * 2).dp
         } else {
@@ -913,15 +925,24 @@ internal fun TimelineInfoSegmentCard(
                         else -> ""
                     }
                     if (summary.isNotBlank()) {
-                        StableStreamingText(
-                            text = summary,
-                            streaming = isStreamingContent,
-                            style = ChatType.metaNormal,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            tailFadeEnabled = seg.type != "tool",
-                        )
+                        if (isTool) {
+                            Text(
+                                text = summary,
+                                style = ChatType.metaNormal,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        } else {
+                            StableStreamingText(
+                                text = summary,
+                                streaming = isStreamingContent,
+                                style = ChatType.metaNormal,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
             }

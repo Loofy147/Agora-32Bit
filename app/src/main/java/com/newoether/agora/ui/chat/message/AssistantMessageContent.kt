@@ -490,6 +490,7 @@ internal fun AssistantMessageContent(
                         animationKey = compactAppearanceKey,
                         appearanceRegistry = segmentAppearanceRegistry,
                         isStreaming = isStreaming,
+                        forceOpaque = detailSegments.any { it.type == "tool" },
                     ) {
                         CompactSegmentBlock(
                             segs = detailSegments,
