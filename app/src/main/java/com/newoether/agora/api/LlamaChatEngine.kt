@@ -68,7 +68,12 @@ class LlamaChatEngine(
 
     private external fun nativeChatLoadModel(path: String, nCtx: Int): Long
     private external fun nativeChatGetTemplate(handle: Long): String?
-    private external fun nativeChatApplyTemplate(handle: Long, messages: Array<ChatTemplateMessage>, addAss: Boolean): String?
+    private external fun nativeChatApplyTemplate(
+        handle: Long,
+        messages: Array<ChatTemplateMessage>,
+        addAss: Boolean,
+        enableThinking: Boolean,
+    ): String?
     private external fun nativeChatLoadMmproj(handle: Long, mmprojPath: String): Boolean
     private external fun nativeChatUnloadMmproj(handle: Long)
     private external fun nativeChatHasMmproj(handle: Long): Boolean
@@ -120,12 +125,18 @@ class LlamaChatEngine(
 
     fun applyTemplate(
         messages: List<ChatTemplateMessage>,
-        addAss: Boolean = true
+        addAss: Boolean = true,
+        enableThinking: Boolean = true,
     ): String? {
         lock.readLock().lock()
         try {
             if (nativeHandle == 0L) return null
-            return nativeChatApplyTemplate(nativeHandle, messages.toTypedArray(), addAss)
+            return nativeChatApplyTemplate(
+                nativeHandle,
+                messages.toTypedArray(),
+                addAss,
+                enableThinking,
+            )
         } finally {
             lock.readLock().unlock()
         }

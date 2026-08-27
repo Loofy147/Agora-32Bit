@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <android/log.h>
 #include "llama.h"
+#include "chat.h"
 #include "mtmd.h"
 #include "mtmd-helper.h"
 
@@ -24,6 +25,7 @@ struct ChatHandle {
     llama_model * model   = nullptr;
     llama_context * ctx   = nullptr;
     const llama_vocab * vocab = nullptr;
+    common_chat_templates_ptr chat_templates;
     std::string path;
     int32_t n_ctx = 0;
     std::atomic<bool> cancelled{false};
@@ -222,6 +224,17 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatLoadModel(
     handle->vocab = llama_model_get_vocab(handle->model);
     handle->n_ctx = n_ctx;
 
+    try {
+        handle->chat_templates = common_chat_templates_init(handle->model, "");
+        if (!common_chat_templates_was_explicit(handle->chat_templates.get())) {
+            handle->chat_templates.reset();
+            LOGE("Model does not contain an explicit chat template");
+        }
+    } catch (const std::exception &) {
+        handle->chat_templates.reset();
+        LOGE("Failed to initialize model chat template");
+    }
+
     llama_context_params ctx_params = llama_context_default_params();
     ctx_params.n_ctx   = n_ctx;
     // n_batch bounds the LOGITS/EMBEDDINGS buffers llama.cpp allocates up front, so tying it to
@@ -262,17 +275,19 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGetTemplate(
 JNIEXPORT jstring JNICALL
 Java_com_newoether_agora_api_LlamaChatEngine_nativeChatApplyTemplate(
     JNIEnv * env, jclass /*clazz*/, jlong handle_ptr,
-    jobjectArray messages, jboolean add_ass) {
+    jobjectArray messages, jboolean add_ass, jboolean enable_thinking) {
 
     if (!handle_ptr) return nullptr;
     ChatHandle * handle = reinterpret_cast<ChatHandle *>(handle_ptr);
-    if (!handle->model) return nullptr;
+    if (!handle->model || !handle->chat_templates) return nullptr;
 
     jint n_msg = env->GetArrayLength(messages);
 
-    std::vector<llama_chat_message> chat_msgs(n_msg);
-    std::vector<std::string> role_storage(n_msg);
-    std::vector<std::string> content_storage(n_msg);
+    common_chat_templates_inputs inputs;
+    inputs.messages.reserve(n_msg);
+    inputs.add_generation_prompt = add_ass;
+    inputs.enable_thinking = enable_thinking;
+    inputs.use_jinja = true;
 
     for (jint i = 0; i < n_msg; i++) {
         jobject msg = env->GetObjectArrayElement(messages, i);
@@ -287,57 +302,27 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatApplyTemplate(
         const char * role_cstr = env->GetStringUTFChars(role_jstr, nullptr);
         const char * content_cstr = env->GetStringUTFChars(content_jstr, nullptr);
 
-        role_storage[i] = std::string(role_cstr ? role_cstr : "user");
-        content_storage[i] = std::string(content_cstr ? content_cstr : "");
+        common_chat_msg chat_msg;
+        chat_msg.role = role_cstr ? role_cstr : "user";
+        chat_msg.content = content_cstr ? content_cstr : "";
+        inputs.messages.push_back(std::move(chat_msg));
 
         if (role_cstr) env->ReleaseStringUTFChars(role_jstr, role_cstr);
         if (content_cstr) env->ReleaseStringUTFChars(content_jstr, content_cstr);
-
-        chat_msgs[i].role = role_storage[i].c_str();
-        chat_msgs[i].content = content_storage[i].c_str();
 
         env->DeleteLocalRef(msg_class);
         env->DeleteLocalRef(msg);
     }
 
-    // Follow simple-chat.cpp: get the template from the model, pass it
-    // directly to llama_chat_apply_template. Falls back to nullptr (auto-
-    // detect) if the model has no template.
-    const char * tmpl = llama_model_chat_template(handle->model, nullptr);
-    LOGD("Chat template: %s", tmpl ? "found" : "none (will auto-detect)");
-
-    int32_t total_chars = 0;
-    for (const auto & m : chat_msgs) {
-        if (m.content) total_chars += strlen(m.content);
-    }
-    int32_t buf_size = std::max(4096, total_chars * 2);
-
-    std::vector<char> buf(buf_size);
-    int32_t result = llama_chat_apply_template(
-        tmpl,
-        chat_msgs.data(), chat_msgs.size(),
-        add_ass,
-        buf.data(), buf_size
-    );
-
-    if (result > buf_size) {
-        buf.resize(result + 1); // +1 so an exact-fit result still has room for NUL/bounds
-        result = llama_chat_apply_template(
-            tmpl,
-            chat_msgs.data(), chat_msgs.size(),
-            add_ass,
-            buf.data(), result
+    try {
+        const common_chat_params params = common_chat_templates_apply(
+            handle->chat_templates.get(), inputs
         );
-    }
-
-    if (result < 0) {
-        LOGE("llama_chat_apply_template failed with %d", result);
+        return utf8_to_jstring(env, params.prompt.data(), params.prompt.size());
+    } catch (const std::exception &) {
+        LOGE("Failed to apply model chat template");
         return nullptr;
     }
-
-    // result is the byte length written; decode explicitly rather than relying on a
-    // NUL terminator, and handle 4-byte UTF-8 in message content safely.
-    return utf8_to_jstring(env, buf.data(), static_cast<size_t>(result));
 }
 
 JNIEXPORT jint JNICALL
@@ -791,6 +776,7 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatFreeModel(
     ChatHandle * handle = reinterpret_cast<ChatHandle *>(handle_ptr);
 
     if (handle->mtmd_ctx) mtmd_free(handle->mtmd_ctx);
+    handle->chat_templates.reset();
     if (handle->ctx)   llama_free(handle->ctx);
     if (handle->model) llama_model_free(handle->model);
 

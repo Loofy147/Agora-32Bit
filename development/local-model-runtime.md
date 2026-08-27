@@ -42,7 +42,18 @@ The multimodal projector is replaceable Chat substate rather than process identi
 for an image request, reused only for the same projector path, replaced when that path changes, and
 never permits concurrent mutation of the resident Chat engine.
 
-## 3. Strict FIFO admission
+## 3. Chat templates and thinking
+
+Chat prompt rendering uses the explicit template embedded in the GGUF through llama.cpp's official
+`llama-common` Jinja owner. A missing, invalid, or inapplicable model template fails the request; the
+runtime must not substitute ChatML, a model-family prompt, or another generic fallback. The parsed
+template bundle is Chat resident substate and is released before its model.
+
+Each request passes its effective `thinkingEnabled` value into the model template. This value may
+change the rendered prompt but does not construct the model/context or change resident identity.
+Model-emitted reasoning delimiters are separated by the shared incremental thinking parser.
+
+## 4. Strict FIFO admission
 
 Every submitted Local task is counted as queued-or-active before it waits for the process permit.
 The permit is fair FIFO: one complete Local request owns it from identity selection/load through all
@@ -57,7 +68,7 @@ Stop targets only the currently active Chat engine through its thread-safe nativ
 It does not cancel Embedding work, unload a model directly, cancel waiting Local tasks, or acquire the
 permit held by the active native generation.
 
-## 4. Idle offload lifecycle
+## 5. Idle offload lifecycle
 
 Idle means there are no queued or active Local tasks. A model may remain resident while idle for the
 configured retention duration.
@@ -76,7 +87,7 @@ configured retention duration.
 Only the configured duration persists. An in-flight deadline or remaining elapsed time is not
 restored after process death; the new process begins with no resident model and no inherited timer.
 
-## 5. Setting and UI contract
+## 6. Setting and UI contract
 
 `local_model_idle_retention_minutes` accepts only `0, 1, 2, 5, 10, 15, 30`; invalid or absent values
 normalize to the five-minute default. It is stored in this device's DataStore and exposed at
@@ -87,20 +98,24 @@ The default resource and every supported locale define the same localized key an
 The setting is device-local: it is excluded from portable Settings export/import and survives a
 Settings `REPLACE`, as specified by [import-export.md](import-export.md).
 
-## 6. Prohibited behavior
+## 7. Prohibited behavior
 
 Never introduce a second Local lock, model cache, lifecycle manager, offload timer, Provider-local
 fallback, per-caller unload callback, or identity definition. Never unload directly from a timer
 without reacquiring the canonical permit and revalidating the idle epoch. Do not restore idle
 deadlines across processes, interrupt active native work to honor a deadline, or export this setting.
+Never invent a fallback chat template or bypass the official model-owned Jinja path.
 
-## 7. Required verification
+## 8. Required verification
 
 Focused verification must cover FIFO ordering, no native overlap, cancelled-waiter removal,
 Chat/Embedding/path/context identity changes, unload-before-load, failed replacement, same-identity
 reuse, active-Chat-only Stop, and Embedding input isolation. Idle tests must cover arrival
 cancellation, no countdown while queued/active, last-task deadline start, setting-change restart,
 zero-minute behavior, expiry-versus-arrival linearization, and unload through the same permit.
+
+Chat-template verification must cover explicit-template enforcement, official Jinja ownership,
+request-level thinking control, UTF-8-safe prompt transfer, and absence of generic fallbacks.
 
 Settings tests must cover the exact presets/default/normalization, DataStore read/write, one
 AppContainer binding, Local Advanced placement and slider commit behavior, locale key/placeholder

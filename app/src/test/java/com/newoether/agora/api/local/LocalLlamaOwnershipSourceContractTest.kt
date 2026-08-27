@@ -53,6 +53,25 @@ class LocalLlamaOwnershipSourceContractTest {
     }
 
     @Test
+    fun `chat templates use the official Jinja owner and receive thinking control`() {
+        val cmake = mainCppSource("CMakeLists.txt")
+        val native = mainCppSource("llama_chat_jni.cpp")
+        val engine = mainSource("com/newoether/agora/api/LlamaChatEngine.kt")
+        val provider = mainSource("com/newoether/agora/api/local/LocalProvider.kt")
+
+        assertTrue(cmake.contains("set(LLAMA_BUILD_COMMON ON CACHE BOOL \"\" FORCE)"))
+        assertFalse(cmake.contains("add_subdirectory(\${LLAMA_CPP_DIR}/common"))
+        assertTrue(cmake.contains("target_link_libraries(agora_llama llama llama-common"))
+        assertTrue(native.contains("common_chat_templates_init(handle->model"))
+        assertTrue(native.contains("common_chat_templates_was_explicit"))
+        assertTrue(native.contains("common_chat_templates_apply("))
+        assertTrue(native.contains("inputs.enable_thinking = enable_thinking"))
+        assertFalse(native.contains("llama_chat_apply_template("))
+        assertTrue(engine.contains("enableThinking: Boolean"))
+        assertTrue(provider.contains("enableThinking = config.thinkingEnabled"))
+    }
+
+    @Test
     fun `text and multimodal loops decode before lossless dynamic delivery`() {
         val native = mainCppSource("llama_chat_jni.cpp")
 

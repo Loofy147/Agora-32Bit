@@ -81,7 +81,11 @@ class LocalProvider(
 
         // Template ownership stays with the model. A generic fallback can silently apply the
         // wrong role/control-token protocol, so an incompatible model fails closed.
-        val prompt = engine.applyTemplate(templateMessages, addAss = true)
+        val prompt = engine.applyTemplate(
+            templateMessages,
+            addAss = true,
+            enableThinking = config.thinkingEnabled,
+        )
         if (prompt == null) {
             emit(StreamEvent.Error(GenerationError.LocalModel(
                 "The local model does not provide a compatible chat template."
