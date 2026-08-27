@@ -106,6 +106,15 @@ The queue claim/check and loop admission must remain linearized so guidance is n
 nor lost. A non-successful or anomalous Compact is a hard automatic-handoff boundary: it starts
 neither queued generation nor loop generation.
 
+Foreground-service ownership is best-effort process-priority assistance for in-process generation,
+not a Run or Provider admission prerequisite. `GenerationManager` attempts to acquire Agora's
+foreground-service lease when execution is not externally managed. An unavailable or rejected
+start records that no lease was acquired and generation continues through the same canonical path;
+it must not create a terminal error, retry, delay, alternate execution path, or shadow lifecycle.
+Completion releases the lease only when acquisition actually succeeded. Task and Loop Workers keep
+using their externally managed WorkManager foreground execution. Process death still uses the
+ordinary orphaned-Run recovery contract and does not recreate the coroutine or Provider stream.
+
 ## 6. Review blockers
 
 A change is invalid if it:

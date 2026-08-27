@@ -33,16 +33,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
-internal class GenerationForegroundServiceUnavailableException :
-    IllegalStateException("Required foreground service could not be started")
 internal suspend fun acquireGenerationForegroundLease(
     managedExternally: Boolean,
     acquire: suspend () -> Boolean,
 ): Boolean {
     if (managedExternally) return false
-    if (!acquire()) throw GenerationForegroundServiceUnavailableException()
-    return true
+    return acquire()
 }
+
 class GenerationManager(
     private val app: Application,
     private val conversations: com.newoether.agora.data.repository.ConversationRepository,
