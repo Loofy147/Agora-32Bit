@@ -477,23 +477,14 @@ internal fun CompactSegmentBlock(
                     }
                 }
                 Spacer(modifier = Modifier.width(8.dp))
-                Crossfade(
-                    targetState = collapsedTitle,
-                    animationSpec = tween(
-                        durationMillis = STATUS_CROSSFADE_DURATION_MS,
-                        easing = LinearEasing,
-                    ),
-                    label = "compactSegmentTitle:$expansionKey",
+                Text(
+                    text = collapsedTitle,
+                    style = compactTitleStyle,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
-                ) { title ->
-                    Text(
-                        text = title,
-                        style = compactTitleStyle,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+                )
                 Spacer(modifier = Modifier.width(26.dp))
             }
             Box(modifier = Modifier.fillMaxWidth()) {
