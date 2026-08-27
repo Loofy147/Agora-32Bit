@@ -1,5 +1,7 @@
 # Settings UI and UX Contract
 
+Status: authoritative shared Settings-surface contract.
+
 This document defines the visual, interaction, copy, and asset-import rules for
 Agora settings surfaces. New settings pages and revisions to existing pages
 must follow the same contract.
