@@ -695,7 +695,7 @@ internal fun AssistantMessageContent(
                         MaterialTheme.colorScheme.error.copy(
                             alpha = if (actionAvailability.terminalEnabled) 1f else 0.38f
                         )
-                    if (citations.isNotEmpty()) {
+                    if (sourcesSummaryVisible) {
                         CitationSourcesSummaryCapsule(
                             messageId = message.id,
                             citations = citations,

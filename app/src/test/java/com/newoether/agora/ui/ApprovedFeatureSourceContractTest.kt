@@ -1,6 +1,7 @@
 package com.newoether.agora.ui
 
 import java.io.File
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -167,7 +168,7 @@ class ApprovedFeatureSourceContractTest {
     }
 
     @Test
-    fun streamingFadeKeepsToolSummariesSolid() {
+    fun streamingFadeKeepsToolSummariesOnWholeContentCrossfade() {
         val root = sourceRoot()
         val fade = source(
             root,
@@ -217,7 +218,9 @@ class ApprovedFeatureSourceContractTest {
         assertFalse(tool.contains("StableStreamingText("))
         assertFalse(timeline.contains("tailFadeEnabled ="))
         assertFalse(tool.contains("tailFadeEnabled ="))
-        assertTrue(timeline.contains("text = toolSummary(seg)"))
+        assertTrue(timeline.contains("private fun ToolSummaryText(summary: String) = Crossfade("))
+        assertEquals(3, Regex("ToolSummaryText\\(").findAll(timeline).count())
+        assertTrue(timeline.contains("targetState = summary"))
         assertTrue(timeline.contains("targetState = collapsedTitle"))
         assertTrue(timeline.contains("compactSegmentTitle:\$expansionKey"))
         assertTrue(timeline.contains("val containsToolSummary = segs.any { it.type == \"tool\" }"))
@@ -234,6 +237,7 @@ class ApprovedFeatureSourceContractTest {
         assertTrue(assistant.contains("forceOpaque = detailSegments.any { it.type == \"tool\" }"))
         assertTrue(segments.contains("forceOpaque = forceOpaque"))
         assertTrue(stableText.contains("enabled = streaming && tailFadeEnabled"))
+        assertTrue(stableText.contains("initialAlpha = tailFadeInitialAlpha"))
         assertFalse(fade.contains("TOOL_SUMMARY_"))
         assertFalse(fade.contains("toolSummaryTailAnnotatedString"))
         assertFalse(fade.contains("rememberToolSummaryGlyphFade"))
@@ -250,7 +254,7 @@ class ApprovedFeatureSourceContractTest {
         assertFalse(fade.contains("textDeltas = published.textDeltas,"))
         assertFalse(fade.contains("positionDelaysMs"))
         assertFalse(fade.contains("STREAM_DELTA_POSITION_WINDOW_MS"))
-        assertTrue(fade.contains("alphaPerSecond.coerceAtLeast(0f) * elapsedSeconds"))
+        assertTrue(fade.contains("startAlpha + (1f - startAlpha) * progress"))
         assertFalse(fade.contains("STREAM_TAIL_FADE_CODE_POINTS"))
         assertFalse(fade.contains("ArrivalRecord"))
         assertFalse(fade.contains("distributeArrivalBirths"))

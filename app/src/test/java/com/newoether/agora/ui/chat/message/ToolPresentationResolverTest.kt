@@ -1,6 +1,7 @@
 package com.newoether.agora.ui.chat.message
 
 import com.newoether.agora.model.MessageSegment
+import com.newoether.agora.model.RunRecoveryPolicy
 import com.newoether.agora.model.ToolExecutionStates
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -381,6 +382,23 @@ class ToolPresentationResolverTest {
     }
 
     @Test
+    fun recoveredForegroundShellIsStoppedInsteadOfExitWithoutCode() {
+        val recovered = RunRecoveryPolicy.stopIncompleteTools(
+            listOf(
+                MessageSegment(
+                    type = "tool",
+                    toolName = "execute_shell_command",
+                    toolState = ToolExecutionStates.RUNNING,
+                ),
+            ),
+        ).single()
+        val presentation = ToolPresentationResolver.resolve(recovered)
+
+        assertEquals(ToolPresentationState.STOPPED, presentation.state)
+        assertEquals(ShellPresentationStatus.Stopped, shellPresentationStatus(presentation))
+    }
+
+    @Test
     fun shellOutputFallsBackToSeparateStdoutAndStderr() {
         val presentation = ToolPresentationResolver.resolve(
             MessageSegment(
@@ -492,6 +510,19 @@ class ToolPresentationResolverTest {
         assertEquals(ToolPresentationState.COMPLETED, terminal.state)
         assertEquals("done", shellOutputText(terminal))
         assertEquals("job-9", terminal.jobId)
+
+        val timedOut = ToolPresentationResolver.resolve(
+            MessageSegment(
+                type = "tool",
+                toolName = "wait_for_job",
+                toolArgs = """{"job_id":"job-9"}""",
+                toolResult = """{"type":"wait_for_job","job_id":"job-9","state":"running","timed_out":true,"output":"partial"}""",
+            ),
+        )
+
+        assertEquals(ToolPresentationState.BACKGROUND_RUNNING, timedOut.state)
+        assertEquals(ShellPresentationStatus.Background("job-9"), shellPresentationStatus(timedOut))
+        assertEquals("partial", shellOutputText(timedOut))
     }
 
     @Test

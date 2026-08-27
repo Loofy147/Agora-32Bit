@@ -103,6 +103,7 @@ internal fun compactSegmentTitle(
     val isTranscribing = useLiveStatus && message.status == MessageStatus.TRANSCRIBING
     val toolCount = segs.count { it.type == "tool" && it.toolResult != null }
     val thoughtMs = thoughtDurationMs(segs, fallbackMs = message.thoughtTimeMs)
+    val hasThought = segs.any { it.type == "thought" }
     return when {
         isThinking -> message.thoughtTitle ?: stringResource(R.string.thinking_ellipsis)
         isTranscribing -> message.thoughtTitle ?: stringResource(R.string.transcription_ellipsis)
@@ -118,14 +119,13 @@ internal fun compactSegmentTitle(
             } else {
                 toolDisplayName(lastSeg)
             }
-        thoughtMs != null && thoughtMs > 0 -> thoughtDurationTitle(thoughtMs, toolCount)
+        hasThought -> thoughtDurationTitle(thoughtMs?.coerceAtLeast(0L) ?: 0L, toolCount)
         toolCount > 0 -> stringResource(R.string.called_n_tools, toolCount)
-        message.thoughtTitle != null -> message.thoughtTitle
         segs.any { it.type == "transcription" } -> transcriptionLabel(
             segs,
             segs.indexOfLast { it.type == "transcription" },
         )
-        else -> stringResource(R.string.thinking_complete)
+        else -> ""
     }
 }
 

@@ -119,6 +119,43 @@ class IncrementalStreamingMarkdownTest {
     }
 
     @Test
+    fun publishedThinkingDeltaInterpolatesFromConfiguredAlphaToSolid() {
+        val text = "Thought delta 😀"
+        val sample = StreamingTailFadeTracker().update(text, nowMs = 1_000L)
+
+        val initial = streamingTailAnnotatedString(
+            text = text,
+            color = Color.White,
+            birthTimesMs = sample.birthTimesMs,
+            nowMs = 1_000L,
+            initialAlpha = 0.38f,
+        )
+        assertEquals(0.38f, initial.spanStyles.single().item.color.alpha, 0.002f)
+
+        val halfway = streamingTailAnnotatedString(
+            text = text,
+            color = Color.White,
+            birthTimesMs = sample.birthTimesMs,
+            nowMs = 1_250L,
+            initialAlpha = 0.38f,
+        )
+        assertEquals(0.69f, halfway.spanStyles.single().item.color.alpha, 0.002f)
+        halfway.spanStyles.forEach { range ->
+            assertFalse(range.start.splitsSurrogatePair(text))
+            assertFalse(range.end.splitsSurrogatePair(text))
+        }
+
+        val solid = streamingTailAnnotatedString(
+            text = text,
+            color = Color.White,
+            birthTimesMs = sample.birthTimesMs,
+            nowMs = 1_500L,
+            initialAlpha = 0.38f,
+        )
+        assertTrue(solid.spanStyles.isEmpty())
+    }
+
+    @Test
     fun onePublishedSnapshotUsesOneBirthTimeForEveryPublishedGlyph() {
         val text = "abcdefgh"
         val tracker = StreamingTailFadeTracker()

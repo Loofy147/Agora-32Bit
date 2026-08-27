@@ -161,6 +161,12 @@ class ExperimentalGenerationUiSourceContractTest {
         assertFalse(timeline.contains("Icons.Default.KeyboardArrowUp"))
         assertTrue(timeline.contains("rotationZ = disclosureRotation"))
         assertTrue(presentation.contains("thinking_for_seconds_ellipsis"))
+        assertTrue(timeline.contains("THINKING_PREVIEW_INITIAL_ALPHA = 0.38f"))
+        val thoughtPreview = timeline.substringAfter("private fun StreamingThoughtPreviewText(")
+        assertTrue(thoughtPreview.contains("StableStreamingText("))
+        assertTrue(thoughtPreview.contains(
+            "tailFadeInitialAlpha = THINKING_PREVIEW_INITIAL_ALPHA"
+        ))
     }
 
     @Test
@@ -246,8 +252,13 @@ class ExperimentalGenerationUiSourceContractTest {
     @Test
     fun `Sources summary opens without haptics and uses the reduced external left margin`() {
         val assistant = source(locateMainSourceRoot(), "message/AssistantMessageContent.kt")
+        val summaryGate = assistant
+            .substringBefore("CitationSourcesSummaryCapsule(")
+            .takeLast(200)
         val summary = assistant.substringAfter("CitationSourcesSummaryCapsule(")
         val summaryClick = summary.substringBefore("modifier = Modifier")
+        assertTrue(summaryGate.contains("if (sourcesSummaryVisible)"))
+        assertFalse(summaryGate.contains("if (citations.isNotEmpty())"))
         assertTrue(summaryClick.contains("showCitationSources = true"))
         assertFalse(summaryClick.contains("haptics."))
         assertTrue(summary.contains(".offset(x = (-AUXILIARY_CARD_START_EXTENSION_DP).dp)"))

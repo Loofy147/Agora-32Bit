@@ -2,6 +2,7 @@ package com.newoether.agora.viewmodel
 
 import com.newoether.agora.api.ToolDefinition
 import com.newoether.agora.model.RunEffectIdentity
+import com.newoether.agora.model.ToolExecutionStates
 import com.newoether.agora.tool.ToolExecutionEvent
 import com.newoether.agora.tool.ToolProvider
 import kotlinx.coroutines.awaitCancellation
@@ -11,6 +12,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GenerationToolExecutorTest {
+    @Test
+    fun `durable wait timeout remains background running at the completion boundary`() {
+        val result =
+            """{"type":"wait_for_job","job_id":"same-job","state":"running","timed_out":true}"""
+
+        assertEquals(ToolExecutionStates.BACKGROUND_RUNNING, finalToolState(result))
+    }
+
     @Test
     fun `completed result retains the authorized batch and call identities`() = runTest {
         val provider = FakeToolProvider()

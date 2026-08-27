@@ -24,12 +24,14 @@ internal fun StableStreamingText(
     maxLines: Int = Int.MAX_VALUE,
     overflow: TextOverflow = TextOverflow.Clip,
     tailFadeEnabled: Boolean = true,
+    tailFadeInitialAlpha: Float = 0f,
 ) {
     val content = AnnotatedString(text)
     val renderedText = rememberStreamingGlyphFade(
         content = content,
         color = color,
         enabled = streaming && tailFadeEnabled,
+        initialAlpha = tailFadeInitialAlpha,
     )
     Text(
         text = renderedText,

@@ -684,7 +684,7 @@ private fun ParsedMarkdownBlockContent(
     )
 }
 
-/** Applies clamp(k * elapsed, 0, 1) without changing layout. */
+/** Interpolates from [initialAlpha] to one over clamp(k * elapsed, 0, 1). */
 internal fun streamingTailAnnotatedString(
     text: String,
     color: Color,
@@ -692,6 +692,7 @@ internal fun streamingTailAnnotatedString(
     birthTimesMs: LongArray? = null,
     nowMs: Long = 0L,
     alphaPerSecond: Float = STREAM_TAIL_ALPHA_PER_SECOND,
+    initialAlpha: Float = 0f,
 ): AnnotatedString = streamingTailAnnotatedString(
     text = AnnotatedString(text),
     color = color,
@@ -699,6 +700,7 @@ internal fun streamingTailAnnotatedString(
     birthTimesMs = birthTimesMs,
     nowMs = nowMs,
     alphaPerSecond = alphaPerSecond,
+    initialAlpha = initialAlpha,
 )
 
 /**
@@ -712,6 +714,7 @@ internal fun streamingTailAnnotatedString(
     birthTimesMs: LongArray? = null,
     nowMs: Long = 0L,
     alphaPerSecond: Float = STREAM_TAIL_ALPHA_PER_SECOND,
+    initialAlpha: Float = 0f,
 ): AnnotatedString {
     if (text.isEmpty()) return text
     val births = birthTimesMs ?: return text
@@ -723,6 +726,7 @@ internal fun streamingTailAnnotatedString(
     if (requestedFadeCodePoints <= 0) return text
     val fadedCount = min(codePointCount, min(requestedFadeCodePoints, births.size))
     if (fadedCount == 0) return text
+    val startAlpha = initialAlpha.coerceIn(0f, 1f)
 
     val metadataStart = births.size - fadedCount
     val prefixCodePoints = codePointCount - fadedCount
@@ -745,8 +749,9 @@ internal fun streamingTailAnnotatedString(
         val metadataIndex = metadataStart + suffixIndex
         val elapsedSeconds =
             (nowMs - births[metadataIndex]).coerceAtLeast(0L) / 1_000f
-        val alpha = (alphaPerSecond.coerceAtLeast(0f) * elapsedSeconds)
+        val progress = (alphaPerSecond.coerceAtLeast(0f) * elapsedSeconds)
             .coerceIn(0f, 1f)
+        val alpha = startAlpha + (1f - startAlpha) * progress
         if (rangeAlpha == null) {
             rangeAlpha = alpha
         } else if (kotlin.math.abs(checkNotNull(rangeAlpha) - alpha) > 0.0001f) {
@@ -826,6 +831,7 @@ internal fun rememberStreamingGlyphFade(
     content: AnnotatedString,
     color: Color,
     enabled: Boolean,
+    initialAlpha: Float = 0f,
 ): AnnotatedString {
     if (!enabled || content.isEmpty()) return content
 
@@ -847,12 +853,13 @@ internal fun rememberStreamingGlyphFade(
             fadeClockMs = SystemClock.uptimeMillis()
         }
     }
-    return remember(content, color, fadeSample, fadeClockMs) {
+    return remember(content, color, fadeSample, fadeClockMs, initialAlpha) {
         streamingTailAnnotatedString(
             text = content,
             color = color,
             birthTimesMs = fadeSample.birthTimesMs,
             nowMs = fadeClockMs,
+            initialAlpha = initialAlpha,
         )
     }
 }

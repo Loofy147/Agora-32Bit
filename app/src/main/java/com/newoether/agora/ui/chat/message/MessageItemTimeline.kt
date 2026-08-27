@@ -589,13 +589,7 @@ internal fun CompactSegmentBlock(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.SemiBold
                                 )
-                                Text(
-                                    text = toolSummary(seg),
-                                    style = ChatType.metaNormal,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
+                                ToolSummaryText(toolSummary(seg))
                             }
                         }
                         if (idx < segs.lastIndex) {
@@ -926,13 +920,7 @@ internal fun TimelineInfoSegmentCard(
                     }
                     if (summary.isNotBlank()) {
                         if (isTool) {
-                            Text(
-                                text = summary,
-                                style = ChatType.metaNormal,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
+                            ToolSummaryText(summary)
                         } else {
                             StableStreamingText(
                                 text = summary,
@@ -958,7 +946,22 @@ internal fun TimelineInfoSegmentCard(
     }
 }
 
+@Composable
+private fun ToolSummaryText(summary: String) = Crossfade(
+    targetState = summary,
+    animationSpec = tween(STATUS_CROSSFADE_DURATION_MS, easing = LinearEasing),
+) { text ->
+    Text(
+        text = text,
+        style = ChatType.metaNormal,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
 private const val STREAMING_THOUGHT_PREVIEW_CODE_POINTS = 60
+private const val THINKING_PREVIEW_INITIAL_ALPHA = 0.38f
 
 private fun thoughtPreviewTail(
     content: AnnotatedString,
@@ -980,18 +983,17 @@ private fun StreamingThoughtPreviewText(
     content: String,
     streaming: Boolean,
 ) {
-    val color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-    val flat = remember(content) { content.replace('\n', ' ') }
-    val annotated = remember(flat) { AnnotatedString(flat) }
-    val preview = remember(annotated, streaming) {
-        if (streaming) thoughtPreviewTail(annotated) else annotated
+    val flat = remember(content) { AnnotatedString(content.replace('\n', ' ')) }
+    val preview = remember(flat, streaming) {
+        if (streaming) thoughtPreviewTail(flat) else flat
     }
     StableStreamingText(
         text = preview.text,
         streaming = streaming,
         style = ChatType.metaNormal,
-        color = color,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
+        tailFadeInitialAlpha = THINKING_PREVIEW_INITIAL_ALPHA,
     )
 }
