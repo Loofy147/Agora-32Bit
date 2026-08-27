@@ -566,8 +566,24 @@ does not redefine any separately supported Service Tier surface outside Response
 
 The immutable generation snapshot freezes both choices. When OpenAI Search is enabled, the existing
 OpenAI-compatible Responses request includes the native `web_search` tool. When Service Tier is
-enabled, that same request includes the normalized selected `service_tier` value. The ordinary
-Provider owns request serialization; UI visibility must not create a second request path.
+enabled, that same request includes the normalized selected `service_tier` value. Recognized values
+are `auto`, `default`, `flex`, `scale`, `priority`, `fast`, and `ultrafast`; normalization must
+preserve each spelling rather than collapse a recognized tier to `auto`. Chat Completions omits this
+Responses-only field. The ordinary Provider owns request serialization; UI visibility must not
+create a second request path.
+
+Every OpenAI-compatible Chat request forwards a captured non-null `temperature`, `max_tokens`,
+`top_p`, `frequency_penalty`, and `presence_penalty` without model-family remapping. Thinking is a
+separate protocol-local control. Alibaba Qwen hybrid families serialize top-level
+`enable_thinking`, and serialize `thinking_budget` only while thinking plus the budget control are
+enabled. Qwen 3.8 Max/Flash serialize their documented `reasoning_effort` values, or
+`thinking_budget`, never both. Documented Qwen thinking-only models reject a disabled-thinking
+request locally before HTTP. Groq maps only its documented Qwen 3.6, Qwen 3.8, and GPT-OSS model IDs
+to their respective effort value sets; GPT-OSS rejects off/`none` locally. Custom OpenAI Chat
+relays map raw Qwen 3.8 model names to `none`/`low`/`medium`/`xhigh`; unrelated model names remain
+untouched. OpenAI Responses forwards temperature, max output tokens, and top-p but has no native
+frequency/presence fields in this request contract, so those penalties are protocol N/A rather than
+silently approximated.
 
 OpenAI Responses reasoning summaries are public summary content, not raw chain-of-thought. When
 thinking is enabled on an official or custom OpenAI-compatible Responses transport, the request opts
@@ -874,6 +890,6 @@ retained-message calculation.
 | Delete isolation | Target-only delete, direct-child reparent, unchanged surviving rows, independent Run presentation. |
 | Priority | Only Compact SUCCESS permits handoff; then pending and already-claimed queue guidance beat loop and the no-guidance path admits loop once. ERROR/STOPPED/cancellation/anomaly starts neither. |
 | Request terminal role | Compact dispatch appends one non-durable initial USER invocation after an Assistant or tool-result parent; provider-visible input ends USER and fixed token accounting includes it. |
-| Provider-hosted output | OpenAI-compatible Responses requests serialize enabled `web_search`, selected `service_tier`, and reasoning summaries; summary indices preserve part boundaries and headings supply titles; OpenAI Search and Gemini Google Search/Code Execution settle display-only tool blocks without local execution; Gemini Code Execution replays typed parts and fails closed when a result is missing. |
+| Provider-hosted output | OpenAI-compatible Chat requests serialize applicable numeric and model-specific thinking controls; Responses requests preserve all seven recognized `service_tier` values and serialize enabled `web_search` plus reasoning summaries; impossible thinking-off requests fail before HTTP; summary indices preserve part boundaries and headings supply titles; OpenAI Search and Gemini Google Search/Code Execution settle display-only tool blocks without local execution; Gemini Code Execution replays typed parts and fails closed when a result is missing. |
 | Races and failures | Stop before/after bind, consecutive origin/Compact release suppressions in both settlement orders, selection drift, missing target/status, transaction rollback, stale callbacks, checkpoint-versus-terminal ordering, and queue claim failure. |
 | UI stability | Compact row/pill vertical bounds do not change across progress and terminal content; entrance is draw-only and does not alter apparent vertical spacing; message and Thinking Tool terminal text reuse the shared neutral body-text tokens and alpha without Segment error cards. |

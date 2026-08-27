@@ -1081,7 +1081,10 @@
     <string name="openai_service_tier_auto">تلقائي</string>
     <string name="openai_service_tier_default">افتراضي</string>
     <string name="openai_service_tier_flex">مرن</string>
+    <string name="openai_service_tier_scale">التوسّع</string>
+    <string name="openai_service_tier_priority">الأولوية</string>
     <string name="openai_service_tier_fast">سريع</string>
+    <string name="openai_service_tier_ultrafast">فائق السرعة</string>
     <string name="context_title">السياق</string>
     <string name="context_desc">إدارة السياق</string>
     <string name="context_compact">ضغط السياق</string>

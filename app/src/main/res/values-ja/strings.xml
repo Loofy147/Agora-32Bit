@@ -1081,7 +1081,10 @@
     <string name="openai_service_tier_auto">自動</string>
     <string name="openai_service_tier_default">デフォルト</string>
     <string name="openai_service_tier_flex">フレックス</string>
+    <string name="openai_service_tier_scale">スケール</string>
+    <string name="openai_service_tier_priority">優先</string>
     <string name="openai_service_tier_fast">高速</string>
+    <string name="openai_service_tier_ultrafast">超高速</string>
     <string name="context_title">コンテキスト</string>
     <string name="context_desc">コンテキスト管理</string>
     <string name="context_compact">コンテキスト圧縮</string>

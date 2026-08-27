@@ -1081,7 +1081,10 @@
     <string name="openai_service_tier_auto">Авто</string>
     <string name="openai_service_tier_default">По умолчанию</string>
     <string name="openai_service_tier_flex">Гибкий</string>
+    <string name="openai_service_tier_scale">Масштаб</string>
+    <string name="openai_service_tier_priority">Приоритет</string>
     <string name="openai_service_tier_fast">Быстрый</string>
+    <string name="openai_service_tier_ultrafast">Ультрабыстрый</string>
     <string name="context_title">Контекст</string>
     <string name="context_desc">Управление контекстом</string>
     <string name="context_compact">Сжатие контекста</string>

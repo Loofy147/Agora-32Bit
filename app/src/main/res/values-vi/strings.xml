@@ -1087,7 +1087,10 @@
     <string name="openai_service_tier_auto">Tự động</string>
     <string name="openai_service_tier_default">Mặc định</string>
     <string name="openai_service_tier_flex">Linh hoạt</string>
+    <string name="openai_service_tier_scale">Quy mô</string>
+    <string name="openai_service_tier_priority">Ưu tiên</string>
     <string name="openai_service_tier_fast">Nhanh</string>
+    <string name="openai_service_tier_ultrafast">Siêu nhanh</string>
     <string name="context_title">Ngữ cảnh</string>
     <string name="context_desc">Quản lý ngữ cảnh</string>
     <string name="context_compact">Thu gọn ngữ cảnh</string>

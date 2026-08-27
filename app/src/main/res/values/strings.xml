@@ -1082,7 +1082,10 @@
     <string name="openai_service_tier_auto">Auto</string>
     <string name="openai_service_tier_default">Default</string>
     <string name="openai_service_tier_flex">Flex</string>
+    <string name="openai_service_tier_scale">Scale</string>
+    <string name="openai_service_tier_priority">Priority</string>
     <string name="openai_service_tier_fast">Fast</string>
+    <string name="openai_service_tier_ultrafast">Ultrafast</string>
     <string name="context_title">Context</string>
     <string name="context_desc">Context management</string>
     <string name="context_compact">Context compact</string>

@@ -1181,7 +1181,10 @@
     <string name="openai_service_tier_auto">自动</string>
     <string name="openai_service_tier_default">默认</string>
     <string name="openai_service_tier_flex">弹性</string>
+    <string name="openai_service_tier_scale">规模</string>
+    <string name="openai_service_tier_priority">优先</string>
     <string name="openai_service_tier_fast">快速</string>
+    <string name="openai_service_tier_ultrafast">超高速</string>
     <string name="context_title">上下文</string>
     <string name="context_desc">上下文管理</string>
     <string name="context_compact">上下文压缩</string>

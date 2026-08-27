@@ -139,6 +139,8 @@ data class OpenAiChatRequest(
     @SerialName("stream_options") val streamOptions: OpenAiStreamOptions? = null,
     val tools: List<ToolDefinition>? = null,
     @SerialName("reasoning_effort") val reasoningEffort: String? = null,
+    @SerialName("enable_thinking") val enableThinking: Boolean? = null,
+    @SerialName("thinking_budget") val thinkingBudget: Int? = null,
     val reasoning: OpenAiReasoning? = null,
     val plugins: List<OpenAiPlugin>? = null,
     @SerialName("service_tier") val serviceTier: String? = null,
