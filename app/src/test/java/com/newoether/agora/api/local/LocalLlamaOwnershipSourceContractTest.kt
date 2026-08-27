@@ -75,21 +75,45 @@ class LocalLlamaOwnershipSourceContractTest {
     fun `text and multimodal loops decode before lossless dynamic delivery`() {
         val native = mainCppSource("llama_chat_jni.cpp")
 
+        assertTrue(native.contains("CALLBACK_TOKEN_BATCH = 4"))
+        assertTrue(native.contains("CALLBACK_BYTE_BATCH = 64"))
         listOf("nativeChatGenerate", "nativeChatGenerateWithImages").forEach { functionName ->
             val loop = nativeFunctionSection(native, functionName)
-                .substringAfter("while (generated < max_tokens)")
+                .substringAfter("while (generated < generation_limit)")
+            val cancellation = loop.indexOf("cancelled.load")
+            val sample = loop.indexOf("llama_sampler_sample")
             val decode = loop.indexOf("llama_decode")
             val count = loop.indexOf("generated++")
             val deliver = loop.indexOf("report_token")
 
             assertTrue(loop.contains("token_to_piece(handle->vocab"))
+            assertTrue(cancellation >= 0 && cancellation < sample)
             assertTrue(decode >= 0)
             assertTrue(count > decode)
             assertTrue(deliver > count)
+            assertTrue(loop.contains("callback_tokens >= CALLBACK_TOKEN_BATCH"))
+            assertTrue(loop.contains("callback_buffer.size() >= CALLBACK_BYTE_BATCH"))
+            assertTrue(loop.contains("std::min(callback_buffer.size(), CALLBACK_BYTE_BATCH)"))
+            assertTrue(loop.contains("callback_buffer[emit_len]) & 0xC0) == 0x80"))
+            assertTrue(loop.contains("!consumer_closed && !callback_buffer.empty()"))
+            assertTrue(loop.contains("failure = \"Stream consumer closed\""))
+            assertTrue(loop.contains("if (consumer_closed) break"))
             assertTrue(loop.contains("Generated incomplete UTF-8 output"))
             assertFalse(loop.contains("llama_synchronize"))
             assertFalse(loop.contains("char piece[256]"))
         }
+    }
+
+    @Test
+    fun `native performance logs contain counts and timings but no private paths`() {
+        val native = mainCppSource("llama_chat_jni.cpp")
+
+        assertTrue(native.contains("Chat load: model_ms="))
+        assertTrue(native.contains("Text prefill: input_tokens="))
+        assertTrue(native.contains("Text decode: output_tokens="))
+        assertTrue(native.contains("Multimodal prefill: input_tokens="))
+        assertTrue(native.contains("Multimodal decode: output_tokens="))
+        assertFalse(native.contains("Failed to load image: %s"))
     }
 
     @Test

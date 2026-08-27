@@ -1,6 +1,7 @@
 #include <jni.h>
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <string>
 #include <vector>
 #include <cstring>
@@ -20,6 +21,9 @@
 #define LOGD(...) ((void)0)
 #define LOGE(...) ((void)0)
 #endif
+
+static constexpr int32_t CALLBACK_TOKEN_BATCH = 4;
+static constexpr size_t CALLBACK_BYTE_BATCH = 64;
 
 struct ChatHandle {
     llama_model * model   = nullptr;
@@ -208,11 +212,14 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatLoadModel(
         return 0;
     }
 
+    const auto load_started = std::chrono::steady_clock::now();
     llama_backend_init();
     ggml_backend_load_all();
 
     llama_model_params model_params = llama_model_default_params();
+    const auto model_started = std::chrono::steady_clock::now();
     handle->model = llama_model_load_from_file(path_str, model_params);
+    const auto model_finished = std::chrono::steady_clock::now();
     env->ReleaseStringUTFChars(path, path_str);
 
     if (!handle->model) {
@@ -243,6 +250,7 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatLoadModel(
     // prompt-eval throughput is unaffected because it is compute-bound well below 512 tokens.
     ctx_params.n_batch = std::min(512, n_ctx);
 
+    const auto context_started = std::chrono::steady_clock::now();
     handle->ctx = llama_init_from_model(handle->model, ctx_params);
     if (!handle->ctx) {
         LOGE("Failed to create context");
@@ -253,7 +261,18 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatLoadModel(
 
     llama_set_abort_callback(handle->ctx, abort_callback, handle);
 
-    LOGD("Chat model loaded: n_ctx=%d, n_ctx_train=%d",
+    const auto load_finished = std::chrono::steady_clock::now();
+    const auto model_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        model_finished - model_started
+    ).count();
+    const auto context_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        load_finished - context_started
+    ).count();
+    const auto total_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        load_finished - load_started
+    ).count();
+    LOGD("Chat load: model_ms=%lld, context_ms=%lld, total_ms=%lld, n_ctx=%d, n_ctx_train=%d",
+         (long long)model_ms, (long long)context_ms, (long long)total_ms,
          n_ctx, llama_model_n_ctx_train(handle->model));
 
     return reinterpret_cast<jlong>(handle);
@@ -340,6 +359,7 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
     );
 
     handle->cancelled.store(false, std::memory_order_relaxed);
+    const auto request_started = std::chrono::steady_clock::now();
 
     const char * prompt_str = env->GetStringUTFChars(prompt, nullptr);
     if (!prompt_str) {
@@ -400,6 +420,7 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
 
     const int32_t n_batch = static_cast<int32_t>(llama_n_batch(handle->ctx));
     int32_t input_tokens = 0;
+    const auto prefill_started = std::chrono::steady_clock::now();
     for (int32_t off = 0; off < n_tokens; off += n_batch) {
         if (handle->cancelled.load(std::memory_order_relaxed)) {
             LOGD("Cancelled during prefill at %d/%d tokens", off, n_tokens);
@@ -417,6 +438,12 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
         }
         input_tokens += chunk;
     }
+    const auto prefill_finished = std::chrono::steady_clock::now();
+    const auto prefill_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        prefill_finished - prefill_started
+    ).count();
+    LOGD("Text prefill: input_tokens=%d, duration_ms=%lld",
+         input_tokens, (long long)prefill_ms);
 
     const int32_t context_after_prefill =
         llama_memory_seq_pos_max(llama_get_memory(handle->ctx), 0) + 1;
@@ -425,9 +452,13 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
     const bool context_limited = generation_limit < max_tokens;
 
     int32_t generated = 0;
-    std::string utf8_buf;
+    int32_t callback_tokens = 0;
+    std::string utf8_pending;
+    std::string callback_buffer;
     const char * stop_reason = nullptr;
     const char * failure = nullptr;
+    bool consumer_closed = false;
+    const auto decode_started = std::chrono::steady_clock::now();
     while (generated < generation_limit) {
         if (handle->cancelled.load(std::memory_order_relaxed)) {
             LOGD("Generation cancelled at %d tokens", generated);
@@ -465,21 +496,63 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
         }
         generated++;
 
-        utf8_buf.append(piece);
-        size_t emit_len = utf8_complete_prefix_len(utf8_buf);
-        if (emit_len > 0) {
-            if (!report_token(env, callback, callbacks, utf8_buf.data(), emit_len)) {
+        utf8_pending.append(piece);
+        const size_t complete_len = utf8_complete_prefix_len(utf8_pending);
+        if (complete_len > 0) {
+            callback_buffer.append(utf8_pending.data(), complete_len);
+            utf8_pending.erase(0, complete_len);
+        }
+        callback_tokens++;
+        while (!callback_buffer.empty() &&
+               (callback_tokens >= CALLBACK_TOKEN_BATCH ||
+                callback_buffer.size() >= CALLBACK_BYTE_BATCH)) {
+            size_t emit_len = std::min(callback_buffer.size(), CALLBACK_BYTE_BATCH);
+            while (emit_len < callback_buffer.size() && emit_len > 0 &&
+                   (static_cast<unsigned char>(callback_buffer[emit_len]) & 0xC0) == 0x80) {
+                emit_len--;
+            }
+            if (!report_token(
+                    env, callback, callbacks,
+                    callback_buffer.data(), emit_len
+                )) {
                 failure = "Stream consumer closed";
+                consumer_closed = true;
                 break;
             }
-            utf8_buf.erase(0, emit_len);
+            callback_buffer.erase(0, emit_len);
+            callback_tokens = 0;
         }
+        if (consumer_closed) break;
     }
 
     if (!failure && !stop_reason) {
         stop_reason = context_limited ? "context_full" : "max_tokens";
     }
-    if (!failure && !utf8_buf.empty()) failure = "Generated incomplete UTF-8 output";
+    if (!consumer_closed && !callback_buffer.empty()) {
+        if (!report_token(
+                env, callback, callbacks,
+                callback_buffer.data(), callback_buffer.size()
+            )) {
+            failure = "Stream consumer closed";
+            consumer_closed = true;
+        }
+    }
+    if (!failure && !utf8_pending.empty()) failure = "Generated incomplete UTF-8 output";
+    const auto decode_finished = std::chrono::steady_clock::now();
+    const auto decode_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        decode_finished - decode_started
+    ).count();
+    const auto request_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        decode_finished - request_started
+    ).count();
+    const double tokens_per_second = decode_ms > 0
+        ? generated * 1000.0 / static_cast<double>(decode_ms)
+        : 0.0;
+    LOGD("Text decode: output_tokens=%d, duration_ms=%lld, tokens_per_second=%.2f, terminal=%s",
+         generated, (long long)decode_ms, tokens_per_second,
+         failure ? "error" : stop_reason);
+    LOGD("Text request: input_tokens=%d, output_tokens=%d, total_ms=%lld",
+         input_tokens, generated, (long long)request_ms);
     llama_sampler_free(smpl);
     if (failure) {
         return report_error(env, callback, callbacks, failure, input_tokens, generated);
@@ -582,6 +655,7 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
     }
 
     handle->cancelled.store(false, std::memory_order_relaxed);
+    const auto request_started = std::chrono::steady_clock::now();
 
     const char * prompt_str = env->GetStringUTFChars(prompt, nullptr);
     if (!prompt_str) {
@@ -592,6 +666,8 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
     if (prompt_text.empty()) {
         return report_error(env, callback, callbacks, "Prompt is empty", 0, 0);
     }
+
+    const auto prefill_started = std::chrono::steady_clock::now();
 
     // --- Build bitmaps from image paths ---
     jint n_images = env->GetArrayLength(image_paths);
@@ -623,7 +699,7 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
         bitmaps[i] = mtmd_helper_bitmap_init_from_file(handle->mtmd_ctx,
                                                        image_path_storage[i].c_str());
         if (!bitmaps[i]) {
-            LOGE("Failed to load image: %s", image_path_storage[i].c_str());
+            LOGE("Failed to load image at index %d of %d", i, n_images);
             // Clean up already-loaded bitmaps
             for (jint j = 0; j < i; j++) {
                 if (bitmaps[j]) mtmd_bitmap_free(bitmaps[j]);
@@ -691,7 +767,12 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
         );
     }
 
-    LOGD("Multimodal prefill done: n_past=%lld, starting generation", (long long)n_past);
+    const auto prefill_finished = std::chrono::steady_clock::now();
+    const auto prefill_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        prefill_finished - prefill_started
+    ).count();
+    LOGD("Multimodal prefill: input_tokens=%lld, images=%d, duration_ms=%lld",
+         (long long)n_past, n_images, (long long)prefill_ms);
 
     // --- Generation loop (same as text-only path) ---
     auto sparams = llama_sampler_chain_default_params();
@@ -708,9 +789,13 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
     const bool context_limited = generation_limit < max_tokens;
 
     int32_t generated = 0;
-    std::string utf8_buf;
+    int32_t callback_tokens = 0;
+    std::string utf8_pending;
+    std::string callback_buffer;
     const char * stop_reason = nullptr;
     const char * failure = nullptr;
+    bool consumer_closed = false;
+    const auto decode_started = std::chrono::steady_clock::now();
     while (generated < generation_limit) {
         if (handle->cancelled.load(std::memory_order_relaxed)) {
             stop_reason = "cancelled";
@@ -743,21 +828,63 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
         }
         generated++;
 
-        utf8_buf.append(piece);
-        size_t emit_len = utf8_complete_prefix_len(utf8_buf);
-        if (emit_len > 0) {
-            if (!report_token(env, callback, callbacks, utf8_buf.data(), emit_len)) {
+        utf8_pending.append(piece);
+        const size_t complete_len = utf8_complete_prefix_len(utf8_pending);
+        if (complete_len > 0) {
+            callback_buffer.append(utf8_pending.data(), complete_len);
+            utf8_pending.erase(0, complete_len);
+        }
+        callback_tokens++;
+        while (!callback_buffer.empty() &&
+               (callback_tokens >= CALLBACK_TOKEN_BATCH ||
+                callback_buffer.size() >= CALLBACK_BYTE_BATCH)) {
+            size_t emit_len = std::min(callback_buffer.size(), CALLBACK_BYTE_BATCH);
+            while (emit_len < callback_buffer.size() && emit_len > 0 &&
+                   (static_cast<unsigned char>(callback_buffer[emit_len]) & 0xC0) == 0x80) {
+                emit_len--;
+            }
+            if (!report_token(
+                    env, callback, callbacks,
+                    callback_buffer.data(), emit_len
+                )) {
                 failure = "Stream consumer closed";
+                consumer_closed = true;
                 break;
             }
-            utf8_buf.erase(0, emit_len);
+            callback_buffer.erase(0, emit_len);
+            callback_tokens = 0;
         }
+        if (consumer_closed) break;
     }
 
     if (!failure && !stop_reason) {
         stop_reason = context_limited ? "context_full" : "max_tokens";
     }
-    if (!failure && !utf8_buf.empty()) failure = "Generated incomplete UTF-8 output";
+    if (!consumer_closed && !callback_buffer.empty()) {
+        if (!report_token(
+                env, callback, callbacks,
+                callback_buffer.data(), callback_buffer.size()
+            )) {
+            failure = "Stream consumer closed";
+            consumer_closed = true;
+        }
+    }
+    if (!failure && !utf8_pending.empty()) failure = "Generated incomplete UTF-8 output";
+    const auto decode_finished = std::chrono::steady_clock::now();
+    const auto decode_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        decode_finished - decode_started
+    ).count();
+    const auto request_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        decode_finished - request_started
+    ).count();
+    const double tokens_per_second = decode_ms > 0
+        ? generated * 1000.0 / static_cast<double>(decode_ms)
+        : 0.0;
+    LOGD("Multimodal decode: output_tokens=%d, duration_ms=%lld, tokens_per_second=%.2f, terminal=%s",
+         generated, (long long)decode_ms, tokens_per_second,
+         failure ? "error" : stop_reason);
+    LOGD("Multimodal request: input_tokens=%lld, output_tokens=%d, total_ms=%lld",
+         (long long)n_past, generated, (long long)request_ms);
     llama_sampler_free(smpl);
     const int32_t input_tokens = static_cast<int32_t>(n_past);
     if (failure) {

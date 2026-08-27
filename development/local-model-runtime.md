@@ -98,7 +98,19 @@ The default resource and every supported locale define the same localized key an
 The setting is device-local: it is excluded from portable Settings export/import and survives a
 Settings `REPLACE`, as specified by [import-export.md](import-export.md).
 
-## 7. Prohibited behavior
+## 7. Native streaming and telemetry
+
+Native text and multimodal decoding check cancellation after every decoded token. Complete UTF-8 is
+delivered through the blocking callback after at most four decoded tokens or 64 complete bytes,
+whichever occurs first. Callback rejection stops generation without retrying rejected bytes. Before
+any other terminal result, all already-decoded complete bytes are delivered; an incomplete final
+UTF-8 sequence is an explicit failure rather than replacement or truncation.
+
+Debug telemetry may record model/context setup time, prefill/decode/request duration, image count,
+token counts, terminal category, and tokens per second. It must never record prompts, generated text,
+message content, model paths, image paths, or other private payloads.
+
+## 8. Prohibited behavior
 
 Never introduce a second Local lock, model cache, lifecycle manager, offload timer, Provider-local
 fallback, per-caller unload callback, or identity definition. Never unload directly from a timer
@@ -106,7 +118,7 @@ without reacquiring the canonical permit and revalidating the idle epoch. Do not
 deadlines across processes, interrupt active native work to honor a deadline, or export this setting.
 Never invent a fallback chat template or bypass the official model-owned Jinja path.
 
-## 8. Required verification
+## 9. Required verification
 
 Focused verification must cover FIFO ordering, no native overlap, cancelled-waiter removal,
 Chat/Embedding/path/context identity changes, unload-before-load, failed replacement, same-identity
@@ -116,6 +128,8 @@ zero-minute behavior, expiry-versus-arrival linearization, and unload through th
 
 Chat-template verification must cover explicit-template enforcement, official Jinja ownership,
 request-level thinking control, UTF-8-safe prompt transfer, and absence of generic fallbacks.
+Native-streaming verification must cover both generation loops, exact batch bounds, UTF-8 boundary
+safety, terminal flushing, callback rejection, per-token cancellation, and content-free telemetry.
 
 Settings tests must cover the exact presets/default/normalization, DataStore read/write, one
 AppContainer binding, Local Advanced placement and slider commit behavior, locale key/placeholder
