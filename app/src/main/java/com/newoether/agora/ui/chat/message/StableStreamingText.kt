@@ -23,14 +23,14 @@ internal fun StableStreamingText(
     fontWeight: FontWeight? = null,
     maxLines: Int = Int.MAX_VALUE,
     overflow: TextOverflow = TextOverflow.Clip,
-    useToolSummaryTailFade: Boolean = false,
+    tailFadeEnabled: Boolean = true,
 ) {
     val content = AnnotatedString(text)
-    val renderedText = if (streaming && useToolSummaryTailFade) {
-        rememberToolSummaryGlyphFade(content = content, color = color, enabled = true)
-    } else {
-        rememberStreamingGlyphFade(content = content, color = color, enabled = streaming)
-    }
+    val renderedText = rememberStreamingGlyphFade(
+        content = content,
+        color = color,
+        enabled = streaming && tailFadeEnabled,
+    )
     Text(
         text = renderedText,
         modifier = modifier,

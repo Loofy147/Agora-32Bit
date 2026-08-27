@@ -278,7 +278,7 @@ private fun ToolActiveContent(text: String, output: String?) {
         streaming = true,
         style = ChatType.metaNormal,
         color = MaterialTheme.colorScheme.primary,
-        useToolSummaryTailFade = true,
+        tailFadeEnabled = false,
     )
     if (!output.isNullOrBlank()) {
         Spacer(Modifier.height(8.dp))

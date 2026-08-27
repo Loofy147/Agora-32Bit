@@ -167,7 +167,7 @@ class ApprovedFeatureSourceContractTest {
     }
 
     @Test
-    fun streamingFadeUsesColorAlphaSpansAcrossMarkdownThinkingAndToolSummaries() {
+    fun streamingFadeKeepsToolSummariesSolid() {
         val root = sourceRoot()
         val fade = source(
             root,
@@ -185,6 +185,10 @@ class ApprovedFeatureSourceContractTest {
             root,
             "com/newoether/agora/ui/chat/message/ToolResultContent.kt",
         )
+        val stableText = source(
+            root,
+            "com/newoether/agora/ui/chat/message/StableStreamingText.kt",
+        )
 
         assertTrue(fade.contains("fun streamingTailAnnotatedString("))
         assertTrue(fade.contains("fun rememberStreamingGlyphFade("))
@@ -195,9 +199,14 @@ class ApprovedFeatureSourceContractTest {
         assertFalse(assets.contains(".stableStreamingGlyphFade("))
         assertTrue(timeline.contains("StableStreamingText("))
         assertTrue(tool.contains("StableStreamingText("))
-        assertTrue(Regex("useToolSummaryTailFade =").findAll(timeline).count() == 2)
-        assertTrue(tool.contains("useToolSummaryTailFade = true"))
-        assertTrue(fade.contains("TOOL_SUMMARY_TAIL_CODE_POINTS = 42"))
+        assertTrue(Regex("tailFadeEnabled =").findAll(timeline).count() == 2)
+        assertTrue(timeline.contains("tailFadeEnabled = false"))
+        assertTrue(timeline.contains("tailFadeEnabled = seg.type != \"tool\""))
+        assertTrue(tool.contains("tailFadeEnabled = false"))
+        assertTrue(stableText.contains("enabled = streaming && tailFadeEnabled"))
+        assertFalse(fade.contains("TOOL_SUMMARY_"))
+        assertFalse(fade.contains("toolSummaryTailAnnotatedString"))
+        assertFalse(fade.contains("rememberToolSummaryGlyphFade"))
         // Document-level birth-time tracking survives node restructures, block promotion, and
         // subtree re-keying. Births begin only when a snapshot is first published, and the tracker
         // retains only the active not-yet-solid suffix with no fixed character-count cap.
