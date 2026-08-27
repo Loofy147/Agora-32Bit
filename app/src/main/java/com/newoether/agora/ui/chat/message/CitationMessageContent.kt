@@ -426,14 +426,15 @@ internal fun citationMarkdownProjection(
     isStreaming: Boolean,
 ): CitationMarkdownProjection? {
     if (answerText.isEmpty()) return null
-    val projection = projectCitationMarkdown(answerText, citations)
     return if (isStreaming) {
-        val markdown = withholdTrailingCitationWrapper(projection.markdown)
+        val markdown = withholdTrailingCitationWrapper(answerText)
         val partialStart = TrailingPlainCitationArtifact.find(markdown)?.range?.first
-        projection.copy(
-            markdown = partialStart?.let { markdown.substring(0, it) } ?: markdown,
+        CitationMarkdownProjection(
+            markdown = CitationPolicy.stripPrivateMarkers(partialStart?.let { markdown.substring(0, it) } ?: markdown),
+            markers = emptyList(),
         )
     } else {
+        val projection = projectCitationMarkdown(answerText, citations)
         projection.copy(markdown = CitationPolicy.stripPrivateMarkers(projection.markdown))
     }
 }

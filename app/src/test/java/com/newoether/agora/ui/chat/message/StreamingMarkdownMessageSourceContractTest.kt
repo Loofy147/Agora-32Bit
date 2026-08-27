@@ -17,6 +17,7 @@ class StreamingMarkdownMessageSourceContractTest {
         val detail = source(root, "SegmentDetailSheet.kt")
         val segments = source(root, "MessageItemSegments.kt")
         val interaction = source(root, "StreamingMarkdownInteractionCommitGate.kt")
+        val lifecycle = source(root, "GenerationLifecycleMotion.kt")
         val selectionHost = File(root, "com/newoether/agora/util/NoOpBringIntoView.kt").readText()
 
         assertTrue(wrapper.contains("internal fun StreamingMarkdownMessage("))
@@ -56,6 +57,8 @@ class StreamingMarkdownMessageSourceContractTest {
         assertTrue(incremental.contains("textDeltas = pending.textDeltas,"))
         assertTrue(incremental.contains("textDeltas = published.textDeltas,"))
         assertTrue(incremental.contains("LaunchedEffect(state, content, isStreaming, textDeltas)"))
+        assertTrue(lifecycle.contains("val informationVisible = !isStreaming && !regenerateRequested"))
+        assertTrue(assistant.contains("informationVisible = actionAvailability.informationVisible"))
         assertFalse(incremental.contains("internal class StreamingInteractionCommitGate"))
         assertTrue(interaction.contains("internal class StreamingInteractionCommitGate"))
         assertTrue(wrapper.contains("emptyStreamingTextStyle: TextStyle"))
@@ -163,6 +166,11 @@ class StreamingMarkdownMessageSourceContractTest {
         assertTrue(citation.contains("boundedTrailingCitationWrapperStart("))
         assertTrue(citation.contains("PlainCitationArtifact.findAll(answerText)"))
         assertTrue(citation.contains("CitationPolicy.stripPrivateMarkers(projection.markdown)"))
+        val projectionPolicy = citation.substringAfter("internal fun citationMarkdownProjection(")
+            .substringBefore("internal fun citationRecordsForAnswerSlice(")
+        assertTrue(projectionPolicy.indexOf("if (isStreaming)") <
+            projectionPolicy.indexOf("projectCitationMarkdown(answerText, citations)"))
+        assertTrue(projectionPolicy.contains("markers = emptyList()"))
         assertFalse(citation.contains("answerText.lastIndexOf(\"([\")"))
     }
 
