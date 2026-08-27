@@ -881,7 +881,8 @@
     <string name="file_unsupported_title">الملف غير مدعوم</string>
     <string name="file_unknown_type">نوع ملف غير معروف</string>
     <string name="file_unsupported_type">نوع ملف غير مدعوم: %1$s</string>
-    <string name="file_too_large">الملف كبير جدًا (بحد أقصى 20 ميجابايت)</string>
+    <string name="file_too_large">الملف كبير جدًا (بحد أقصى 100 MiB)</string>
+    <string name="file_sandbox_required">ثبّت Local Sandbox وفعّله لإرفاق هذا الملف.</string>
     <string name="attachment_copy_failed_image">فشل تحميل الصورة</string>
     <string name="attachment_copy_failed_file">فشل تحميل الملف</string>
     <string name="pdf_render_failed">فشل عرض ملف PDF</string>

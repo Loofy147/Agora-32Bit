@@ -936,7 +936,8 @@
     <string name="file_unsupported_title">File Not Supported</string>
     <string name="file_unknown_type">Unknown file type</string>
     <string name="file_unsupported_type">Unsupported file type: %1$s</string>
-    <string name="file_too_large">File too large (max 20 MB)</string>
+    <string name="file_too_large">File too large (max 100 MiB)</string>
+    <string name="file_sandbox_required">Install and enable Local Sandbox to attach this file.</string>
     <string name="attachment_copy_failed_image">Failed to load image</string>
     <string name="attachment_copy_failed_file">Failed to load file</string>
     <string name="pdf_render_failed">Failed to render PDF</string>

@@ -881,7 +881,8 @@
     <string name="file_unsupported_title">Datei nicht unterstützt</string>
     <string name="file_unknown_type">Unbekannter Dateityp</string>
     <string name="file_unsupported_type">Nicht unterstützter Dateityp: %1$s</string>
-    <string name="file_too_large">Datei zu groß (max. 20 MB)</string>
+    <string name="file_too_large">Datei zu groß (max. 100 MiB)</string>
+    <string name="file_sandbox_required">Installiere und aktiviere Local Sandbox, um diese Datei anzuhängen.</string>
     <string name="attachment_copy_failed_image">Bild konnte nicht geladen werden</string>
     <string name="attachment_copy_failed_file">Datei konnte nicht geladen werden</string>
     <string name="pdf_render_failed">PDF konnte nicht gerendert werden</string>

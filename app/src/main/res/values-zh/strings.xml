@@ -924,7 +924,8 @@
     <string name="file_unsupported_title">不支持的文件</string>
     <string name="file_unknown_type">未知文件类型</string>
     <string name="file_unsupported_type">不支持的文件类型: %1$s</string>
-    <string name="file_too_large">文件过大 (最大 20 MB)</string>
+    <string name="file_too_large">文件过大（最大 100 MiB）</string>
+    <string name="file_sandbox_required">请安装并开启 Local Sandbox 后重试。</string>
     <string name="attachment_copy_failed_image">图片加载失败</string>
     <string name="attachment_copy_failed_file">文件加载失败</string>
     <string name="pdf_render_failed">PDF 渲染失败</string>

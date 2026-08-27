@@ -814,7 +814,8 @@
     <string name="file_unsupported_title">不支援的檔案</string>
     <string name="file_unknown_type">未知檔案類型</string>
     <string name="file_unsupported_type">不支援的檔案類型: %1$s</string>
-    <string name="file_too_large">檔案過大 (最大 20 MB)</string>
+    <string name="file_too_large">檔案過大（最大 100 MiB）</string>
+    <string name="file_sandbox_required">請安裝並開啟 Local Sandbox 後再試一次。</string>
     <string name="attachment_copy_failed_image">圖片載入失敗</string>
     <string name="attachment_copy_failed_file">檔案載入失敗</string>
     <string name="pdf_render_failed">PDF 渲染失敗</string>

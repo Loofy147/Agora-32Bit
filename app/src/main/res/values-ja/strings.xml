@@ -881,7 +881,8 @@
     <string name="file_unsupported_title">非対応のファイル</string>
     <string name="file_unknown_type">不明なファイル形式</string>
     <string name="file_unsupported_type">非対応のファイル形式: %1$s</string>
-    <string name="file_too_large">ファイルが大きすぎます（最大 20 MB）</string>
+    <string name="file_too_large">ファイルが大きすぎます（最大 100 MiB）</string>
+    <string name="file_sandbox_required">このファイルを添付するには Local Sandbox をインストールして有効にしてください。</string>
     <string name="attachment_copy_failed_image">画像の読み込みに失敗しました</string>
     <string name="attachment_copy_failed_file">ファイルの読み込みに失敗しました</string>
     <string name="pdf_render_failed">PDF のレンダリングに失敗しました</string>

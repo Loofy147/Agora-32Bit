@@ -881,7 +881,8 @@
     <string name="file_unsupported_title">지원되지 않는 파일</string>
     <string name="file_unknown_type">알 수 없는 파일 형식</string>
     <string name="file_unsupported_type">지원되지 않는 파일 형식: %1$s</string>
-    <string name="file_too_large">파일이 너무 큽니다(최대 20 MB)</string>
+    <string name="file_too_large">파일이 너무 큽니다(최대 100 MiB)</string>
+    <string name="file_sandbox_required">이 파일을 첨부하려면 Local Sandbox를 설치하고 활성화하세요.</string>
     <string name="attachment_copy_failed_image">이미지를 불러오지 못했습니다</string>
     <string name="attachment_copy_failed_file">파일을 불러오지 못했습니다</string>
     <string name="pdf_render_failed">PDF 렌더링에 실패했습니다</string>

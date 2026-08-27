@@ -881,7 +881,8 @@
     <string name="file_unsupported_title">Файл не поддерживается</string>
     <string name="file_unknown_type">Неизвестный тип файла</string>
     <string name="file_unsupported_type">Неподдерживаемый тип файла: %1$s</string>
-    <string name="file_too_large">Файл слишком большой (макс. 20 МБ)</string>
+    <string name="file_too_large">Файл слишком большой (макс. 100 МиБ)</string>
+    <string name="file_sandbox_required">Установите и включите Local Sandbox, чтобы прикрепить этот файл.</string>
     <string name="attachment_copy_failed_image">Не удалось загрузить изображение</string>
     <string name="attachment_copy_failed_file">Не удалось загрузить файл</string>
     <string name="pdf_render_failed">Не удалось отрисовать PDF</string>

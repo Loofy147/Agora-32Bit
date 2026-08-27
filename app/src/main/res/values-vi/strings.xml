@@ -883,7 +883,8 @@
     <string name="file_unsupported_title">Tệp không được hỗ trợ</string>
     <string name="file_unknown_type">Loại tệp không xác định</string>
     <string name="file_unsupported_type">Loại tệp không được hỗ trợ: %1$s</string>
-    <string name="file_too_large">Tệp quá lớn (tối đa 20 MB)</string>
+    <string name="file_too_large">Tệp quá lớn (tối đa 100 MiB)</string>
+    <string name="file_sandbox_required">Hãy cài đặt và bật Local Sandbox để đính kèm tệp này.</string>
     <string name="attachment_copy_failed_image">Không thể tải hình ảnh</string>
     <string name="attachment_copy_failed_file">Không thể tải tệp</string>
     <string name="pdf_render_failed">Hiển thị PDF thất bại</string>
