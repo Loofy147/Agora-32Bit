@@ -1,7 +1,10 @@
 package com.newoether.agora.api.local
 
+import com.newoether.agora.api.LlamaGenerationStopReason
 import java.io.File
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -41,15 +44,48 @@ class LocalLlamaOwnershipSourceContractTest {
         val engine = mainSource("com/newoether/agora/api/LlamaChatEngine.kt")
         val native = mainCppSource("llama_chat_jni.cpp")
 
-        assertTrue(engine.contains("trySendBlocking(token)"))
+        assertTrue(engine.contains("trySendBlocking(LlamaGenerationEvent.Text(token)).isSuccess"))
         assertFalse(engine.contains("trySend(token)"))
         assertTrue(native.contains("std::atomic<bool> cancelled"))
         assertFalse(native.contains("volatile bool cancelled"))
     }
 
+    @Test
+    fun `text and multimodal loops decode before lossless dynamic delivery`() {
+        val native = mainCppSource("llama_chat_jni.cpp")
+
+        listOf("nativeChatGenerate", "nativeChatGenerateWithImages").forEach { functionName ->
+            val loop = nativeFunctionSection(native, functionName)
+                .substringAfter("while (generated < max_tokens)")
+            val decode = loop.indexOf("llama_decode")
+            val count = loop.indexOf("generated++")
+            val deliver = loop.indexOf("report_token")
+
+            assertTrue(loop.contains("token_to_piece(handle->vocab"))
+            assertTrue(decode >= 0)
+            assertTrue(count > decode)
+            assertTrue(deliver > count)
+            assertTrue(loop.contains("Generated incomplete UTF-8 output"))
+            assertFalse(loop.contains("llama_synchronize"))
+            assertFalse(loop.contains("char piece[256]"))
+        }
+    }
+
+    @Test
+    fun `native stop reason mapping is closed`() {
+        LlamaGenerationStopReason.entries.forEach { reason ->
+            assertEquals(reason, LlamaGenerationStopReason.fromNative(reason.nativeValue))
+        }
+        assertNull(LlamaGenerationStopReason.fromNative("unknown"))
+    }
+
     private fun functionSection(source: String, functionName: String): String = source
         .substringAfter("fun $functionName(")
         .substringBefore("\n    fun ")
+
+    private fun nativeFunctionSection(source: String, functionName: String): String = source
+        .substringAfter("Java_com_newoether_agora_api_LlamaChatEngine_$functionName(")
+        .substringBefore("\nJNIEXPORT")
 
     private fun mainSource(relativePath: String): String = locateSourceRoot("java")
         .resolve(relativePath)

@@ -596,6 +596,9 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
     }
     std::string prompt_text(prompt_str);
     env->ReleaseStringUTFChars(prompt, prompt_str);
+    if (prompt_text.empty()) {
+        return report_error(env, callback, callbacks, "Prompt is empty", 0, 0);
+    }
 
     // --- Build bitmaps from image paths ---
     jint n_images = env->GetArrayLength(image_paths);
@@ -604,7 +607,22 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
 
     for (jint i = 0; i < n_images; i++) {
         jstring jpath = (jstring)env->GetObjectArrayElement(image_paths, i);
+        if (!jpath) {
+            if (env->ExceptionCheck()) env->ExceptionClear();
+            for (auto & b : bitmaps) if (b) mtmd_bitmap_free(b);
+            return report_error(
+                env, callback, callbacks, "Unable to read image path.", 0, 0
+            );
+        }
         const char * cpath = env->GetStringUTFChars(jpath, nullptr);
+        if (!cpath) {
+            env->DeleteLocalRef(jpath);
+            if (env->ExceptionCheck()) env->ExceptionClear();
+            for (auto & b : bitmaps) if (b) mtmd_bitmap_free(b);
+            return report_error(
+                env, callback, callbacks, "Unable to read image path.", 0, 0
+            );
+        }
         image_path_storage[i] = std::string(cpath);
         env->ReleaseStringUTFChars(jpath, cpath);
         env->DeleteLocalRef(jpath);
@@ -633,6 +651,12 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
     for (auto & b : bitmaps) bitmap_ptrs.push_back(b);
 
     mtmd_input_chunks * chunks = mtmd_input_chunks_init();
+    if (!chunks) {
+        for (auto & b : bitmaps) if (b) mtmd_bitmap_free(b);
+        return report_error(
+            env, callback, callbacks, "Unable to allocate multimodal prompt chunks.", 0, 0
+        );
+    }
     int32_t tok_ret = mtmd_tokenize(handle->mtmd_ctx, chunks, &text_input,
                                     bitmap_ptrs.data(), bitmap_ptrs.size());
     if (tok_ret != 0) {
@@ -646,6 +670,11 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
 
     llama_pos n_past = 0;
     int32_t n_ctx = llama_n_ctx(handle->ctx);
+    if (handle->cancelled.load(std::memory_order_relaxed)) {
+        for (auto & b : bitmaps) if (b) mtmd_bitmap_free(b);
+        mtmd_input_chunks_free(chunks);
+        return report_done(env, callback, callbacks, "cancelled", 0, 0);
+    }
     // The 6th argument is the helper's BATCH size, not the context size: passing n_ctx made it
     // build batches larger than the context's n_batch, which llama_decode rejects.
     int32_t eval_ret = mtmd_helper_eval_chunks(handle->mtmd_ctx, handle->ctx,
@@ -661,6 +690,11 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
         return report_error(
             env, callback, callbacks, "Multimodal prefill failed.",
             static_cast<int32_t>(n_past), 0
+        );
+    }
+    if (handle->cancelled.load(std::memory_order_relaxed)) {
+        return report_done(
+            env, callback, callbacks, "cancelled", static_cast<int32_t>(n_past), 0
         );
     }
 
@@ -690,7 +724,6 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
             break;
         }
 
-        llama_synchronize(handle->ctx);
         llama_token new_token_id = llama_sampler_sample(smpl, handle->ctx, -1);
 
         if (llama_vocab_is_eog(handle->vocab, new_token_id)) {
@@ -698,16 +731,20 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
             break;
         }
 
-        char piece[256];
-        int32_t piece_size = llama_token_to_piece(
-            handle->vocab, new_token_id, piece, sizeof(piece), 0, true
-        );
-        if (piece_size < 0) {
+        std::string piece;
+        if (!token_to_piece(handle->vocab, new_token_id, piece)) {
             failure = "Token conversion failed";
             break;
         }
 
-        utf8_buf.append(piece, piece_size);
+        llama_batch single = llama_batch_get_one(&new_token_id, 1);
+        if (llama_decode(handle->ctx, single) != 0) {
+            failure = "Decode failed";
+            break;
+        }
+        generated++;
+
+        utf8_buf.append(piece);
         size_t emit_len = utf8_complete_prefix_len(utf8_buf);
         if (emit_len > 0) {
             if (!report_token(env, callback, callbacks, utf8_buf.data(), emit_len)) {
@@ -716,15 +753,9 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
             }
             utf8_buf.erase(0, emit_len);
         }
-
-        generated++;
-        llama_batch single = llama_batch_get_one(&new_token_id, 1);
-        if (llama_decode(handle->ctx, single) != 0) {
-            failure = "Decode failed";
-            break;
-        }
     }
 
+    if (!failure && !utf8_buf.empty()) failure = "Generated incomplete UTF-8 output";
     llama_sampler_free(smpl);
     const int32_t input_tokens = static_cast<int32_t>(n_past);
     if (failure) {
