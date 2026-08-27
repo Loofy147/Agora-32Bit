@@ -107,7 +107,7 @@ internal data class OllamaModelInfo(
 
 class OllamaProvider : LlmProvider {
     override val name: String = Constants.PROVIDER_OLLAMA
-    override val defaultBaseUrl: String = "http://localhost:11434"
+    override val defaultBaseUrl: String = ""
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; explicitNulls = false }
 
     override fun generateResponse(
@@ -115,7 +115,6 @@ class OllamaProvider : LlmProvider {
         config: ProviderConfig
     ): Flow<StreamEvent> = flow {
         val baseUrl = config.baseUrl?.trimEnd('/')?.ifBlank { null }
-            ?: defaultBaseUrl.ifEmpty { null }
             ?: return@flow emit(StreamEvent.Error(GenerationError.Configuration("Ollama base URL not configured")))
         val modelName = config.modelId
 
@@ -465,7 +464,9 @@ class OllamaProvider : LlmProvider {
     }.flowOn(Dispatchers.IO)
 
     override suspend fun fetchModels(apiKey: String, baseUrl: String?): List<String> = kotlinx.coroutines.withContext(Dispatchers.IO) {
-        val effectiveBaseUrl = baseUrl?.trimEnd('/')?.ifBlank { null } ?: "http://localhost:11434"
+        val effectiveBaseUrl = requireNotNull(baseUrl?.trimEnd('/')?.ifBlank { null }) {
+            "Ollama base URL not configured"
+        }
         val responseText = HttpClient.fetchModelsResponse("$effectiveBaseUrl/api/tags")
             .requireModelFetchBody()
         val models = decodeModelFetchResponse {
