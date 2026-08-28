@@ -74,6 +74,8 @@ internal class ChatScrollCoordinator internal constructor(
     val messageLifecycleAppearanceRegistry: MessageLifecycleAppearanceRegistry,
     val streamingTailController: StreamingTailController,
 ) {
+    private var userDragRevision: Long = 0L
+
     val absoluteBottomScrollPhase: AbsoluteBottomScrollPhase
         get() = absoluteBottomScrollPhaseState.value
     val isNearAbsoluteBottom: Boolean
@@ -409,6 +411,8 @@ internal class ChatScrollCoordinator internal constructor(
         LaunchedEffect(listState, currentConversationId) {
             listState.interactionSource.interactions.collect { interaction ->
                 if (interaction is DragInteraction.Start) {
+                    userDragRevision =
+                        if (userDragRevision == Long.MAX_VALUE) 1L else userDragRevision + 1L
                     imeBottomAnchorStateHolder.value = reduceImeBottomAnchor(
                         imeBottomAnchorState,
                         ImeBottomAnchorEvent.UserDragStarted,
@@ -519,14 +523,23 @@ internal class ChatScrollCoordinator internal constructor(
                     }
                 }
                 AnimatedScrollDestination.ABSOLUTE_BOTTOM -> {
+                    val attachedAtRequest =
+                        isWithinAbsoluteBottomAttachThreshold ||
+                            streamingTailController.isAttached ||
+                            absoluteBottomScrollPhase.isActive
+                    val userDragRevisionAtRequest = userDragRevision
                     val targetCommitted = try {
                         awaitScrollTargetCommitted(messages, request.targetMessageId)
                     } finally {
                         viewModel.completeAnimatedScroll(request.id)
                     }
                     if (targetCommitted && request.conversationId == currentConversationId) {
-                        val shouldScroll =
-                            !request.attachedOnly || isWithinAbsoluteBottomAttachThreshold
+                        val shouldScroll = shouldHonorAttachedBottomRequest(
+                            attachedOnly = request.attachedOnly,
+                            attachedAtRequest = attachedAtRequest,
+                            userDragRevisionAtRequest = userDragRevisionAtRequest,
+                            currentUserDragRevision = userDragRevision,
+                        )
                         if (shouldScroll) {
                             requestAbsoluteBottomScroll(feedbackSpec = SendFeedbackScrollSpec)
                         }
