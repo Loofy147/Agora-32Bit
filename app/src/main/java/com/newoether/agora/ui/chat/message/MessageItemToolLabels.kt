@@ -443,11 +443,7 @@ private fun completedSummary(
         R.string.tool_shell_job_count,
         presentation.count ?: 0,
     )
-    ToolKind.SHELL_JOB_WAIT -> optionalSubjectSummary(
-        presentation.jobId ?: subject,
-        R.string.tool_waited_shell_job,
-        R.string.tool_waited_shell_job_default,
-    )
+    ToolKind.SHELL_JOB_WAIT -> shellToolSummary(presentation)
     ToolKind.SHELL_JOB_GET -> optionalSubjectSummary(
         presentation.jobId ?: subject,
         R.string.tool_shell_job_status,

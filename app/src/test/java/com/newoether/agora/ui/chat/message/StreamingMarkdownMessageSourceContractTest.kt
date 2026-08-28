@@ -77,6 +77,41 @@ class StreamingMarkdownMessageSourceContractTest {
     }
 
     @Test
+    fun `terminal citation projection keeps one Markdown subtree and anchors size handoff`() {
+        val root = locateMainSourceRoot()
+        val assistant = source(root, "AssistantMessageContent.kt")
+        val timeline = source(root, "MessageItemTimeline.kt")
+        val citation = source(root, "CitationMessageContent.kt")
+        val handoff = source(root, "CitationTerminalProjectionHost.kt")
+        val inlineHost = citation
+            .substringAfter("internal fun CitationInlineContentHost(")
+            .substringBefore("private fun CitationInlineCapsule(")
+
+        assertTrue(assistant.contains("CitationTerminalProjectionHost("))
+        assertTrue(timeline.contains("CitationTerminalProjectionHost("))
+        assertTrue(assistant.contains("presentedProjection, presentedIsStreaming"))
+        assertTrue(timeline.contains("presentedProjection, presentedIsStreaming"))
+        assertTrue(
+            handoff.contains(
+                "LaunchedEffect(animationKey, isStreaming, projection, allowSpatialTransitions)",
+            ),
+        )
+        assertTrue(handoff.contains("currentLayoutMutationStarted(mutationKey)"))
+        assertTrue(handoff.contains("withFrameNanos { }"))
+        assertTrue(handoff.contains("animateContentSize("))
+        assertTrue(
+            handoff.contains(
+                "durationMillis = CITATION_TERMINAL_PROJECTION_SIZE_DURATION_MS",
+            ),
+        )
+        assertTrue(handoff.contains("currentLayoutMutationSettled(mutationKey)"))
+        assertFalse(handoff.contains("AnimatedContent("))
+        assertFalse(handoff.contains("Crossfade("))
+        assertFalse(Regex("content\\(\\)\\s*return").containsMatchIn(inlineHost))
+        assertEquals(1, Regex("content = content").findAll(inlineHost).count())
+    }
+
+    @Test
     fun `finalized virtualized Thinking detail remains selectable without auto scroll`() {
         val detail = source(locateMainSourceRoot(), "SegmentDetailSheet.kt")
         val virtualizedDetail = detail
@@ -122,17 +157,17 @@ class StreamingMarkdownMessageSourceContractTest {
         assertTrue(pillSource.contains("MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)"))
         assertTrue(pillSource.contains("MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)"))
         assertTrue(
-            pillSource.contains(
-                "targetValue = if (error) {\n            MaterialTheme.colorScheme.onSurfaceVariant\n",
-            ),
+            Regex(
+                """targetValue = if \(error\) \{\s*MaterialTheme\.colorScheme\.onSurfaceVariant""",
+            ).containsMatchIn(pillSource),
         )
         assertFalse(pillSource.contains("MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)"))
         assertFalse(pillSource.contains("MaterialTheme.colorScheme.error.copy(alpha = 0.8f)"))
         assertTrue(pillSource.contains(".padding(horizontal = 7.dp)"))
         assertTrue(
-            pillSource.contains(
-                "modifier = Modifier.size(32.dp),\n                contentAlignment = Alignment.Center,",
-            ),
+            Regex(
+                """modifier = Modifier\.size\(32\.dp\),\s*contentAlignment = Alignment\.Center,""",
+            ).containsMatchIn(pillSource),
         )
         assertEquals(
             2,

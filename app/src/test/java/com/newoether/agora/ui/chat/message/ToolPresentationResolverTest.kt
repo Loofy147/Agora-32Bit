@@ -508,6 +508,7 @@ class ToolPresentationResolverTest {
 
         assertEquals(ToolKind.SHELL_JOB_WAIT, terminal.kind)
         assertEquals(ToolPresentationState.COMPLETED, terminal.state)
+        assertEquals(0, terminal.exitCode)
         assertEquals("done", shellOutputText(terminal))
         assertEquals("job-9", terminal.jobId)
 

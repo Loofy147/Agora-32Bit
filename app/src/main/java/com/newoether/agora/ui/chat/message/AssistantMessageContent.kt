@@ -575,36 +575,47 @@ internal fun AssistantMessageContent(
                         .noOpBringIntoView()
                 ) {
                     if (answerContent.isNotEmpty() && !useTimelineSegments) {
-                        CitationInlineContentHost(
+                        CitationTerminalProjectionHost(
+                            animationKey = "${message.id}:answer",
                             projection = answerProjection,
-                            onActivate = onCitationActivate,
-                        ) {
-                            if (compactAnswerAppearanceKey != null) {
-                                AnimatedTimelineBlockAppearance(
-                                    animationKey = compactAnswerAppearanceKey,
-                                    appearanceRegistry = segmentAppearanceRegistry,
-                                    isStreaming = isStreaming,
-                                ) {
-                                    StreamingMarkdownMessage(
-                                        content = answerContent,
+                            isStreaming = isStreaming,
+                            onLayoutMutationStarted = onLayoutMutationStarted,
+                            onLayoutMutationSettled = onLayoutMutationSettled,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { presentedProjection, presentedIsStreaming ->
+                            val presentedContent =
+                                presentedProjection?.markdown ?: answerBodyText.orEmpty()
+                            CitationInlineContentHost(
+                                projection = presentedProjection,
+                                onActivate = onCitationActivate,
+                            ) {
+                                if (compactAnswerAppearanceKey != null) {
+                                    AnimatedTimelineBlockAppearance(
+                                        animationKey = compactAnswerAppearanceKey,
+                                        appearanceRegistry = segmentAppearanceRegistry,
                                         isStreaming = isStreaming,
+                                    ) {
+                                        StreamingMarkdownMessage(
+                                            content = presentedContent,
+                                            isStreaming = presentedIsStreaming,
+                                            renderContext = renderContext,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            selectionEnabled = !presentedIsStreaming,
+                                            textDeltas = answerTextDeltas,
+                                            fadeTracker = answerFadeTracker,
+                                        )
+                                    }
+                                } else {
+                                    StreamingMarkdownMessage(
+                                        content = presentedContent,
+                                        isStreaming = presentedIsStreaming,
                                         renderContext = renderContext,
                                         modifier = Modifier.fillMaxWidth(),
-                                        selectionEnabled = !isStreaming,
+                                        selectionEnabled = !presentedIsStreaming,
                                         textDeltas = answerTextDeltas,
                                         fadeTracker = answerFadeTracker,
                                     )
                                 }
-                            } else {
-                                StreamingMarkdownMessage(
-                                    content = answerContent,
-                                    isStreaming = isStreaming,
-                                    renderContext = renderContext,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    selectionEnabled = !isStreaming,
-                                    textDeltas = answerTextDeltas,
-                                    fadeTracker = answerFadeTracker,
-                                )
                             }
                         }
                     }

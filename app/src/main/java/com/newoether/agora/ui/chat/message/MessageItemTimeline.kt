@@ -703,7 +703,6 @@ internal fun TimelineSegmentsContent(
                             ),
                             isStreaming = answerIsStreaming,
                         )
-                        val answerContent = citationProjection?.markdown ?: seg.content
                         val answerAppearanceKey =
                             "${segmentAppearanceKey(message.id, index, seg)}:timeline"
                         val answerFadeTracker =
@@ -718,21 +717,32 @@ internal fun TimelineSegmentsContent(
                                     .fillMaxWidth()
                                     .padding(top = if (index == 0) 0.dp else 6.dp)
                             ) {
-                                CitationInlineContentHost(
+                                CitationTerminalProjectionHost(
+                                    animationKey = answerAppearanceKey,
                                     projection = citationProjection,
-                                    onActivate = onCitationActivate,
-                                ) {
-                                    StreamingMarkdownMessage(
-                                        content = answerContent,
-                                        isStreaming = answerIsStreaming,
-                                        renderContext = renderContext,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .noOpBringIntoView(),
-                                        selectionEnabled = !answerIsStreaming,
-                                        textDeltas = seg.streamingTextDeltas,
-                                        fadeTracker = answerFadeTracker,
-                                    )
+                                    isStreaming = answerIsStreaming,
+                                    onLayoutMutationStarted = onLayoutMutationStarted,
+                                    onLayoutMutationSettled = onLayoutMutationSettled,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) { presentedProjection, presentedIsStreaming ->
+                                    val presentedContent =
+                                        presentedProjection?.markdown ?: seg.content
+                                    CitationInlineContentHost(
+                                        projection = presentedProjection,
+                                        onActivate = onCitationActivate,
+                                    ) {
+                                        StreamingMarkdownMessage(
+                                            content = presentedContent,
+                                            isStreaming = presentedIsStreaming,
+                                            renderContext = renderContext,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .noOpBringIntoView(),
+                                            selectionEnabled = !presentedIsStreaming,
+                                            textDeltas = seg.streamingTextDeltas,
+                                            fadeTracker = answerFadeTracker,
+                                        )
+                                    }
                                 }
                             }
                         }
