@@ -270,11 +270,11 @@
     <string name="prompts_delete_text">Вы уверены, что хотите удалить \'%1$s\'? Это действие нельзя отменить.</string>
     <string name="template_title_required">Требуется заголовок</string>
     <string name="template_tab_system">Система</string>
-    <string name="template_tab_prepend">Префикс</string>
-    <string name="template_tab_postpend">Суффикс</string>
-    <string name="template_tab_system_desc">Отправляется как системная инструкция.</string>
-    <string name="template_tab_prepend_desc">Вставляется перед каждым сообщением пользователя.</string>
-    <string name="template_tab_postpend_desc">Вставляется после каждого сообщения пользователя.</string>
+    <string name="template_tab_user">Пользователь</string>
+    <string name="template_tab_assistant">Ассистент</string>
+    <string name="template_tab_system_desc">Определяет системное сообщение, отправляемое модели.</string>
+    <string name="template_tab_user_desc">Определяет структуру вокруг каждого обычного сообщения пользователя.</string>
+    <string name="template_tab_assistant_desc">Определяет структуру вокруг каждого обычного сообщения ассистента.</string>
     <string name="template_empty_hint">Нет элементов. Добавьте текст или переменные ниже.</string>
     <string name="template_add_text">Добавить текст</string>
     <string name="template_add_variable">Добавить переменную</string>

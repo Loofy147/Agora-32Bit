@@ -6,6 +6,7 @@ import com.newoether.agora.data.PredefinedVariables
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.MessageStatus
+import com.newoether.agora.model.ModelId
 import com.newoether.agora.model.Participant
 import com.newoether.agora.model.RunEndReason
 import com.newoether.agora.model.RunStatus
@@ -178,26 +179,62 @@ internal class ToolRoundHistoryCompactor {
     }
 }
 
+internal fun applyMessageTemplatesToMessages(
+    messages: List<ChatMessage>,
+    userPrepend: String?,
+    userPostpend: String?,
+    assistantPrepend: String? = null,
+    assistantPostpend: String? = null,
+): List<ChatMessage> {
+    if (
+        userPrepend == null && userPostpend == null &&
+        assistantPrepend == null && assistantPostpend == null
+    ) return messages
+    val timeSdf = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
+    val sentDateSdf = java.text.SimpleDateFormat(
+        PredefinedVariables.SENT_DATE_PATTERN,
+        java.util.Locale.US,
+    )
+    return messages.map { message ->
+        val isSpecialMessage =
+            message.id.startsWith(Constants.TOOL_MSG_PREFIX) ||
+                message.id.startsWith(Constants.RESULT_MSG_PREFIX) ||
+                message.id.startsWith(Constants.COMPACT_MSG_PREFIX) ||
+                message.id.startsWith("context_summary_") ||
+                message.id.startsWith("api_initial_user_") ||
+                message.id.startsWith("api_compact_continuation_")
+        val template = when {
+            isSpecialMessage || message.text.isEmpty() -> null
+            message.participant == Participant.USER -> userPrepend to userPostpend
+            message.participant == Participant.MODEL -> assistantPrepend to assistantPostpend
+            else -> null
+        } ?: return@map message
+        val timestamp = java.util.Date(message.timestamp)
+        val messageModelId = message.modelName
+            ?.takeIf(String::isNotBlank)
+            ?.let { ModelId.parse(it).modelName }
+            .orEmpty()
+        fun String?.resolveMessageVariables(): String = this
+            ?.replace("{${PredefinedVariables.SENT_TIME}}", timeSdf.format(timestamp))
+            ?.replace("{${PredefinedVariables.SENT_DATE}}", sentDateSdf.format(timestamp))
+            ?.replace("{${PredefinedVariables.MESSAGE_MODEL_ID}}", messageModelId)
+            .orEmpty()
+        val before = template.first.resolveMessageVariables()
+        val after = template.second.resolveMessageVariables()
+        if (before.isEmpty() && after.isEmpty()) message
+        else message.copy(text = before + message.text + after)
+    }
+}
+
 internal fun applyUserTemplateToMessages(
     messages: List<ChatMessage>,
     prepend: String?,
     postpend: String?
-): List<ChatMessage> {
-    if (prepend == null && postpend == null) return messages
-    val timeSdf = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
-    val sentDateSdf = java.text.SimpleDateFormat(PredefinedVariables.SENT_DATE_PATTERN, java.util.Locale.US)
-    return messages.map { msg ->
-        val isToolMessage = msg.id.startsWith(Constants.TOOL_MSG_PREFIX) ||
-            msg.id.startsWith(Constants.RESULT_MSG_PREFIX)
-        if (!isToolMessage && msg.participant == Participant.USER && msg.text.isNotEmpty()) {
-            val ts = java.util.Date(msg.timestamp)
-            val rp = prepend?.replace("{sent_time}", timeSdf.format(ts))?.replace("{sent_date}", sentDateSdf.format(ts)) ?: ""
-            val ra = postpend?.replace("{sent_time}", timeSdf.format(ts))?.replace("{sent_date}", sentDateSdf.format(ts)) ?: ""
-            if (rp.isEmpty() && ra.isEmpty()) msg
-            else msg.copy(text = rp + msg.text + ra)
-        } else msg
-    }
-}
+): List<ChatMessage> = applyMessageTemplatesToMessages(
+    messages = messages,
+    userPrepend = prepend,
+    userPostpend = postpend,
+)
 
 /**
  * Exact API-only history projection shared by dispatch, Context accounting, and Auto Compact.
@@ -211,15 +248,19 @@ internal fun projectGenerationInputMessages(
     includeImages: Boolean,
     userPrepend: String?,
     userPostpend: String?,
+    assistantPrepend: String? = null,
+    assistantPostpend: String? = null,
     initialUserPrompt: String? = null,
 ): List<ChatMessage> {
-    val projected = applyUserTemplateToMessages(
+    val projected = applyMessageTemplatesToMessages(
         messages = projectToolResultImagesToUserMessage(
             messages = projectAssistantImagesToLatestUserMessage(messages, includeImages),
             includeImages = includeImages,
         ),
-        prepend = userPrepend,
-        postpend = userPostpend,
+        userPrepend = userPrepend,
+        userPostpend = userPostpend,
+        assistantPrepend = assistantPrepend,
+        assistantPostpend = assistantPostpend,
     ).let { apiMessages ->
         if (includeImages) {
             apiMessages

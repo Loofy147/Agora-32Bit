@@ -270,11 +270,11 @@
     <string name="prompts_delete_text">¿Seguro que quieres eliminar \'%1$s\'? Esta acción no se puede deshacer.</string>
     <string name="template_title_required">El título es obligatorio</string>
     <string name="template_tab_system">Sistema</string>
-    <string name="template_tab_prepend">Prefijo</string>
-    <string name="template_tab_postpend">Sufijo</string>
-    <string name="template_tab_system_desc">Se envía como instrucción del sistema.</string>
-    <string name="template_tab_prepend_desc">Se inserta antes de cada mensaje del usuario.</string>
-    <string name="template_tab_postpend_desc">Se inserta después de cada mensaje del usuario.</string>
+    <string name="template_tab_user">Usuario</string>
+    <string name="template_tab_assistant">Asistente</string>
+    <string name="template_tab_system_desc">Define el mensaje del sistema enviado al modelo.</string>
+    <string name="template_tab_user_desc">Define la estructura alrededor de cada mensaje normal del usuario.</string>
+    <string name="template_tab_assistant_desc">Define la estructura alrededor de cada mensaje normal del asistente.</string>
     <string name="template_empty_hint">No hay elementos. Añade texto o variables abajo.</string>
     <string name="template_add_text">Añadir texto</string>
     <string name="template_add_variable">Añadir variable</string>

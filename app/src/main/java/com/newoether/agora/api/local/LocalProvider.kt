@@ -6,7 +6,6 @@ import android.content.Context
 import com.newoether.agora.R
 import com.newoether.agora.util.DebugLog
 import com.newoether.agora.api.util.ThinkingParser
-import com.newoether.agora.api.util.prepareMessages
 import com.newoether.agora.data.repository.SettingsRepository
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.Participant
@@ -55,9 +54,10 @@ class LocalProvider(
         // Build template messages, collecting images per-message with <__media__> markers
         val imagePaths = mutableListOf<String>()
         val localContextWindow = minOf(config.maxContextWindow, modelConfig.nCtx).coerceAtLeast(1)
+        val resolvedRequest = config.copy(maxContextWindow = localContextWindow).resolveRequest(messages)
         val templateMessages = buildTemplateMessages(
-            prepareMessages(messages, localContextWindow),
-            config.systemPrompt,
+            resolvedRequest.messages,
+            resolvedRequest.systemPrompt,
             imagePaths,
         )
         val hasImages = imagePaths.isNotEmpty()

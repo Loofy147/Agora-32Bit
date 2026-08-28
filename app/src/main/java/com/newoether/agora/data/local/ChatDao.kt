@@ -522,6 +522,7 @@ interface ChatDao : ChatAutomationDao, ChatContextCompactDao, ChatProviderContex
                             tokenCount = message.tokenCount,
                             inputTokenCount = message.inputTokenCount,
                             cachedInputTokenCount = message.cachedInputTokenCount,
+                            cacheWriteInputTokenCount = message.cacheWriteInputTokenCount,
                             uncachedInputTokenCount = message.uncachedInputTokenCount,
                             outputTokenCount = message.outputTokenCount,
                             reasoningTokenCount = message.reasoningTokenCount,

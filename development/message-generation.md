@@ -83,6 +83,9 @@ For every ordinary Provider request:
    initial USER prompt terminates the request, shared request preparation appends `Please continue.`
    as API-only USER input. Consecutive USER input is canonicalized with one blank line while
    preserving the boundary position and following message order.
+   A Compact generation may echo the request-only wrapper. Every streaming UI snapshot, Room
+   checkpoint, and terminal message must normalize complete or partial wrapper markers before
+   publication or persistence, including both `ChatMessage.text` and answer segment content.
 
 `GenerationApiPathBuilder` and the ordinary Provider message projection own this contract.
 Manual/automatic Compact and Recompact use this same ordinary path from their requested graph
@@ -841,7 +844,39 @@ eligible row because of a token estimate before that shared boundary. This optim
 changes database materialization and object lifetime only; it does not change Provider-visible
 ordering, attachment projection, protocol validation, context selection, or failure semantics.
 
-### 9.2 Canonical history and soft token window
+### 9.2 Ordinary-generation system prompt ownership
+For ordinary conversation generation, the complete Provider-visible system prompt is owned by the
+user-selected structured System Prompt template. The request builder may compile that template and
+resolve only the predefined variables that the user explicitly placed in it. It must not append,
+prepend, wrap, or otherwise inject Active Memory, the Skill catalog, runtime metadata, tool guidance,
+application instructions, or any other hidden text outside the template.
+Access settings grant capabilities; they do not grant prompt-injection authority. Enabling Active
+Memory or Skill access may make the corresponding predefined variable resolvable and may expose the
+authorized tools, but content enters the ordinary system prompt only where the user placed that
+variable. Removing a variable from the template must remove that content from the dispatched system
+prompt without a construction-layer fallback.
+Every predefined variable in the structured System Prompt is late-bound for each actual outbound
+Provider API request. The stored template contains only ordered text and variable identities. Editing,
+saving, conversation creation, context preview, queue admission, Run/message graph admission, and
+construction of an immutable generation snapshot must not persist or freeze a resolved value for a
+later request.
+Immediately before each initial request, tool-continuation request, and transport retry is serialized,
+the request path must read the variable's current authorized value and compile the complete system
+prompt for that request. A later request in the same Run may therefore resolve different values.
+`{current_model_id}` resolves once per dispatch from the model selected for that request. The legacy
+`{model_id}` name remains a read-only compatibility alias for the same value. `{message_model_id}` is
+message-scoped: ordinary User and Assistant wrappers resolve it independently from each durable
+message's model identity, using an empty value when none exists. It is not a request-wide substitute.
+Editor previews may use explicit example values only for presentation and must never persist them as
+resolved prompt content.
+Context rollout and token accounting for a dispatched request must consume the exact late-bound system
+prompt instance that the transport serializes. They must not estimate from an earlier resolution and
+then dispatch a newly resolved prompt. Provider adapters receive the compiled prompt and must not
+resolve variables, restore omitted content, or append their own system text.
+This contract applies only to ordinary conversation generation. Dedicated internal generations,
+including Context Compact and title generation, continue to use their own explicitly configured
+special-purpose prompts and are outside this subsection.
+### 9.3 Canonical history and soft token window
 
 The shared Provider preparation order is deterministic:
 
@@ -864,7 +899,7 @@ history rollout. The initial prompt is excluded from retained-history selection 
 exactly once afterward as the final USER request item. It is never merged into Room history,
 persisted, rendered, or treated as a durable retention anchor.
 
-### 9.3 Complete conservative token accounting
+### 9.4 Complete conservative token accounting
 
 Token accounting runs only after the same Provider-visible projection used by dispatch. It includes
 all projected ordinary text, attachment file text, stored image transcription, user templates,

@@ -1,7 +1,5 @@
 package com.newoether.agora.api.anthropic
 
-import android.content.Context
-import android.content.pm.ApplicationInfo
 import com.newoether.agora.api.GenerationError
 import com.newoether.agora.api.ProviderConfig
 import com.newoether.agora.api.StreamEvent
@@ -9,8 +7,11 @@ import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.Participant
 import com.newoether.agora.util.DebugLog
 import com.sun.net.httpserver.HttpServer
+import io.mockk.Runs
 import io.mockk.every
-import io.mockk.mockk
+import io.mockk.just
+import io.mockk.mockkObject
+import io.mockk.unmockkObject
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -19,6 +20,7 @@ import kotlinx.serialization.json.float
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -30,10 +32,15 @@ import java.util.concurrent.CopyOnWriteArrayList
 class AnthropicProviderRequestSerializationTest {
     @Before
     fun disableAndroidLoggingForJvmNetworkTests() {
-        val context = mockk<Context>()
-        every { context.applicationInfo } returns ApplicationInfo().apply { flags = 0 }
-        DebugLog.forceEnabled = false
-        DebugLog.init(context)
+        mockkObject(DebugLog)
+        every { DebugLog.d(any(), any()) } just Runs
+        every { DebugLog.e(any(), any()) } just Runs
+        every { DebugLog.w(any(), any()) } just Runs
+    }
+
+    @After
+    fun restoreAndroidLogging() {
+        unmockkObject(DebugLog)
     }
 
     @Test
@@ -81,6 +88,18 @@ class AnthropicProviderRequestSerializationTest {
         assertEquals(0.7f, body["temperature"]!!.jsonPrimitive.float)
         assertEquals(0.8f, body["top_p"]!!.jsonPrimitive.float)
         assertEquals(777, body["max_tokens"]!!.jsonPrimitive.int)
+    }
+
+    @Test
+    fun requestIncludesTopLevelEphemeralCacheControl() = withServer { server ->
+        val body = server.capture(
+            config(server, "claude-3-5-sonnet-20240620").copy(thinkingEnabled = false),
+        )
+
+        assertEquals(
+            "ephemeral",
+            body["cache_control"]!!.jsonObject["type"]!!.jsonPrimitive.content,
+        )
     }
 
     @Test

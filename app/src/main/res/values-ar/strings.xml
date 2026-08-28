@@ -270,11 +270,11 @@
     <string name="prompts_delete_text">هل أنت متأكد أنك تريد حذف \'%1$s\'؟ لا يمكن التراجع عن هذا الإجراء.</string>
     <string name="template_title_required">العنوان مطلوب</string>
     <string name="template_tab_system">النظام</string>
-    <string name="template_tab_prepend">بادئة</string>
-    <string name="template_tab_postpend">لاحقة</string>
-    <string name="template_tab_system_desc">تُرسل كتعليمة للنظام.</string>
-    <string name="template_tab_prepend_desc">تُدرج قبل كل رسالة مستخدم.</string>
-    <string name="template_tab_postpend_desc">تُدرج بعد كل رسالة مستخدم.</string>
+    <string name="template_tab_user">المستخدم</string>
+    <string name="template_tab_assistant">المساعد</string>
+    <string name="template_tab_system_desc">تحدد رسالة النظام المرسلة إلى النموذج.</string>
+    <string name="template_tab_user_desc">تحدد البنية المحيطة بكل رسالة مستخدم عادية.</string>
+    <string name="template_tab_assistant_desc">تحدد البنية المحيطة بكل رسالة مساعد عادية.</string>
     <string name="template_empty_hint">لا توجد عناصر. أضف نصًا أو متغيرات أدناه.</string>
     <string name="template_add_text">إضافة نص</string>
     <string name="template_add_variable">إضافة متغير</string>

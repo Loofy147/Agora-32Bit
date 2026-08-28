@@ -98,6 +98,7 @@ internal fun projectProviderMessages(
                 totalTokenCount = entity.tokenCount,
                 inputTokenCount = entity.inputTokenCount,
                 cachedInputTokenCount = entity.cachedInputTokenCount,
+                cacheWriteInputTokenCount = entity.cacheWriteInputTokenCount,
                 uncachedInputTokenCount = entity.uncachedInputTokenCount,
                 outputTokenCount = entity.outputTokenCount,
                 reasoningTokenCount = entity.reasoningTokenCount,

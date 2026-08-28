@@ -319,11 +319,11 @@
     <string name="prompts_delete_text">Are you sure you want to delete \'%1$s\'? This action cannot be undone.</string>
     <string name="template_title_required">Title is required</string>
     <string name="template_tab_system">System</string>
-    <string name="template_tab_prepend">Prefix</string>
-    <string name="template_tab_postpend">Suffix</string>
-    <string name="template_tab_system_desc">Sent as the system instruction.</string>
-    <string name="template_tab_prepend_desc">Inserted before each user message.</string>
-    <string name="template_tab_postpend_desc">Inserted after each user message.</string>
+    <string name="template_tab_user">User</string>
+    <string name="template_tab_assistant">Assistant</string>
+    <string name="template_tab_system_desc">Defines the system message sent to the model.</string>
+    <string name="template_tab_user_desc">Defines the structure around each ordinary user message.</string>
+    <string name="template_tab_assistant_desc">Defines the structure around each ordinary assistant message.</string>
     <string name="template_empty_hint">No items. Add text or variables below.</string>
     <string name="template_add_text">Add Text</string>
     <string name="template_add_variable">Add Variable</string>

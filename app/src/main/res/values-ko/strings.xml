@@ -270,11 +270,11 @@
     <string name="prompts_delete_text">\'%1$s\'을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</string>
     <string name="template_title_required">제목이 필요합니다</string>
     <string name="template_tab_system">시스템</string>
-    <string name="template_tab_prepend">접두</string>
-    <string name="template_tab_postpend">접미</string>
-    <string name="template_tab_system_desc">시스템 지시로 전송됩니다.</string>
-    <string name="template_tab_prepend_desc">각 사용자 메시지 앞에 삽입됩니다.</string>
-    <string name="template_tab_postpend_desc">각 사용자 메시지 뒤에 삽입됩니다.</string>
+    <string name="template_tab_user">사용자</string>
+    <string name="template_tab_assistant">어시스턴트</string>
+    <string name="template_tab_system_desc">모델에 전송되는 시스템 메시지를 정의합니다.</string>
+    <string name="template_tab_user_desc">각 일반 사용자 메시지를 둘러싼 구조를 정의합니다.</string>
+    <string name="template_tab_assistant_desc">각 일반 어시스턴트 메시지를 둘러싼 구조를 정의합니다.</string>
     <string name="template_empty_hint">항목이 없습니다. 아래에 텍스트나 변수를 추가하세요.</string>
     <string name="template_add_text">텍스트 추가</string>
     <string name="template_add_variable">변수 추가</string>

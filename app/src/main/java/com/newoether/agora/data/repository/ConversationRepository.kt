@@ -459,6 +459,7 @@ class ConversationRepository(
             tokenCount = tokenCount,
             inputTokenCount = tokenUsage?.inputTokenCount,
             cachedInputTokenCount = tokenUsage?.cachedInputTokenCount,
+            cacheWriteInputTokenCount = tokenUsage?.cacheWriteInputTokenCount,
             uncachedInputTokenCount = tokenUsage?.uncachedInputTokenCount,
             outputTokenCount = tokenUsage?.outputTokenCount,
             reasoningTokenCount = tokenUsage?.reasoningTokenCount,

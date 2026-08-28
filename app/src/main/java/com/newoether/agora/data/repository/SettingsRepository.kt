@@ -17,6 +17,7 @@ import com.newoether.agora.data.CustomProviderIdentityMigration
 import com.newoether.agora.data.CustomProviderNamePolicy
 import com.newoether.agora.data.EmbeddingModelConfig
 import com.newoether.agora.data.LocalChatModelConfig
+import com.newoether.agora.data.PredefinedVariables
 import com.newoether.agora.data.PromptTemplateItem
 import com.newoether.agora.data.SettingsManager
 import com.newoether.agora.data.ShellDeviceConfig
@@ -346,11 +347,18 @@ class SettingsRepository(
 
     // System prompts
     fun addSystemPrompt(
-        title: String, systemItems: List<PromptTemplateItem>,
-        userPrependItems: List<PromptTemplateItem>, userPostpendItems: List<PromptTemplateItem>
+        title: String,
+        systemItems: List<PromptTemplateItem>,
+        userItems: List<PromptTemplateItem>,
+        assistantItems: List<PromptTemplateItem>,
     ) {
         scope.launch {
-            val newList = systemPrompts.value + SystemPromptEntry(title = title, systemItems = systemItems, userPrependItems = userPrependItems, userPostpendItems = userPostpendItems)
+            val newList = systemPrompts.value + SystemPromptEntry(
+                title = title,
+                systemItems = systemItems,
+                userItems = PredefinedVariables.normalizeMessageTemplate(userItems),
+                assistantItems = PredefinedVariables.normalizeMessageTemplate(assistantItems),
+            )
             settingsManager.saveSystemPrompts(newList)
             if (activeSystemPromptId.value == null) settingsManager.setActiveSystemPromptId(newList.last().id)
         }
@@ -365,11 +373,28 @@ class SettingsRepository(
     }
 
     fun updateSystemPrompt(
-        id: String, title: String, systemItems: List<PromptTemplateItem>,
-        userPrependItems: List<PromptTemplateItem>, userPostpendItems: List<PromptTemplateItem>
+        id: String,
+        title: String,
+        systemItems: List<PromptTemplateItem>,
+        userItems: List<PromptTemplateItem>,
+        assistantItems: List<PromptTemplateItem>,
     ) {
         scope.launch {
-            settingsManager.saveSystemPrompts(systemPrompts.value.map { if (it.id == id) it.copy(title = title, content = "", systemItems = systemItems, userPrependItems = userPrependItems, userPostpendItems = userPostpendItems) else it })
+            settingsManager.saveSystemPrompts(systemPrompts.value.map { entry ->
+                if (entry.id == id) {
+                    entry.copy(
+                        title = title,
+                        content = "",
+                        systemItems = systemItems,
+                        userItems = PredefinedVariables.normalizeMessageTemplate(userItems),
+                        assistantItems = PredefinedVariables.normalizeMessageTemplate(assistantItems),
+                        userPrependItems = emptyList(),
+                        userPostpendItems = emptyList(),
+                    )
+                } else {
+                    entry
+                }
+            })
         }
     }
 

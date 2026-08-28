@@ -270,11 +270,11 @@
     <string name="prompts_delete_text">\'%1$s\' を削除してもよろしいですか? この操作は取り消せません。</string>
     <string name="template_title_required">タイトルは必須です</string>
     <string name="template_tab_system">システム</string>
-    <string name="template_tab_prepend">前置</string>
-    <string name="template_tab_postpend">後置</string>
-    <string name="template_tab_system_desc">システム指示として送信されます。</string>
-    <string name="template_tab_prepend_desc">各ユーザーメッセージの前に挿入されます。</string>
-    <string name="template_tab_postpend_desc">各ユーザーメッセージの後に挿入されます。</string>
+    <string name="template_tab_user">ユーザー</string>
+    <string name="template_tab_assistant">アシスタント</string>
+    <string name="template_tab_system_desc">モデルに送信するシステムメッセージを定義します。</string>
+    <string name="template_tab_user_desc">通常の各ユーザーメッセージを囲む構造を定義します。</string>
+    <string name="template_tab_assistant_desc">通常の各アシスタントメッセージを囲む構造を定義します。</string>
     <string name="template_empty_hint">項目がありません。下にテキストまたは変数を追加してください。</string>
     <string name="template_add_text">テキストを追加</string>
     <string name="template_add_variable">変数を追加</string>

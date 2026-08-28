@@ -453,7 +453,7 @@ internal class MessageGenerationController(
                     runId = preflightRunId,
                     modelId = selectedModelId,
                 )
-                val fixedTokenCost = generationManagerProvider().fixedContextTokenCost(
+                val fixedTokenCost = generationManagerProvider().resolvedFixedContextTokenCost(
                     snapshot.config,
                     snapshot.context,
                 )

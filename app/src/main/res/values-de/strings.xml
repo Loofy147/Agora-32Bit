@@ -270,11 +270,11 @@
     <string name="prompts_delete_text">Möchtest du \'%1$s\' wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.</string>
     <string name="template_title_required">Titel ist erforderlich</string>
     <string name="template_tab_system">System</string>
-    <string name="template_tab_prepend">Präfix</string>
-    <string name="template_tab_postpend">Suffix</string>
-    <string name="template_tab_system_desc">Wird als Systemanweisung gesendet.</string>
-    <string name="template_tab_prepend_desc">Wird vor jeder Nutzernachricht eingefügt.</string>
-    <string name="template_tab_postpend_desc">Wird nach jeder Nutzernachricht eingefügt.</string>
+    <string name="template_tab_user">Benutzer</string>
+    <string name="template_tab_assistant">Assistent</string>
+    <string name="template_tab_system_desc">Definiert die an das Modell gesendete Systemnachricht.</string>
+    <string name="template_tab_user_desc">Definiert die Struktur um jede normale Benutzernachricht.</string>
+    <string name="template_tab_assistant_desc">Definiert die Struktur um jede normale Assistentennachricht.</string>
     <string name="template_empty_hint">Keine Elemente. Füge unten Text oder Variablen hinzu.</string>
     <string name="template_add_text">Text hinzufügen</string>
     <string name="template_add_variable">Variable hinzufügen</string>

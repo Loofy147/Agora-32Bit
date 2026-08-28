@@ -88,6 +88,7 @@ internal fun MessageEntity.toUiChatMessage(
                 totalTokenCount = tokenCount,
                 inputTokenCount = inputTokenCount,
                 cachedInputTokenCount = cachedInputTokenCount,
+                cacheWriteInputTokenCount = cacheWriteInputTokenCount,
                 uncachedInputTokenCount = uncachedInputTokenCount,
                 outputTokenCount = outputTokenCount,
                 reasoningTokenCount = reasoningTokenCount,

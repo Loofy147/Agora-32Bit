@@ -5,7 +5,6 @@ import com.newoether.agora.api.*
 import com.newoether.agora.util.DebugLog
 import com.newoether.agora.api.util.StreamingThinkTagParser
 import com.newoether.agora.api.util.buildToolCallId
-import com.newoether.agora.api.util.prepareMessages
 import com.newoether.agora.api.util.RequestFormatException
 import com.newoether.agora.api.util.ProviderRetryPolicy
 import com.newoether.agora.api.util.StreamTermination
@@ -123,15 +122,13 @@ class OllamaProvider : LlmProvider {
             ?: return@flow emit(StreamEvent.Error(GenerationError.Configuration("Ollama base URL not configured")))
         val modelName = config.modelId
 
-        val validatedPath = prepareMessages(messages, config.maxContextWindow)
+        fun buildApiMessages(resolvedRequest: ProviderRequestInput): List<OllamaMessage> {
+            val apiMessages = mutableListOf<OllamaMessage>()
+            if (!resolvedRequest.systemPrompt.isNullOrBlank()) {
+                apiMessages.add(OllamaMessage(role = "system", content = resolvedRequest.systemPrompt))
+            }
 
-        val apiMessages = mutableListOf<OllamaMessage>()
-        if (!config.systemPrompt.isNullOrBlank()) {
-            apiMessages.add(OllamaMessage(role = "system", content = config.systemPrompt))
-        }
-
-
-        apiMessages.addAll(validatedPath.flatMap { msg ->
+            apiMessages.addAll(resolvedRequest.messages.flatMap { msg ->
             val entries = mutableListOf<OllamaMessage>()
 
             // tool_ messages: assistant turn with tool_calls (and thinking from segments)
@@ -208,7 +205,9 @@ class OllamaProvider : LlmProvider {
                 images = images?.takeIf { it.isNotEmpty() }
             ))
             entries
-        })
+            })
+            return apiMessages
+        }
 
         // Generation settings previously never reached Ollama (the options field stayed null,
         // silently ignoring the user's temperature/top_p/max-tokens configuration).
@@ -237,9 +236,9 @@ class OllamaProvider : LlmProvider {
             JsonPrimitive(config.thinkingEnabled)
         }
 
-        val requestBody = OllamaChatRequest(
+        fun buildRequestBody(resolvedRequest: ProviderRequestInput) = OllamaChatRequest(
             model = config.modelId,
-            messages = apiMessages,
+            messages = buildApiMessages(resolvedRequest),
             stream = true,
             options = options,
             tools = config.tools,
@@ -248,24 +247,11 @@ class OllamaProvider : LlmProvider {
 
         try {
             thinkViolation?.let { throw RequestFormatException(name, listOf(it)) }
-            requestBody.requireValidWireFormat()
             val url = "$baseUrl/api/chat"
             val headers = mutableMapOf("Content-Type" to "application/json")
             if (config.apiKey.isNotEmpty()) {
                 headers["Authorization"] = "Bearer ${config.apiKey}"
             }
-            val requestBodyJson = json.encodeToString(OllamaChatRequest.serializer(), requestBody)
-            requireValidSerializedRequest(
-                provider = "Ollama",
-                body = requestBodyJson,
-                requiredStringFields = setOf("model"),
-                requiredArrayFields = setOf("messages"),
-            )
-            DebugLog.d(
-                "AgoraAPI",
-                "[Ollama] request model=${config.modelId} messages=${apiMessages.size} " +
-                    "tools=${config.tools?.size ?: 0}",
-            )
             val maxAttempts = ProviderRetryPolicy.MAX_ATTEMPTS
             val retryableCodes = setOf(401, 429, 502, 503, 504)
             var attempt = 0
@@ -273,6 +259,20 @@ class OllamaProvider : LlmProvider {
 
             while (attempt < maxAttempts && !completed) {
                 attempt++
+                val requestBody = buildRequestBody(config.resolveRequest(messages))
+                requestBody.requireValidWireFormat()
+                val requestBodyJson = json.encodeToString(OllamaChatRequest.serializer(), requestBody)
+                requireValidSerializedRequest(
+                    provider = "Ollama",
+                    body = requestBodyJson,
+                    requiredStringFields = setOf("model"),
+                    requiredArrayFields = setOf("messages"),
+                )
+                DebugLog.d(
+                    "AgoraAPI",
+                    "[Ollama] request model=${config.modelId} messages=${requestBody.messages.size} " +
+                        "tools=${config.tools?.size ?: 0}",
+                )
                 val handle = try {
                     HttpClient.streamPost(url, requestBodyJson, headers)
                 } catch (e: kotlinx.coroutines.CancellationException) {

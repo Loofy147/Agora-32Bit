@@ -267,8 +267,37 @@ class GenerationApiPathBuilderTest {
         }
     }
 
-    private fun generationConfig() = GenerationConfig(
-        providerName = "provider",
+    @Test
+    fun `prompt cache key is scoped to the official OpenAI provider`() = runTest {
+        val repository = mockk<ConversationRepository>(relaxed = true)
+        val builder = GenerationApiPathBuilder(repository) { emptyList() }
+        val message = message("user", null, 0, Participant.USER)
+
+        val official = builder.build(
+            GenerationApiPathRequest(
+                parentId = message.id,
+                conversationId = "conversation",
+                config = generationConfig(Constants.PROVIDER_OPENAI),
+                context = GenerationContext(),
+                loadedMessages = listOf(message),
+            ),
+        )
+        val compatible = builder.build(
+            GenerationApiPathRequest(
+                parentId = message.id,
+                conversationId = "conversation",
+                config = generationConfig("OpenAI Compatible"),
+                context = GenerationContext(),
+                loadedMessages = listOf(message),
+            ),
+        )
+
+        assertEquals("conversation", official.providerConfig.promptCacheKey)
+        assertEquals(null, compatible.providerConfig.promptCacheKey)
+    }
+
+    private fun generationConfig(providerName: String = "provider") = GenerationConfig(
+        providerName = providerName,
         modelId = "model-id",
         apiKey = "key",
         effectiveSystemPrompt = "system",

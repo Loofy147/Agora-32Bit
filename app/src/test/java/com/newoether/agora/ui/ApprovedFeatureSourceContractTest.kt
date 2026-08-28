@@ -60,9 +60,10 @@ class ApprovedFeatureSourceContractTest {
         assertTrue(dao.contains("GROUP BY e.modelId"))
         assertTrue(dao.contains("getEmbeddingCountsByModels"))
         assertTrue(entities.contains("Index(value = [\"modelId\"])"))
-        assertTrue(database.contains("CURRENT_VERSION = 25"))
+        assertTrue(database.contains("CURRENT_VERSION = 26"))
         assertTrue(database.contains("MIGRATION_23_24"))
         assertTrue(database.contains("MIGRATION_24_25"))
+        assertTrue(database.contains("MIGRATION_25_26"))
     }
 
     @Test
@@ -422,7 +423,7 @@ class ApprovedFeatureSourceContractTest {
     }
 
     @Test
-    fun skillsAreSavedOnlyFrozenCatalogToolsWithNoActiveSkill() {
+    fun skillsAreSavedCatalogToolsWithRequestResolvedPromptAndNoActiveSkill() {
         val root = sourceRoot()
         val manager = source(root, "com/newoether/agora/data/SkillManager.kt")
         val provider = source(root, "com/newoether/agora/tool/SkillToolProvider.kt")
@@ -447,7 +448,10 @@ class ApprovedFeatureSourceContractTest {
         assertTrue(provider.contains("delete_skill_file"))
         assertFalse(provider.contains("update_active_skill"))
         assertTrue(builder.contains("skillCatalog = if (skillReadAccess) skillManager.catalog()"))
-        assertTrue(builder.contains("effectiveSystemPromptWithSkills"))
+        assertTrue(builder.contains("if (includeSkillCatalog) skillManager.catalog() else \"\""))
+        assertTrue(builder.contains("PredefinedVariables.SKILL_CATALOG to skillCatalog"))
+        assertTrue(builder.contains("skillCatalog = skillCatalogDeferred.await()"))
+        assertFalse(builder.contains("effectiveSystemPromptWithSkills"))
         assertTrue(exporter.contains("memories/skill_db/"))
         assertTrue(importer.contains("memories/skill_db/"))
         assertTrue(settings.contains("settings.accessSkills.collectAsState()"))

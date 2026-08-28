@@ -83,7 +83,7 @@ internal class BoundRunGenerationLauncher(
         try {
             requestTrace.mark("request_config_ready")
             val generationManager = generationManagerProvider()
-            val fixedTokenCost = generationManager.fixedContextTokenCost(
+            val fixedTokenCost = generationManager.resolvedFixedContextTokenCost(
                 request.snapshot.config,
                 request.snapshot.context,
             )

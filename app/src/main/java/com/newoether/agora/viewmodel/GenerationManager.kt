@@ -3,7 +3,9 @@ package com.newoether.agora.viewmodel
 import android.app.Application
 import com.newoether.agora.util.DebugLog
 import com.newoether.agora.api.LlmProvider
+import com.newoether.agora.api.ProviderConfig
 import com.newoether.agora.api.StreamEvent
+import com.newoether.agora.api.resolveRequest
 import com.newoether.agora.data.CustomProviderConfig
 import com.newoether.agora.data.MemoryManager
 import com.newoether.agora.data.SkillManager
@@ -122,6 +124,34 @@ class GenerationManager(
         openAiWebSearchEnabled = config.openAiWebSearchEnabled,
     )
 
+    internal suspend fun resolvedFixedContextTokenCost(
+        config: GenerationConfig,
+        context: GenerationContext,
+    ): Int {
+        val resolver = config.requestResolver ?: return fixedContextTokenCost(config, context)
+        val definitions = toolExecutor.definitions(context)
+        val providerConfig = ProviderConfig(
+            apiKey = config.apiKey,
+            modelId = config.modelId,
+            maxContextWindow = config.maxContextWindow,
+            codeExecutionEnabled = config.codeExecutionEnabled,
+            googleSearchEnabled = config.googleSearchEnabled,
+            openAiWebSearchEnabled = config.openAiWebSearchEnabled,
+            tools = definitions,
+            includeImages = !context.imageTranscriptionEnabled,
+            requestResolver = resolver,
+        )
+        val resolvedRequest = providerConfig.resolveRequest(emptyList())
+        return ContextTokenEstimator.estimateFixed(
+            systemPrompt = resolvedRequest.systemPrompt,
+            tools = definitions,
+            initialUserPrompt = config.initialUserPrompt,
+            codeExecutionEnabled = config.codeExecutionEnabled,
+            googleSearchEnabled = config.googleSearchEnabled,
+            openAiWebSearchEnabled = config.openAiWebSearchEnabled,
+        )
+    }
+
     internal suspend fun buildApiPath(request: GenerationApiPathRequest): GenerationApiPath =
         apiPathBuilder.build(request)
 
@@ -190,6 +220,10 @@ class GenerationManager(
         )
         var terminalPersisted = false
         var terminalConversationVisible: Boolean? = null
+        var terminalOutputText = ""
+
+        fun projectOutput(message: ChatMessage): ChatMessage =
+            message.withBoundedOutputTextTransform(callbacks.transformFinalText)
 
         fun adoptIncompleteTranscriptionSnapshot() {
             transcriptionExecution.incompleteSnapshot()?.let { snapshot ->
@@ -244,8 +278,9 @@ class GenerationManager(
                     startTime = startTime,
                 ),
                 onSnapshot = { snapshot, forceCheckpoint ->
-                    onStreamUpdate(snapshot)
-                    checkpoints.persist(snapshot, forceCheckpoint)
+                    val projected = projectOutput(snapshot)
+                    onStreamUpdate(projected)
+                    checkpoints.persist(projected, forceCheckpoint)
                 },
             )
             if (transcription.segments.isNotEmpty()) {
@@ -307,7 +342,7 @@ class GenerationManager(
             )
 
             suspend fun publishStreamUpdate(forceCheckpoint: Boolean = false) {
-                val snapshot = modelMessage()
+                val snapshot = projectOutput(modelMessage())
                 onStreamUpdate(snapshot)
                 if (firstUiPublishPending) {
                     firstUiPublishPending = false
@@ -494,7 +529,7 @@ class GenerationManager(
                     }
                     is StreamEvent.Retrying -> {
                         retryText = context.getString(R.string.generation_retry_attempt, event.attempt, event.maxAttempts)
-                        onStreamUpdate(modelMessage())
+                        onStreamUpdate(projectOutput(modelMessage()))
                     }
                     is StreamEvent.Error -> {
                         flushThoughtSegment()
@@ -639,13 +674,19 @@ class GenerationManager(
                 }
             }
 
-            val apiPath = projectGenerationInputMessages(
-                messages = currentPath,
-                includeImages = providerConfig.includeImages,
-                userPrepend = config.userPrepend,
-                userPostpend = config.userPostpend,
-                initialUserPrompt = config.initialUserPrompt,
-            )
+            val apiPath = if (providerConfig.requestResolver != null) {
+                currentPath
+            } else {
+                projectGenerationInputMessages(
+                    messages = currentPath,
+                    includeImages = providerConfig.includeImages,
+                    userPrepend = config.userPrepend,
+                    userPostpend = config.userPostpend,
+                    assistantPrepend = config.assistantPrepend,
+                    assistantPostpend = config.assistantPostpend,
+                    initialUserPrompt = config.initialUserPrompt,
+                )
+            }
             requestTrace?.mark("provider_dispatch")
             acceptProviderPass(collectProviderRequest(apiPath) {
                 requestTrace?.mark("first_semantic_event")
@@ -736,12 +777,18 @@ class GenerationManager(
 
                 uiUpdateGate.reset()
 
-                val apiToolPath = projectGenerationInputMessages(
-                    messages = toolPath,
-                    includeImages = providerConfig.includeImages,
-                    userPrepend = config.userPrepend,
-                    userPostpend = config.userPostpend,
-                )
+                val apiToolPath = if (providerConfig.requestResolver != null) {
+                    toolPath
+                } else {
+                    projectGenerationInputMessages(
+                        messages = toolPath,
+                        includeImages = providerConfig.includeImages,
+                        userPrepend = config.userPrepend,
+                        userPostpend = config.userPostpend,
+                        assistantPrepend = config.assistantPrepend,
+                        assistantPostpend = config.assistantPostpend,
+                    )
+                }
                 acceptProviderPass(collectProviderRequest(apiToolPath))
                 thoughtTiming.finishCurrent()
                 currentStatus = statusAfterThoughtPhaseFinished(currentStatus)
@@ -837,9 +884,8 @@ class GenerationManager(
                             runSequence = modelRunSequence,
                             answerDeltas = currentAnswerDeltas.toList(),
                         ).toMessage()
-                        val finalMessage = generatedMessage.withBoundedFinalTextTransform(
-                            callbacks.transformFinalText,
-                        )
+                        val finalMessage = projectOutput(generatedMessage)
+                        terminalOutputText = finalMessage.text
                         terminalConversationVisible = callbacks.isConversationVisible?.invoke()
                         val terminalDisposition = generationTerminalDisposition(
                             messageStatus = currentStatus,
@@ -891,11 +937,11 @@ class GenerationManager(
                 request = GenerationCompletionEffectsRequest(
                     terminalPersisted = terminalPersisted,
                     status = currentStatus,
-                    text = totalText,
+                    text = terminalOutputText,
                     notificationText = if (currentStatus == MessageStatus.ERROR) {
                         generationErrorMessage.orEmpty()
                     } else {
-                        totalText
+                        terminalOutputText
                     },
                     conversationId = conversationId,
                     modelMessageId = modelMessageId,

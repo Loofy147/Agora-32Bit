@@ -27,6 +27,28 @@ internal fun normalizeLocalModelIdleRetentionMinutes(value: Int?): Int =
     value?.takeIf { it in LOCAL_MODEL_IDLE_RETENTION_PRESETS }
         ?: DEFAULT_LOCAL_MODEL_IDLE_RETENTION_MINUTES
 
+internal fun migrateUnmodifiedBuiltInDefault(
+    prompts: List<SystemPromptEntry>,
+    locale: Locale,
+): List<SystemPromptEntry> {
+    if (prompts.isEmpty()) return prompts
+    val currentDefault = DefaultSystemPrompt.create(locale)
+    return prompts.map { entry ->
+        if (DefaultSystemPrompt.isUnmodifiedPreviousVersion(entry)) {
+            entry.copy(
+                content = "",
+                systemItems = currentDefault.systemItems,
+                userItems = currentDefault.resolvedUserItems,
+                assistantItems = currentDefault.resolvedAssistantItems,
+                userPrependItems = emptyList(),
+                userPostpendItems = emptyList(),
+            )
+        } else {
+            entry
+        }
+    }
+}
+
 private val Context.dataStore by preferencesDataStore(name = "settings")
 
 class SettingsManager(private val context: Context) {
@@ -315,13 +337,15 @@ class SettingsManager(private val context: Context) {
             } catch (_: Exception) {
                 emptyList()
             }
-            val migratedPrompts = migrateLegacyDefaultPromptTitle(currentPrompts, locale)
+            val defaultMigrated = migrateUnmodifiedBuiltInDefault(currentPrompts, locale)
+            val migratedPrompts = migrateLegacyDefaultPromptTitle(defaultMigrated, locale)
             val runtimeMigrated = migrateOldRuntimeContext(migratedPrompts, locale)
-            if (runtimeMigrated != currentPrompts) {
-                prefs[SYSTEM_PROMPTS_JSON] = json.encodeToString(runtimeMigrated)
+            val messageTemplatesMigrated = migrateLegacyMessageTemplates(runtimeMigrated)
+            if (messageTemplatesMigrated != currentPrompts) {
+                prefs[SYSTEM_PROMPTS_JSON] = json.encodeToString(messageTemplatesMigrated)
             }
             if (looksLikeFreshInstall) {
-                if (runtimeMigrated.isEmpty()) {
+                if (messageTemplatesMigrated.isEmpty()) {
                     val defaultPrompt = DefaultSystemPrompt.create(locale)
                     prefs[SYSTEM_PROMPTS_JSON] = json.encodeToString(listOf(defaultPrompt))
                     if (prefs[ACTIVE_SYSTEM_PROMPT_ID] == null) {
@@ -342,12 +366,36 @@ class SettingsManager(private val context: Context) {
             if (DefaultSystemPrompt.hasOldRuntimeContext(entry)) {
                 entry.copy(
                     systemItems = newDefault.systemItems,
-                    userPrependItems = newDefault.userPrependItems,
-                    userPostpendItems = newDefault.userPostpendItems,
+                    userItems = newDefault.resolvedUserItems,
+                    assistantItems = newDefault.resolvedAssistantItems,
+                    userPrependItems = emptyList(),
+                    userPostpendItems = emptyList(),
                 )
             } else {
                 entry
             }
+        }
+    }
+
+    private fun migrateLegacyMessageTemplates(
+        prompts: List<SystemPromptEntry>,
+    ): List<SystemPromptEntry> = prompts.map { entry ->
+        val normalizedUserItems = entry.resolvedUserItems
+        val normalizedAssistantItems = entry.resolvedAssistantItems
+        if (
+            entry.userItems != normalizedUserItems ||
+            entry.assistantItems != normalizedAssistantItems ||
+            entry.userPrependItems.isNotEmpty() ||
+            entry.userPostpendItems.isNotEmpty()
+        ) {
+            entry.copy(
+                userItems = normalizedUserItems,
+                assistantItems = normalizedAssistantItems,
+                userPrependItems = emptyList(),
+                userPostpendItems = emptyList(),
+            )
+        } else {
+            entry
         }
     }
 
@@ -374,8 +422,8 @@ class SettingsManager(private val context: Context) {
 
     private fun SystemPromptEntry.sameTemplateAs(other: SystemPromptEntry): Boolean =
         resolvedSystemItems.sameTemplateItems(other.resolvedSystemItems) &&
-            userPrependItems.sameTemplateItems(other.userPrependItems) &&
-            userPostpendItems.sameTemplateItems(other.userPostpendItems)
+            resolvedUserItems.sameTemplateItems(other.resolvedUserItems) &&
+            resolvedAssistantItems.sameTemplateItems(other.resolvedAssistantItems)
 
     private fun List<PromptTemplateItem>.sameTemplateItems(other: List<PromptTemplateItem>): Boolean =
         size == other.size && zip(other).all { (left, right) ->

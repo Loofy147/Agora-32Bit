@@ -273,11 +273,11 @@
     <string name="prompts_delete_text">Bạn có chắc chắn muốn xóa \'%1$s\'? Hành động này không thể hoàn tác.</string>
     <string name="template_title_required">Yêu cầu phải có tiêu đề</string>
     <string name="template_tab_system">Hệ thống</string>
-    <string name="template_tab_prepend">Tiền tố</string>
-    <string name="template_tab_postpend">Hậu tố</string>
-    <string name="template_tab_system_desc">Được gửi dưới dạng hướng dẫn hệ thống.</string>
-    <string name="template_tab_prepend_desc">Được chèn trước mỗi tin nhắn của người dùng.</string>
-    <string name="template_tab_postpend_desc">Được chèn sau mỗi tin nhắn của người dùng.</string>
+    <string name="template_tab_user">Người dùng</string>
+    <string name="template_tab_assistant">Trợ lý</string>
+    <string name="template_tab_system_desc">Xác định thông điệp hệ thống được gửi tới mô hình.</string>
+    <string name="template_tab_user_desc">Xác định cấu trúc bao quanh mỗi tin nhắn thông thường của người dùng.</string>
+    <string name="template_tab_assistant_desc">Xác định cấu trúc bao quanh mỗi tin nhắn thông thường của trợ lý.</string>
     <string name="template_empty_hint">Không có mục nào. Thêm văn bản hoặc biến bên dưới.</string>
     <string name="template_add_text">Thêm văn bản</string>
     <string name="template_add_variable">Thêm biến</string>

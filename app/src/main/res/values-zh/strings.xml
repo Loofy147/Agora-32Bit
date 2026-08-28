@@ -290,11 +290,11 @@
     <string name="prompts_delete_text">确定要删除 \'%1$s\' 吗？此操作无法撤销。</string>
     <string name="template_title_required">标题不能为空</string>
     <string name="template_tab_system">系统</string>
-    <string name="template_tab_prepend">前缀</string>
-    <string name="template_tab_postpend">后缀</string>
-    <string name="template_tab_system_desc">作为 system 指令发送。</string>
-    <string name="template_tab_prepend_desc">插入到每条用户消息之前。</string>
-    <string name="template_tab_postpend_desc">插入到每条用户消息之后。</string>
+    <string name="template_tab_user">用户</string>
+    <string name="template_tab_assistant">助手</string>
+    <string name="template_tab_system_desc">定义发送给模型的系统消息。</string>
+    <string name="template_tab_user_desc">定义每条普通用户消息周围的结构。</string>
+    <string name="template_tab_assistant_desc">定义每条普通助手消息周围的结构。</string>
     <string name="template_empty_hint">暂无项目。请在下方添加文本或变量。</string>
     <string name="template_add_text">添加文本</string>
     <string name="template_add_variable">添加变量</string>
