@@ -10,6 +10,7 @@ import com.newoether.agora.model.StreamingTextDelta
 import com.newoether.agora.model.citationRecords
 import com.newoether.agora.model.toMessageSegment
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -246,6 +247,34 @@ class GenerationStreamingSegmentsTest {
     }
 
     @Test
+    fun `output transform updates streaming text and answer segments together`() {
+        val wrapped = "<context_summary>\nsummary\n</context_"
+        val original = ChatMessage(
+            id = "compact",
+            text = wrapped,
+            participant = com.newoether.agora.model.Participant.MODEL,
+            status = MessageStatus.SENDING,
+            segments = listOf(
+                MessageSegment(
+                    type = "answer",
+                    content = wrapped,
+                    streamingTextDeltas = listOf(StreamingTextDelta(0L, wrapped.length)),
+                ),
+            ),
+        )
+
+        val transformed = original.withBoundedOutputTextTransform { text, _ ->
+            normalizeContextCompactOutput(text)
+        }
+
+        assertEquals("summary", transformed.text)
+        assertEquals("summary", transformed.segments?.single()?.content)
+        assertTrue(transformed.segments?.single()?.streamingTextDeltas?.isEmpty() == true)
+        assertFalse(transformed.text.contains("context_summary"))
+        assertFalse(transformed.segments.orEmpty().any { it.content.contains("context_summary") })
+    }
+
+    @Test
     fun `final text transform is field restricted and persistence bounded`() {
         val original = ChatMessage(
             id = "compact",
@@ -258,7 +287,7 @@ class GenerationStreamingSegmentsTest {
         )
         val oversizedSuffix = "x".repeat(2_000_000)
 
-        val transformed = original.withBoundedFinalTextTransform { text, status ->
+        val transformed = original.withBoundedOutputTextTransform { text, status ->
             assertEquals(MessageStatus.SUCCESS, status)
             text + oversizedSuffix
         }

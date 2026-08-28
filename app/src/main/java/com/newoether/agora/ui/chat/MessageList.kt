@@ -664,7 +664,7 @@ internal fun MessageList(
                 .collectAsState(initial = cachedMessage)
                 .value
         }
-        val message = resolveMessagePayloadForRender(messageStub, streamingMessageId, observedMessage, cachedMessage)
+        val message = resolveMessagePayloadForRender(messageStub, streamingMessage, observedMessage, cachedMessage)
         val hydrationPending = !isStreamingOverlay && observedMessage == null && cachedMessage == null
         val hydrationMutationKey = "hydrate:${messageStub.id}"
 

@@ -158,11 +158,30 @@ internal fun terminalGenerationErrorMessage(
     currentError
 }
 
-internal fun ChatMessage.withBoundedFinalTextTransform(
+internal fun ChatMessage.withBoundedOutputTextTransform(
     transform: (String, MessageStatus) -> String,
-): ChatMessage = copy(
-    text = MessagePersistenceGuard.clipText(transform(text, status)),
-)
+): ChatMessage {
+    val transformedText = MessagePersistenceGuard.clipText(transform(text, status))
+    if (transformedText == text) return this
+    val answerSegmentCount = segments.orEmpty().count { it.type == "answer" }
+    var answerSegmentIndex = 0
+    var transformedCursor = 0
+    val transformedSegments = segments?.map { segment ->
+        if (segment.type != "answer") return@map segment
+        answerSegmentIndex += 1
+        val content = if (answerSegmentIndex == answerSegmentCount) {
+            transformedText.substring(transformedCursor.coerceAtMost(transformedText.length))
+        } else {
+            val end = (transformedCursor + segment.content.length)
+                .coerceAtMost(transformedText.length)
+            transformedText.substring(transformedCursor, end).also {
+                transformedCursor = end
+            }
+        }
+        segment.copy(content = content, streamingTextDeltas = emptyList())
+    }
+    return copy(text = transformedText, segments = transformedSegments)
+}
 
 internal data class GenerationFinalSnapshot(
     val messageId: String,

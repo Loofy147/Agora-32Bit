@@ -491,24 +491,69 @@ class MessageListStreamingTailTest {
     }
 
     @Test
-    fun activeStreamingPayloadAlwaysUsesLatestSnapshot() {
-        val latest = ChatMessage(
+    fun activeStreamingPayloadAlwaysUsesLatestRuntimeSnapshot() {
+        val stub = ChatMessage(
             id = "active",
-            text = "new delta",
+            text = "",
             participant = Participant.MODEL,
-            status = MessageStatus.SENDING,
+            status = MessageStatus.TOOL_CALLING,
         )
-        val stale = latest.copy(text = "old delta")
+        val firstCall = stub.copy(
+            segments = listOf(
+                MessageSegment(
+                    type = "tool",
+                    toolCallId = "call-stream-1",
+                    toolArgs = "",
+                ),
+            ),
+        )
+        val secondCall = firstCall.copy(
+            segments = firstCall.segments.orEmpty() +
+                MessageSegment(
+                    type = "tool",
+                    toolCallId = "call-stream-2",
+                    toolArgs = "",
+                ),
+        )
 
         assertSame(
-            latest,
-            resolveMessagePayloadForRender(latest, "active", stale, stale),
+            firstCall,
+            resolveMessagePayloadForRender(stub, firstCall, stub, stub),
+        )
+        val latest = resolveMessagePayloadForRender(stub, secondCall, firstCall, firstCall)
+        assertSame(secondCall, latest)
+        assertEquals(
+            listOf("call-stream-1", "call-stream-2"),
+            latest.segments.orEmpty().map(MessageSegment::toolCallId),
+        )
+        assertTrue(latest.segments.orEmpty().all { it.toolName == null && it.toolArgs.isNullOrEmpty() })
+    }
+
+    @Test
+    fun authoritativeTerminalPayloadWinsOverStaleHydration() {
+        val terminal = ChatMessage(
+            id = "terminal",
+            text = "partial answer",
+            participant = Participant.MODEL,
+            status = MessageStatus.STOPPED,
+            segments = listOf(MessageSegment(type = "thought", content = "terminal")),
+        )
+        val observed = terminal.copy(
+            text = "older room payload",
+            status = MessageStatus.SENDING,
+            segments = null,
+        )
+        val cached = observed.copy(text = "older cached payload")
+
+        assertSame(
+            terminal,
+            resolveMessagePayloadForRender(terminal, null, observed, cached),
         )
     }
 
     @Test
     fun historicalPayloadRetainsLazyHydrationPriority() {
-        val stub = ChatMessage(id = "history", text = "stub", participant = Participant.MODEL)
+        val stub = ChatMessage(id = "history", text = "", participant = Participant.MODEL)
         val cached = stub.copy(text = "cached")
         val observed = stub.copy(text = "observed")
 

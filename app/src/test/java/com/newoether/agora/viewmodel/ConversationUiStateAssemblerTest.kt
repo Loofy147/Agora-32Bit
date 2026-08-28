@@ -5,6 +5,7 @@ import com.newoether.agora.data.local.ChatEntity
 import com.newoether.agora.data.local.MessageContextTopology
 import com.newoether.agora.data.repository.ConversationRepository
 import com.newoether.agora.model.ChatMessage
+import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
 import com.newoether.agora.util.DebugLog
@@ -14,6 +15,9 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkObject
+import java.util.ArrayDeque
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +32,101 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ConversationUiStateAssemblerTest {
+    @Test
+    fun `streaming deltas and terminal handoff bypass blocked structural projection`() = runTest {
+        val pendingProjectionTasks = ArrayDeque<Runnable>()
+        var projectionBlocked = false
+        val projectionDelegate = StandardTestDispatcher(testScheduler)
+        val projectionDispatcher = object : CoroutineDispatcher() {
+            override fun dispatch(context: CoroutineContext, block: Runnable) {
+                if (projectionBlocked) {
+                    pendingProjectionTasks.addLast(block)
+                } else {
+                    projectionDelegate.dispatch(context, block)
+                }
+            }
+        }
+        val root = ChatMessage(
+            id = "root",
+            text = "request",
+            participant = Participant.USER,
+            timestamp = 1L,
+        )
+        val activeStub = ChatMessage(
+            id = "active",
+            parentId = root.id,
+            text = "",
+            participant = Participant.MODEL,
+            status = MessageStatus.SENDING,
+            timestamp = 2L,
+            runId = "run",
+        )
+        var latestStreaming = activeStub.copy(text = "partial")
+        val assembler = ConversationUiStateAssembler(
+            conversations = mockk(),
+            registry = mockk(),
+            executionCoordinator = mockk(),
+            currentConversationId = MutableStateFlow(CONVERSATION_ID),
+            scope = backgroundScope,
+            projectionDispatcher = projectionDispatcher,
+        )
+        assembler.renderStore.replaceConversation(
+            allMessages = listOf(root, activeStub),
+            streamingMessage = latestStreaming,
+            selectedChildren = emptyMap(),
+        )
+        runCurrent()
+        assertEquals(latestStreaming, assembler.messages.value.last())
+
+        projectionBlocked = true
+        assembler.renderStore.setSelectedChildren(
+            mapOf<String?, String>(null to root.id, root.id to activeStub.id),
+        )
+        runCurrent()
+        assertTrue(pendingProjectionTasks.isNotEmpty())
+
+        repeat(6) { zeroBasedIndex ->
+            val callCount = zeroBasedIndex + 1
+            latestStreaming = activeStub.copy(
+                text = "partial",
+                status = MessageStatus.TOOL_CALLING,
+                segments = (1..callCount).map { callIndex ->
+                    MessageSegment(
+                        type = "tool",
+                        toolCallId = "call-$callIndex",
+                        toolArgs = "",
+                    )
+                },
+            )
+            assembler.renderStore.setStreamingMessage(latestStreaming)
+            runCurrent()
+
+            assertEquals(
+                (1..callCount).map { callIndex -> "call-$callIndex" },
+                assembler.messages.value.last().segments.orEmpty().map(MessageSegment::toolCallId),
+            )
+        }
+
+        val stopped = latestStreaming.copy(
+            status = MessageStatus.STOPPED,
+            segments = latestStreaming.segments.orEmpty() +
+                MessageSegment(type = "answer", content = "terminal payload"),
+        )
+        assembler.commitTerminalStreamingMessage(CONVERSATION_ID, stopped)
+        runCurrent()
+
+        assertEquals(listOf(root.id, stopped.id), assembler.messages.value.map(ChatMessage::id))
+        assertEquals(stopped, assembler.messages.value.last())
+        assertEquals("terminal payload", assembler.messages.value.last().segments.orEmpty().last().content)
+
+        projectionBlocked = false
+        while (pendingProjectionTasks.isNotEmpty()) {
+            pendingProjectionTasks.removeFirst().run()
+        }
+        runCurrent()
+        assertEquals(stopped, assembler.messages.value.last())
+    }
+
     @Test
     fun `room graph becomes ready atomically before runtime overlay is published`() = runTest {
         val conversations = mockk<ConversationRepository>()

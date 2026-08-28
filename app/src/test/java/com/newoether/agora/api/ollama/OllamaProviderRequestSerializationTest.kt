@@ -77,6 +77,28 @@ class OllamaProviderRequestSerializationTest {
     }
 
     @Test
+    fun multiToolSnapshotEmitsEveryUpdateBeforeTheBatchRequest() = withServer { server ->
+        server.responseBody = (
+            "{\"message\":{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[" +
+                "{\"id\":\"call-1\",\"function\":{\"name\":\"file_read\"," +
+                "\"arguments\":{\"path\":\"a.txt\"}}}," +
+                "{\"id\":\"call-2\",\"function\":{\"name\":\"file_read\"," +
+                "\"arguments\":{\"path\":\"b.txt\"}}}]}," +
+                "\"done\":true,\"done_reason\":\"stop\",\"prompt_eval_count\":1,\"eval_count\":1}\n"
+            )
+        val events = collect(server, config(server, "qwen3:8b"))
+        val toolEvents = events.filter {
+            it is StreamEvent.ToolCallUpdate || it is StreamEvent.ToolCallsRequest
+        }
+
+        assertEquals(3, toolEvents.size)
+        val updates = toolEvents.take(2).map { it as StreamEvent.ToolCallUpdate }
+        val batch = toolEvents.last() as StreamEvent.ToolCallsRequest
+        assertEquals(listOf("call-1", "call-2"), updates.map { it.id })
+        assertEquals(updates.map { it.streamKey }, batch.calls.map { it.streamKey })
+    }
+
+    @Test
     fun validatorAcceptsOnlyBooleanOrSupportedEffortStrings() {
         listOf(JsonPrimitive(true), JsonPrimitive(false), JsonPrimitive("low"), JsonPrimitive("medium"), JsonPrimitive("high"))
             .forEach { think -> request(think).requireValidWireFormat() }
@@ -135,14 +157,15 @@ class OllamaProviderRequestSerializationTest {
         private val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         val bodies = CopyOnWriteArrayList<String>()
         val baseUrl = "http://127.0.0.1:${server.address.port}"
+        @Volatile
+        var responseBody =
+            "{\"message\":{\"role\":\"assistant\",\"content\":\"ok\"}," +
+                "\"done\":true,\"done_reason\":\"stop\",\"prompt_eval_count\":1,\"eval_count\":1}\n"
 
         init {
             server.createContext("/") { exchange ->
                 bodies += exchange.requestBody.bufferedReader().use { it.readText() }
-                val response = (
-                    "{\"message\":{\"role\":\"assistant\",\"content\":\"ok\"}," +
-                        "\"done\":true,\"done_reason\":\"stop\",\"prompt_eval_count\":1,\"eval_count\":1}\n"
-                    ).toByteArray()
+                val response = responseBody.toByteArray()
                 exchange.responseHeaders.add("Content-Type", "application/x-ndjson")
                 exchange.sendResponseHeaders(200, response.size.toLong())
                 exchange.responseBody.use { it.write(response) }

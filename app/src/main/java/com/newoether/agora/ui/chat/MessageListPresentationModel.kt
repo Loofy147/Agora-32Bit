@@ -37,15 +37,27 @@ internal fun compactMessageActionsEnabled(
 internal fun userBubbleSizeAnimationReady(hydrationPending: Boolean): Boolean =
     !hydrationPending
 
+internal fun ChatMessage.hasAuthoritativeRenderPayload(): Boolean =
+    text.isNotEmpty() ||
+        images.isNotEmpty() ||
+        thoughts != null ||
+        thoughtTitle != null ||
+        tokenUsage != null ||
+        thoughtTimeMs != null ||
+        toolCall != null ||
+        segments != null ||
+        attachmentMeta != null ||
+        retryText != null
+
 internal fun resolveMessagePayloadForRender(
     messageStub: ChatMessage,
-    streamingMessageId: String?,
+    streamingMessage: ChatMessage?,
     observedMessage: ChatMessage?,
     cachedMessage: ChatMessage?,
-): ChatMessage = if (messageStub.id == streamingMessageId) {
-    messageStub
-} else {
-    observedMessage ?: cachedMessage ?: messageStub
+): ChatMessage = when {
+    messageStub.id == streamingMessage?.id -> streamingMessage
+    messageStub.hasAuthoritativeRenderPayload() -> messageStub
+    else -> observedMessage ?: cachedMessage ?: messageStub
 }
 
 internal data class StreamingTailPresentation(

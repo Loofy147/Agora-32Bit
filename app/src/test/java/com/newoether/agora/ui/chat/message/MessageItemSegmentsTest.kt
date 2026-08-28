@@ -353,6 +353,53 @@ class MessageItemSegmentsTest {
     }
 
     @Test
+    fun stoppedToolMessageRequestsOneExistingCollapse() {
+        val segments = listOf(
+            MessageSegment(
+                type = "tool",
+                toolName = "shell",
+                toolArgs = "{}",
+                toolCallId = "call",
+            ),
+        )
+        val active = ChatMessage(
+            id = "message",
+            text = "",
+            participant = Participant.MODEL,
+            status = MessageStatus.TOOL_CALLING,
+            segments = segments,
+        )
+        val stopped = active.copy(status = MessageStatus.STOPPED)
+        val controller = GroupedSegmentAutoExpansionController()
+        val key = "message:group:0"
+
+        val activeContent = compactSegmentHasActiveContent(
+            segs = segments,
+            message = active,
+            useLiveStatus = true,
+        )
+        val stoppedContent = compactSegmentHasActiveContent(
+            segs = segments,
+            message = stopped,
+            useLiveStatus = true,
+        )
+        assertTrue(activeContent)
+        assertFalse(stoppedContent)
+        assertEquals(
+            GroupedSegmentAutoExpansionAction.EXPAND,
+            controller.update(key, isActive = activeContent, enabled = true),
+        )
+        assertEquals(
+            GroupedSegmentAutoExpansionAction.COLLAPSE,
+            controller.update(key, isActive = stoppedContent, enabled = true),
+        )
+        assertEquals(
+            GroupedSegmentAutoExpansionAction.NONE,
+            controller.update(key, isActive = stoppedContent, enabled = true),
+        )
+    }
+
+    @Test
     fun historicalGroupedSegmentNeverAutoExpands() {
         val controller = GroupedSegmentAutoExpansionController()
         val key = "message:group:0"

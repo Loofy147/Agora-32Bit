@@ -14,14 +14,22 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.runningFold
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+
+private data class ConversationPathStructure(
+    val allMessages: List<ChatMessage>,
+    val selectedChildren: Map<String?, String>,
+)
 
 /**
  * Combines the open conversation's Room graph and runtime overlay into stable UI projections.
@@ -47,16 +55,47 @@ internal class ConversationUiStateAssembler(
         .distinctUntilChanged()
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
 
-    val messages: StateFlow<List<ChatMessage>> = renderStore.snapshot
+    private val structuralMessages = renderStore.snapshot
+        .map { snapshot ->
+            ConversationPathStructure(
+                allMessages = snapshot.allMessages,
+                selectedChildren = snapshot.selectedChildren,
+            )
+        }
+        .distinctUntilChanged()
         .mapLatest { snapshot ->
             withContext(projectionDispatcher) {
                 ConversationUiState.resolvePath(
-                    snapshot.allMessages,
-                    snapshot.streamingMessage,
-                    snapshot.selectedChildren,
+                    allMessages = snapshot.allMessages,
+                    streamingMsg = null,
+                    selectedChildren = snapshot.selectedChildren,
                 )
             }
         }
+
+    private val indexedRenderSnapshots = renderStore.snapshot
+        .runningFold(
+            ConversationRenderSnapshot() to emptyMap<String, ChatMessage>(),
+        ) { previous, snapshot ->
+            snapshot to if (previous.first.allMessages === snapshot.allMessages) {
+                previous.second
+            } else {
+                snapshot.allMessages.associateBy(ChatMessage::id)
+            }
+        }
+        .drop(1)
+
+    val messages: StateFlow<List<ChatMessage>> = combine(
+        structuralMessages,
+        indexedRenderSnapshots,
+    ) { structuralPath, indexedSnapshot ->
+        val (snapshot, latestMessagesById) = indexedSnapshot
+        applyRenderSnapshotToResolvedPath(
+            resolvedPath = structuralPath,
+            snapshot = snapshot,
+            latestMessagesById = latestMessagesById,
+        )
+    }
         .distinctUntilChanged()
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
 
