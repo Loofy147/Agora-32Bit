@@ -26,6 +26,7 @@ import com.newoether.agora.model.ModelId
 import com.newoether.agora.model.OpenAiServiceTiers
 import com.newoether.agora.model.ToolCallDisplayModes
 import com.newoether.agora.util.Constants
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -479,6 +480,13 @@ class SettingsRepository(
         persistConversationSettings(conversationSettingsState.set(convId, settings))
     }
 
+    suspend fun setConversationSettingsAndAwait(
+        convId: String,
+        settings: ConversationSettings?,
+    ) {
+        persistConversationSettingsWrite(conversationSettingsState.set(convId, settings))
+    }
+
     fun updateConversationSettings(
         convId: String,
         update: (ConversationSettings) -> ConversationSettings,
@@ -488,21 +496,33 @@ class SettingsRepository(
 
     private fun persistConversationSettings(write: ConversationSettingsWrite) {
         scope.launch {
-            conversationSettingsWriteMutex.withLock {
-                if (!conversationSettingsState.isLatest(write)) return@withLock
-                runCatching {
-                    settingsManager.saveConversationSettings(
-                        conversationId = write.conversationId,
-                        settings = write.settings,
-                    )
-                }.onSuccess { persisted ->
-                    conversationSettingsState.complete(write, persisted)
-                }.onFailure {
-                    val persisted = runCatching {
-                        settingsManager.conversationSettings.first()
-                    }.getOrNull()
-                    conversationSettingsState.fail(write, persisted)
-                }
+            try {
+                persistConversationSettingsWrite(write)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // The optimistic state is reconciled by persistConversationSettingsWrite.
+            }
+        }
+    }
+
+    private suspend fun persistConversationSettingsWrite(write: ConversationSettingsWrite) {
+        conversationSettingsWriteMutex.withLock {
+            if (!conversationSettingsState.isLatest(write)) return@withLock
+            try {
+                val persisted = settingsManager.saveConversationSettings(
+                    conversationId = write.conversationId,
+                    settings = write.settings,
+                )
+                conversationSettingsState.complete(write, persisted)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                val persisted = runCatching {
+                    settingsManager.conversationSettings.first()
+                }.getOrNull()
+                conversationSettingsState.fail(write, persisted)
+                throw error
             }
         }
     }

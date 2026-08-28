@@ -5,6 +5,7 @@ import com.newoether.agora.data.local.ChatDao
 import com.newoether.agora.data.local.ChatDatabase
 import com.newoether.agora.data.local.ChatEntity
 import com.newoether.agora.data.local.ConversationDraftAttachmentReference
+import com.newoether.agora.data.local.ConversationSettingsTransferEntity
 import com.newoether.agora.data.local.EmbeddingEntity
 import com.newoether.agora.data.local.EmbeddingModelCount
 import com.newoether.agora.data.local.EmbeddingSearchRow
@@ -13,6 +14,8 @@ import com.newoether.agora.data.local.MessageAttachmentReference
 import com.newoether.agora.data.local.MessageContextTopology
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.data.local.MessageStreamCheckpoint
+import com.newoether.agora.data.local.NewChatDraftAttachmentReference
+import com.newoether.agora.data.local.NewChatPersistEntity
 import com.newoether.agora.data.local.ProviderContextTopologySnapshot
 import com.newoether.agora.data.local.RunEntity
 import com.newoether.agora.data.local.RunGraphCommit
@@ -128,6 +131,29 @@ class ConversationRepository(
 
     fun observeConversation(id: String): Flow<ChatConversation?> =
         chatDao.observeConversation(id).map { it?.toConversation() }
+
+    fun observeNewChatPersist(): Flow<NewChatPersistEntity?> =
+        chatDao.observeNewChatPersist()
+
+    suspend fun getNewChatPersist(): NewChatPersistEntity? =
+        chatDao.getNewChatPersist()
+
+    suspend fun upsertNewChatPersist(entity: NewChatPersistEntity) =
+        chatDao.upsertNewChatPersist(entity)
+
+    suspend fun deleteNewChatPersist(): Boolean =
+        chatDao.deleteNewChatPersist() > 0
+
+    suspend fun getConversationSettingsTransfer(
+        conversationId: String,
+    ): ConversationSettingsTransferEntity? =
+        chatDao.getConversationSettingsTransfer(conversationId)
+
+    suspend fun getPendingConversationSettingsTransfers(): List<ConversationSettingsTransferEntity> =
+        chatDao.getPendingConversationSettingsTransfers()
+
+    suspend fun deleteConversationSettingsTransfer(conversationId: String): Boolean =
+        chatDao.deleteConversationSettingsTransfer(conversationId) > 0
 
     /** Executions spawned by [taskId], newest first — the task's execution log. */
     fun getExecutionsForTask(taskId: String): Flow<List<ChatConversation>> =
@@ -272,6 +298,7 @@ class ConversationRepository(
         messages: List<MessageEntity>,
         messageSelectionUpdates: Map<String?, String>,
         conversationModelId: String,
+        conversationSettingsJson: String?,
         at: Long = System.currentTimeMillis(),
     ): RunGraphCommit {
         ensureRunRecovery()
@@ -281,6 +308,7 @@ class ConversationRepository(
             messages,
             messageSelectionUpdates,
             conversationModelId,
+            conversationSettingsJson,
             at,
         )
     }
@@ -693,6 +721,9 @@ class ConversationRepository(
     ): List<ConversationDraftAttachmentReference> =
         chatDao.getConversationDraftAttachmentReferencesPage(afterId, limit)
 
+    suspend fun getNewChatDraftAttachmentReference(): NewChatDraftAttachmentReference? =
+        chatDao.getNewChatDraftAttachmentReference()
+
     /** Persists the composer draft (text + serialized attachments) for a conversation. */
     suspend fun updateDraft(conversationId: String, draftText: String, draftAttachments: String?) {
         chatDao.updateDraft(conversationId, draftText, draftAttachments)
@@ -776,6 +807,18 @@ class ConversationRepository(
             }
             afterConversationId = page.lastOrNull()?.id
             if (page.size < ATTACHMENT_REFERENCE_PAGE_SIZE) break
+        }
+
+        chatDao.getNewChatDraftAttachmentReference()?.let { reference ->
+            runCatching {
+                Json.decodeFromString<List<SelectedAttachment>>(reference.draftAttachments)
+            }.getOrNull()?.forEach { attachment ->
+                attachment.localPath?.let { referenced += normalizeAttachmentPath(it) }
+                attachment.processedFrames.orEmpty()
+                    .mapTo(referenced, ::normalizeAttachmentPath)
+                attachment.preRenderedPaths.orEmpty()
+                    .mapTo(referenced, ::normalizeAttachmentPath)
+            }
         }
 
         candidates

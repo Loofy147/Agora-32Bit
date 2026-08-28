@@ -105,6 +105,11 @@ class GenerationRequestBuilder(
         val overrides = settings.conversationSettings.value[conversationId]
             ?: pendingConversationSettings.value  // new chat: may not be saved to map yet
             ?: ConversationSettings()
+        return resolveEffectiveConversationSettings(overrides)
+    }
+    private fun resolveEffectiveConversationSettings(
+        overrides: ConversationSettings,
+    ): ConversationSettings {
         return ConversationSettings(
             contextWindow = ContextBudget.normalize(
                 overrides.contextWindow ?: settings.maxContextWindow.value
@@ -144,10 +149,17 @@ class GenerationRequestBuilder(
         modelId: String,
         conversationOverride: ChatEntity? = null,
         resolvedPromptOverride: ResolvedPrompt? = null,
+        conversationSettingsOverride: ConversationSettings? = null,
     ): GenerationAdmissionSnapshot {
         val selectedModelId = providerRegistry.canonicalModelId(modelId)
         val providerName = providerRegistry.providerForModel(selectedModelId)
-        val effectiveSettings = buildEffectiveConversationSettings(conversationId)
+        val effectiveSettings = if (conversationOverride != null) {
+            resolveEffectiveConversationSettings(
+                conversationSettingsOverride ?: ConversationSettings(),
+            )
+        } else {
+            buildEffectiveConversationSettings(conversationId)
+        }
         val frozenKey = settings.awaitActiveKey(providerName).orEmpty()
         check(providerRegistry.isConfigured(providerName, frozenKey)) {
             "Provider is no longer configured: $providerName"

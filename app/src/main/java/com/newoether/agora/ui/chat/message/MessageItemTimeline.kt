@@ -280,7 +280,7 @@ internal fun CompactSegmentBlock(
         message.status == MessageStatus.THINKING &&
         segs.any { it.type == "thought" }
     val isTranscribing = useLiveStatus && message.status == MessageStatus.TRANSCRIBING
-    val toolCount = segs.count { it.type == "tool" && it.toolResult != null }
+    val toolCount = segs.count { it.type == "tool" }
     val thoughtMs = thoughtDurationMs(segs, fallbackMs = message.thoughtTimeMs)
     val hasThought = thoughtMs != null && thoughtMs > 0
     val cardHasActiveContent = compactSegmentHasActiveContent(
@@ -589,7 +589,14 @@ internal fun CompactSegmentBlock(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.SemiBold
                                 )
-                                ToolSummaryText(toolSummary(seg))
+                                val presentation = ToolPresentationResolver.resolve(seg)
+                                ToolSummaryText(
+                                    presentation = presentation,
+                                    streaming =
+                                        isStreaming &&
+                                            useLiveStatus &&
+                                            idx == segs.lastIndex,
+                                )
                             }
                         }
                         if (idx < segs.lastIndex) {
@@ -920,7 +927,10 @@ internal fun TimelineInfoSegmentCard(
                     }
                     if (summary.isNotBlank()) {
                         if (isTool) {
-                            ToolSummaryText(summary)
+                            ToolSummaryText(
+                                presentation = ToolPresentationResolver.resolve(seg),
+                                streaming = isStreamingContent,
+                            )
                         } else {
                             StreamingMutedText(
                                 text = summary,

@@ -60,8 +60,9 @@ class ApprovedFeatureSourceContractTest {
         assertTrue(dao.contains("GROUP BY e.modelId"))
         assertTrue(dao.contains("getEmbeddingCountsByModels"))
         assertTrue(entities.contains("Index(value = [\"modelId\"])"))
-        assertTrue(database.contains("CURRENT_VERSION = 23"))
-        assertTrue(database.contains("MIGRATION_22_23"))
+        assertTrue(database.contains("CURRENT_VERSION = 25"))
+        assertTrue(database.contains("MIGRATION_23_24"))
+        assertTrue(database.contains("MIGRATION_24_25"))
     }
 
     @Test
@@ -168,7 +169,7 @@ class ApprovedFeatureSourceContractTest {
     }
 
     @Test
-    fun streamingFadeKeepsToolSummariesOnWholeContentCrossfade() {
+    fun streamingFadeKeysToolSummaryCrossfadeByPresentationState() {
         val root = sourceRoot()
         val fade = source(
             root,
@@ -223,10 +224,15 @@ class ApprovedFeatureSourceContractTest {
         assertFalse(tool.contains("StableStreamingText("))
         assertFalse(timeline.contains("tailFadeEnabled ="))
         assertFalse(tool.contains("tailFadeEnabled ="))
-        assertTrue(mutedText.contains("internal fun ToolSummaryText(summary: String) = Crossfade("))
+        assertTrue(mutedText.contains("internal fun ToolSummaryText("))
+        assertTrue(mutedText.contains("presentation: ToolPresentation"))
+        assertTrue(mutedText.contains("streaming: Boolean"))
         assertEquals(2, Regex("ToolSummaryText\\(").findAll(timeline).count())
         assertEquals(1, Regex("ToolSummaryText\\(").findAll(mutedText).count())
-        assertTrue(mutedText.contains("targetState = summary"))
+        assertTrue(mutedText.contains("targetState = presentation.state"))
+        assertFalse(mutedText.contains("targetState = summary"))
+        assertTrue(mutedText.contains("text = renderedSummary"))
+        assertTrue(mutedText.contains("!transition.isRunning"))
         assertTrue(timeline.contains("targetState = collapsedTitle"))
         assertTrue(timeline.contains("compactSegmentTitle:\$expansionKey"))
         assertTrue(timeline.contains("val containsToolSummary = segs.any { it.type == \"tool\" }"))
@@ -390,6 +396,29 @@ class ApprovedFeatureSourceContractTest {
         assertTrue(timeline.contains("modifier = Modifier.padding(vertical = 2.dp)"))
         assertTrue(timeline.contains("color = Color.Transparent"))
         assertFalse(timeline.contains("outlineVariant.copy(alpha = 0.2f)"))
+    }
+
+    @Test
+    fun toolCallCreationPublishesTheCompleteBatchBeforeExecution() {
+        val manager = source(
+            sourceRoot(),
+            "com/newoether/agora/viewmodel/GenerationManager.kt",
+        )
+        val updateBranch = manager
+            .substringAfter("is StreamEvent.ToolCallUpdate -> {")
+            .substringBefore("is StreamEvent.ToolCallRequest -> {")
+        val batchBranch = manager
+            .substringAfter("is StreamEvent.ToolCallsRequest -> {")
+            .substringBefore("\n                }\n\n                val now")
+
+        assertTrue(updateBranch.contains("val created = upsertStreamingToolSegment("))
+        assertTrue(updateBranch.contains("publishStreamUpdate(forceCheckpoint = created)"))
+        val upsertIndex = batchBranch.indexOf("event.calls.forEach")
+        val publishIndex = batchBranch.indexOf("publishStreamUpdate(forceCheckpoint = true)")
+        assertTrue(upsertIndex >= 0)
+        assertTrue(batchBranch.contains("upsertStreamingToolSegment("))
+        assertTrue(publishIndex > upsertIndex)
+        assertEquals(1, Regex("publishStreamUpdate\\(").findAll(batchBranch).count())
     }
 
     @Test

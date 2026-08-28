@@ -6,6 +6,24 @@ This document owns durable application-level UI behavior that is not part of mes
 citations, semantic search, or Web Search. Current explicit user requirements override older
 presentation code and translations.
 
+## Global English UI title capitalization
+English title-like UI copy must use conventional Title Case. This is a hard UI constraint, not a
+page-specific preference. It applies to page and sheet titles, section and group headings, setting
+row headlines, dialog titles, menu commands, action labels, and other standalone labels that name a
+surface or command. Major words are capitalized; articles, coordinating conjunctions, and short
+prepositions remain lowercase unless they are the first or last word. Approved examples include
+`Service Tier`, `Developer Options`, `Stick to Bottom`, and `Import from Claude`.
+
+Technical acronyms remain uppercase, including MCP, API, URL, HTTP, SSE, SSH, PDF, and GGUF.
+Product names and deliberately mixed-case technical names retain their official casing. Descriptions,
+helper text, placeholders, body copy, and status sentences use sentence case instead. Non-English
+locales follow their native casing and punctuation conventions.
+
+Call sites must consume correctly authored resources. They must not apply a generic runtime title-case
+transformation, because that would corrupt acronyms, product names, user-authored names, and locale
+rules. Focused resource or source-contract tests must pin English title values for audited surfaces
+and preserve locale key parity.
+
 ## 1. Motion ownership and accessibility
 
 Application UI motion consumes the shared Agora motion policy. Spatial press, size, and scale motion

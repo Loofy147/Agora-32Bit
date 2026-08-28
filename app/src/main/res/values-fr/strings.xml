@@ -369,6 +369,9 @@
     <string name="advanced_generation_title">Paramètres avancés</string>
     <string name="advanced_per_conversation">Réglages par conversation</string>
     <string name="appearance_interface">Interface</string>
+    <string name="appearance_theme_color">Thème et couleurs</string>
+    <string name="appearance_motion_feedback">Mouvement et retour</string>
+    <string name="appearance_chat_display">Affichage du chat</string>
     <string name="message_display">Affichage des messages</string>
     <string name="tool_call_display_mode">Blocs de réflexion et d\'outils</string>
     <string name="tool_call_display_mode_timeline">Chronologie</string>
@@ -803,7 +806,7 @@
     <string name="rating_submitting">Envoi…</string>
     <string name="rating_success">Merci pour vos retours !</string>
     <string name="rating_failed">Échec de l\'envoi. Veuillez réessayer.</string>
-    <string name="rating_privacy">Votre note sera envoyée de manière anonyme à newoether.space. Seuls les champs que vous remplissez sont transmis. Aucune autre donnée n\'est collectée.</string>
+    <string name="rating_privacy">Votre note sera envoyée de manière anonyme à newoether.com. Seuls les champs que vous remplissez sont transmis. Aucune autre donnée n\'est collectée.</string>
 
     <!-- Data Control -->
     <string name="settings_data_control">Contrôle des données</string>
@@ -1003,7 +1006,7 @@
     <string name="crash_message">Désolé pour ce désagrément. Vous pouvez aider à corriger cela en envoyant un rapport de plantage anonyme.</string>
     <string name="crash_submit">Envoyer le rapport</string>
     <string name="crash_dismiss">Ne pas envoyer</string>
-    <string name="crash_privacy_note">Seul le journal de plantage est envoyé à newoether.space. Aucune autre information n\'est collectée.</string>
+    <string name="crash_privacy_note">Seul le journal de plantage est envoyé à newoether.com. Aucune autre information n\'est collectée.</string>
     <string name="crash_submitted">Rapport de plantage envoyé. Merci !</string>
     <string name="settings_group_network">Réseau</string>
     <string name="settings_proxy">Proxy</string>
@@ -1214,4 +1217,5 @@
     <string name="tool_create_skill">Créer une compétence</string>
     <string name="tool_edit_skill">Modifier la compétence</string>
     <string name="tool_delete_skill">Supprimer la compétence</string>
+    <string name="tool_read_file_truncated">Contenu partiel affiché · continuer à l’octet %1$d</string>
 </resources>

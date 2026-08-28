@@ -51,7 +51,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 private const val SCROLL_SETTLE_TIMEOUT_MS = 8_000L
 private const val STABLE_LAYOUT_SAMPLES = 3
 private const val LAYOUT_SAMPLE_INTERVAL_MS = 32L
-private val SEND_FEEDBACK_SCROLL_SPEC = DefaultFeedbackScrollSpec.copy(
+internal val SendFeedbackScrollSpec = DefaultFeedbackScrollSpec.copy(
     startup = FeedbackScrollStartupSpec(
         durationMillis = 240L,
         easing = FastOutSlowInEasing,
@@ -528,7 +528,7 @@ internal class ChatScrollCoordinator internal constructor(
                         val shouldScroll =
                             !request.attachedOnly || isWithinAbsoluteBottomAttachThreshold
                         if (shouldScroll) {
-                            requestAbsoluteBottomScroll(feedbackSpec = SEND_FEEDBACK_SCROLL_SPEC)
+                            requestAbsoluteBottomScroll(feedbackSpec = SendFeedbackScrollSpec)
                         }
                     } else if (!targetCommitted) {
                         DebugLog.e(

@@ -55,6 +55,7 @@ import com.newoether.agora.model.ThinkingSegmentDisplayModes
 import com.newoether.agora.model.isContextCompact
 import com.newoether.agora.ui.chat.message.GroupedSegmentAutoExpansionController
 import com.newoether.agora.ui.chat.message.MessageItem
+import com.newoether.agora.ui.chat.message.MessageSegmentDetailHost
 import com.newoether.agora.ui.chat.message.REGENERATION_ABORT_RESTORE_DURATION_MS
 import com.newoether.agora.ui.chat.message.REGENERATION_EXIT_DURATION_MS
 import com.newoether.agora.ui.chat.message.SegmentAppearanceRegistry
@@ -75,6 +76,7 @@ import kotlin.math.roundToInt
 @Composable
 internal fun MessageList(
     messages: StableMessageList,
+    authoritativeMessages: StableMessageList = messages,
     allMessages: StableMessageList = StableMessageList(),
     conversationId: String? = null,
     modifier: Modifier = Modifier,
@@ -85,7 +87,7 @@ internal fun MessageList(
     isCompacting: Boolean = false, compactPreview: StateFlow<String>? = null,
     isStopping: Boolean = false,
     isSwitching: Boolean = false,
-    streamingMessageId: String? = null,
+    streamingMessage: ChatMessage? = null,
     streamingAutoFollowEnabled: Boolean = isLoading && !isSwitching,
     streamingAutoFollowPaused: Boolean = false,
     streamingTailWithinAttachThreshold: Boolean = false,
@@ -131,6 +133,7 @@ internal fun MessageList(
     lifecycleEntranceTargetMessageId: String? = null,
 ) {
     val motionPolicy = LocalAgoraMotionPolicy.current
+    val streamingMessageId = streamingMessage?.id
     val groupedSegmentAutoExpansionController = remember(conversationId) {
         GroupedSegmentAutoExpansionController()
     }
@@ -648,7 +651,10 @@ internal fun MessageList(
         )
     }
 
-    val renderMessage: @Composable (ChatMessage) -> Unit = { messageStub ->
+    val renderMessage: @Composable (
+        ChatMessage,
+        (String, List<Int>, Boolean) -> Unit,
+    ) -> Unit = { messageStub, requestSegmentDetail ->
         val isStreamingOverlay = messageStub.id == streamingMessageId
         val cachedMessage = hydratedPayloads[messageStub.id]
         val observedMessage = if (isStreamingOverlay) {
@@ -852,6 +858,7 @@ internal fun MessageList(
             onMediaClick = onMediaClick,
             onFileContentClick = onFileContentClick,
             onPdfPagesClick = onPdfPagesClick,
+            onSegmentDetailRequest = requestSegmentDetail,
             searchQuery = searchQuery,
             activeSearchMatch = activeSearchMatch,
             onSearchMatchPosition = { key, centerY ->
@@ -935,7 +942,17 @@ internal fun MessageList(
         )
     }
 
-    Box(modifier = modifier) {
+    MessageSegmentDetailHost(
+        conversationId = conversationId,
+        authoritativeMessages = authoritativeMessages.list,
+        streamingMessage = streamingMessage,
+        observeMessage = observeMessage,
+        searchQuery = searchQuery,
+        activeSearchMatch = activeSearchMatch,
+        parseInlineDollarMath = parseInlineDollarMath,
+        onMediaClick = onMediaClick,
+        modifier = modifier,
+    ) { requestSegmentDetail ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -964,7 +981,7 @@ internal fun MessageList(
                     ) {
                         turn.messages.forEach { message ->
                             key(stableVisualKey(message.id)) {
-                                renderMessage(message)
+                                renderMessage(message, requestSegmentDetail)
                             }
                         }
                     }

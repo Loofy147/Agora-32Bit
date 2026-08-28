@@ -79,13 +79,20 @@ class Phase25UiSourceContractTest {
     }
 
     @Test
-    fun `Timeline clicks request direct detail independent of stored display preference`() {
+    fun `Timeline clicks request stable detail host independent of item lifetime`() {
         val item = source("MessageItem.kt")
         val assistant = source("AssistantMessageContent.kt")
+        val list = chatSource("MessageList.kt")
+        val detail = source("SegmentDetailSheet.kt")
 
         assertFalse(item.contains("usesExplicitDetailBackHandler("))
-        assertTrue(item.contains("onSegmentSelected = { indices, showListFirst ->"))
-        assertTrue(item.contains("detailUsesExplicitBackHandler = showListFirst"))
+        assertFalse(item.contains("var showSegmentDetail"))
+        assertFalse(item.contains("if (showSegmentDetail"))
+        assertTrue(item.contains("onSegmentDetailRequest(message.id, indices, showListFirst)"))
+        assertTrue(list.contains("MessageSegmentDetailHost("))
+        assertTrue(list.contains("authoritativeMessages = authoritativeMessages.list"))
+        assertTrue(detail.contains("observeMessage(messageId)"))
+        assertTrue(detail.contains("streamingMessage = streamingMessage"))
         assertTrue(assistant.contains("onSegmentSelected: (List<Int>, Boolean) -> Unit"))
         assertTrue(assistant.contains("onSegmentSelected(indices, false)"))
         assertTrue(assistant.contains(

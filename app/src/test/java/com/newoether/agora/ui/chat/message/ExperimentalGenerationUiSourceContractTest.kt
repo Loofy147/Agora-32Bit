@@ -327,11 +327,14 @@ class ExperimentalGenerationUiSourceContractTest {
     }
 
     @Test
-    fun `answer and thought Markdown use the same one point one line height multiplier`() {
+    fun `answer and thought Markdown use centered one point one line height`() {
         val assets = source(locateMainSourceRoot(), "message/MessageBubbleAssets.kt")
 
         assertTrue(assets.contains("MARKDOWN_LINE_HEIGHT_MULTIPLIER = 1.1f"))
         assertTrue(assets.contains("scaledMarkdownTextStyle("))
+        assertTrue(assets.contains("lineHeightStyle = LineHeightStyle("))
+        assertTrue(assets.contains("alignment = LineHeightStyle.Alignment.Center"))
+        assertTrue(assets.contains("trim = LineHeightStyle.Trim.Both"))
         assertTrue(assets.contains("val markdownBodyStyle = scaledMarkdownTextStyle(ChatType.body)"))
         assertTrue(assets.contains("val thoughtMarkdownBodyStyle = scaledMarkdownTextStyle(ChatType.thoughtBody)"))
         assertTrue(assets.contains("h1 = scaledMarkdownTextStyle(ChatType.mdH1)"))

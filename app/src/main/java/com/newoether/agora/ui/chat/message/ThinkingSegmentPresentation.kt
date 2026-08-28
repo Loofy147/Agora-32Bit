@@ -101,7 +101,7 @@ internal fun compactSegmentTitle(
     val isThinking = useLiveStatus && message.status == MessageStatus.THINKING
     val isToolCalling = useLiveStatus && message.status == MessageStatus.TOOL_CALLING
     val isTranscribing = useLiveStatus && message.status == MessageStatus.TRANSCRIBING
-    val toolCount = segs.count { it.type == "tool" && it.toolResult != null }
+    val toolCount = segs.count { it.type == "tool" }
     val thoughtMs = thoughtDurationMs(segs, fallbackMs = message.thoughtTimeMs)
     val hasThought = segs.any { it.type == "thought" }
     return when {

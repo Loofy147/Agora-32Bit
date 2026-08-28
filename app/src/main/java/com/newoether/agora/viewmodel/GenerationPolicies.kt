@@ -21,6 +21,26 @@ internal data class GenerationTerminalDisposition(
     val markConversationUnread: Boolean,
 )
 
+internal fun shouldPostGenerationTerminalNotification(
+    messageStatus: MessageStatus,
+    hasPendingGuidance: Boolean,
+    isContextCompact: Boolean,
+    appInForeground: Boolean,
+    conversationVisible: Boolean?,
+): Boolean {
+    if (conversationVisible == null) {
+        return !appInForeground &&
+            messageStatus == MessageStatus.SUCCESS &&
+            !hasPendingGuidance
+    }
+    val terminalNeedsAttention =
+        messageStatus == MessageStatus.ERROR ||
+            (messageStatus == MessageStatus.SUCCESS && !hasPendingGuidance)
+    return !conversationVisible &&
+        terminalNeedsAttention &&
+        (!isContextCompact || messageStatus == MessageStatus.ERROR)
+}
+
 /**
  * Every provider-generation exit closes its durable Run. Pending guidance only defers the
  * conversation-unread/completion presentation; it cannot keep the origin Run live because the
@@ -29,6 +49,7 @@ internal data class GenerationTerminalDisposition(
 internal fun generationTerminalDisposition(
     messageStatus: MessageStatus,
     hasPendingGuidance: Boolean,
+    conversationVisible: Boolean? = null,
 ): GenerationTerminalDisposition = when (messageStatus) {
     MessageStatus.STOPPED -> GenerationTerminalDisposition(
         RunStatus.STOPPED,
@@ -38,12 +59,12 @@ internal fun generationTerminalDisposition(
     MessageStatus.ERROR -> GenerationTerminalDisposition(
         RunStatus.FAILED,
         RunEndReason.PROVIDER_ERROR,
-        markConversationUnread = false,
+        markConversationUnread = conversationVisible == false,
     )
     else -> GenerationTerminalDisposition(
         RunStatus.COMPLETED,
         RunEndReason.MODEL_COMPLETED,
-        markConversationUnread = !hasPendingGuidance,
+        markConversationUnread = !hasPendingGuidance && conversationVisible != true,
     )
 }
 

@@ -567,6 +567,9 @@
     <string name="settings_appearance_desc">Chủ đề, bảng màu và màu sắc động</string>
     <string name="appearance_title">Giao diện</string>
     <string name="appearance_interface">Giao diện người dùng</string>
+    <string name="appearance_theme_color">Chủ đề &amp; màu sắc</string>
+    <string name="appearance_motion_feedback">Chuyển động &amp; phản hồi</string>
+    <string name="appearance_chat_display">Hiển thị trò chuyện</string>
     <string name="theme_mode">Chế độ chủ đề</string>
     <string name="theme_mode_light">Sáng</string>
     <string name="theme_mode_dark">Tối</string>
@@ -806,7 +809,7 @@
     <string name="rating_submitting">Đang gửi…</string>
     <string name="rating_success">Cảm ơn phản hồi của bạn!</string>
     <string name="rating_failed">Gửi thất bại. Vui lòng thử lại.</string>
-    <string name="rating_privacy">Đánh giá của bạn sẽ được tải lên ẩn danh tới newoether.space. Chỉ các trường bạn điền được gửi đi. Không thu thập dữ liệu khác.</string>
+    <string name="rating_privacy">Đánh giá của bạn sẽ được tải lên ẩn danh tới newoether.com. Chỉ các trường bạn điền được gửi đi. Không thu thập dữ liệu khác.</string>
 
     <!-- Data Control -->
     <string name="settings_data_control">Kiểm soát dữ liệu</string>
@@ -1012,7 +1015,7 @@
     <string name="crash_message">Rất tiếc vì sự cố này. Bạn có thể giúp khắc phục lỗi bằng cách gửi một báo cáo sự cố ẩn danh.</string>
     <string name="crash_submit">Gửi báo cáo</string>
     <string name="crash_dismiss">Không gửi</string>
-    <string name="crash_privacy_note">Chỉ có nhật ký sự cố được gửi đến newoether.space. Không thu thập thêm thông tin nào khác.</string>
+    <string name="crash_privacy_note">Chỉ có nhật ký sự cố được gửi đến newoether.com. Không thu thập thêm thông tin nào khác.</string>
     <string name="crash_submitted">Báo cáo sự cố đã được gửi. Xin cảm ơn bạn!</string>
     <string name="settings_group_network">Mạng</string>
     <string name="settings_proxy">Proxy</string>
@@ -1220,4 +1223,5 @@
     <string name="tool_create_skill">Tạo kỹ năng</string>
     <string name="tool_edit_skill">Sửa kỹ năng</string>
     <string name="tool_delete_skill">Xóa kỹ năng</string>
+    <string name="tool_read_file_truncated">Đang hiển thị một phần nội dung · tiếp tục từ byte %1$d</string>
 </resources>

@@ -8,6 +8,7 @@ import com.newoether.agora.data.SettingsManager
 import com.newoether.agora.data.local.ChatDao
 import com.newoether.agora.data.local.ChatDatabase
 import com.newoether.agora.data.repository.ConversationRepository
+import com.newoether.agora.data.repository.ConversationSettingsTransferCoordinator
 import com.newoether.agora.data.repository.SettingsRepository
 import com.newoether.agora.data.repository.TaskRepository
 import com.newoether.agora.data.AutoBackupManager
@@ -78,6 +79,7 @@ class AppContainer(
      * lets an overdue Worker race the orphan cleanup and inspect an impossible half-live graph.
      */
     suspend fun startProcessServices() = withContext(kotlinx.coroutines.Dispatchers.IO) {
+        conversationSettingsTransfers.replayPending()
         conversationRepository.ensureRunRecovery()
         automationScheduler.start()
     }
@@ -88,6 +90,9 @@ class AppContainer(
         SettingsRepository(settingsManager, appScope).also {
             LocalModelRuntime.bindIdleRetention(it.localModelIdleRetentionMinutes, appScope)
         }
+    }
+    val conversationSettingsTransfers: ConversationSettingsTransferCoordinator by lazy {
+        ConversationSettingsTransferCoordinator(conversationRepository, settingsRepository)
     }
 
     /** One process-wide confirmation queue shared by Chat, Task, and Loop generation. */
@@ -239,7 +244,8 @@ class AppContainer(
     fun chatViewModelFactory(): ChatViewModelFactory =
         ChatViewModelFactory(
             application, database, chatDao, settingsManager, memoryManager, skillManager, appContext, sandboxManagerFactory,
-            autoBackupManager, conversationRepository, settingsRepository, localProvider, providerRegistry,
+            autoBackupManager, conversationRepository, settingsRepository, conversationSettingsTransfers,
+            localProvider, providerRegistry,
             taskManager, loopManager, automationToolProvider, conversationExecutionCoordinator,
             automationExecutionGate, conversationStateRegistry, shellConfirmationController,
             mcpRegistry, mcpToolProvider, taskExecutionEngine,

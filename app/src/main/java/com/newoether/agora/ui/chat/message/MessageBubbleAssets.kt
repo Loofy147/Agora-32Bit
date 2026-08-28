@@ -39,6 +39,7 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -135,8 +136,13 @@ internal fun buildCitationAwareMarkdownAnnotatedString(
 
 private const val MARKDOWN_LINE_HEIGHT_MULTIPLIER = 1.1f
 
+// Center extra leading so bold-only lines do not crowd adjacent regular lines.
 internal fun scaledMarkdownTextStyle(style: TextStyle): TextStyle = style.copy(
     lineHeight = style.lineHeight * MARKDOWN_LINE_HEIGHT_MULTIPLIER,
+    lineHeightStyle = LineHeightStyle(
+        alignment = LineHeightStyle.Alignment.Center,
+        trim = LineHeightStyle.Trim.Both,
+    ),
 )
 @Composable
 internal fun rememberChatMarkdownAssets(

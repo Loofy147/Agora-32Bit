@@ -141,6 +141,7 @@ class BoundRunGenerationLauncherTest {
                 state = fixture.state,
                 failedMessage = capture(failedMessage),
                 effectId = "request-finalize-run-3",
+                notificationText = any(),
             )
         } returns true
         mockDebugLog()

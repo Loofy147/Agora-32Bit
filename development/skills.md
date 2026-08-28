@@ -66,8 +66,13 @@ When `accessSkills` is true, the ordinary `GenerationToolExecutor` exposes exact
 
 Definitions, argument validation, multi-read formatting, exact-once patching, result JSON, timeout,
 accepted tool-batch identity, durable tool/result persistence, and error handling mirror the saved
-Memory tools. When access is false, no Skill definitions are advertised and Skill names are not
-handled through a hidden path. There is no active-Skill update tool.
+Memory tools. `edit_skill_file` requires an explicit `operation` of `replace`, `patch`, `rename`, or
+`describe`. The executor reads only the selected operation's value, so runtime-required empty
+placeholders for unrelated fields cannot create conflicting edits. Empty replacement content clears
+the file, an empty patch replacement deletes the unique match, and an empty description removes the
+catalog description. Unknown operations and missing patch/rename inputs fail before `SkillManager`
+is called. When access is false, no Skill definitions are advertised and Skill names are not handled
+through a hidden path. There is no active-Skill update tool.
 
 Tool presentation owns localized labels/icons and structured list-result formatting. Unknown,
 malformed, or failed operations return ordinary tool failure content; they do not mutate generation

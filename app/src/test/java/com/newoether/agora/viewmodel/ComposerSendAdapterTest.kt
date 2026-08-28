@@ -66,6 +66,23 @@ class ComposerSendAdapterTest {
     }
 
     @Test
+    fun newChatAcceptanceClearsWorkspaceOwnerInsteadOfCreatedConversation() = runTest {
+        val acceptance = SendAcceptance.Direct("message", "created-conversation")
+        val fixture = Fixture(this, acceptance)
+        val result = fixture.adapter.sendMessage(
+            text = "text",
+            draftOwnerId = NEW_CHAT_WORKSPACE_ID,
+            onAccepted = { fixture.events += "ui" },
+        )
+        runCurrent()
+        assertEquals(acceptance, result)
+        assertEquals(
+            listOf("send:text::", "clear:$NEW_CHAT_WORKSPACE_ID", "ui"),
+            fixture.events,
+        )
+        coVerify(exactly = 0) { fixture.drafts.clearAccepted("created-conversation") }
+    }
+    @Test
     fun stalePendingDraftCannotReclaimSubmittedRuntimeAttachment() = runTest {
         val stalePending = SelectedAttachment(
             localId = "stable-id",

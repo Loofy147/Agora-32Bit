@@ -117,6 +117,7 @@ internal fun MessageItem(
     onMediaClick: (List<String>, Int) -> Unit = { _, _ -> },
     onFileContentClick: ((fileName: String, content: String) -> Unit)? = null,
     onPdfPagesClick: ((pages: List<String>, startIndex: Int) -> Unit)? = null,
+    onSegmentDetailRequest: (String, List<Int>, Boolean) -> Unit = { _, _, _ -> },
     onHeightChanged: (Int) -> Unit = {},
     searchQuery: String = "",
     activeSearchMatch: ConversationSearchMatch? = null,
@@ -134,10 +135,6 @@ internal fun MessageItem(
     val displayActionCopyText = remember(actionCopyText, customProviders) {
         actionCopyText?.let { replaceCustomProviderIdsForDisplay(it, customProviders) }
     }
-    var showSegmentDetail by remember { mutableStateOf(false) }
-    var detailUsesExplicitBackHandler by remember { mutableStateOf(false) }
-    var selectedSegmentIndex by remember { mutableIntStateOf(-1) }
-    var selectedSegmentIndices by remember { mutableStateOf<List<Int>>(emptyList()) }
     var showInfoDialog by remember { mutableStateOf(false) }
     var showUserTextSelection by remember(message.id) { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -354,10 +351,7 @@ internal fun MessageItem(
                         onShowInfo = { showInfoDialog = true },
                         onShowDelete = { showDeleteConfirm = true },
                         onSegmentSelected = { indices, showListFirst ->
-                            selectedSegmentIndices = indices
-                            selectedSegmentIndex = indices.firstOrNull() ?: -1
-                            detailUsesExplicitBackHandler = showListFirst
-                            showSegmentDetail = true
+                            onSegmentDetailRequest(message.id, indices, showListFirst)
                         },
                         onLayoutMutationStarted = onLayoutMutationStarted,
                         onLayoutMutationSettled = onLayoutMutationSettled,
@@ -426,21 +420,6 @@ internal fun MessageItem(
             errorText = detailErrorText,
             handleBackInternally = true,
             onDismiss = { showCompactDetail = false },
-        )
-    }
-
-    // Segment detail bottom sheet (self-contained draggable sheet + FSM).
-    if (showSegmentDetail && selectedSegmentIndex >= 0) {
-        SegmentDetailSheet(
-            message = displayMessage,
-            selectedSegmentIndex = selectedSegmentIndex,
-            selectedSegmentIndices = selectedSegmentIndices,
-            isStreaming = isStreaming,
-            markdownRenderContext = thoughtMarkdownRenderContext,
-            onMediaClick = onMediaClick,
-            handleBackInternally = detailUsesExplicitBackHandler,
-            showSegmentListFirst = detailUsesExplicitBackHandler,
-            onDismiss = { showSegmentDetail = false }
         )
     }
 }

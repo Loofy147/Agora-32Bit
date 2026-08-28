@@ -15,6 +15,18 @@ import kotlinx.coroutines.flow.collect
 
 private val TITLE_WHITESPACE = Regex("\\s+")
 
+private const val INITIAL_CONVERSATION_TITLE_MAX_CODE_POINTS = 32
+
+internal fun initialConversationTitle(prompt: String, fallback: String): String {
+    val normalized = prompt.replace(TITLE_WHITESPACE, " ").trim()
+    if (normalized.isEmpty()) return fallback
+    val codePointCount = normalized.codePointCount(0, normalized.length)
+    if (codePointCount <= INITIAL_CONVERSATION_TITLE_MAX_CODE_POINTS) return normalized
+    val prefixCodePoints = INITIAL_CONVERSATION_TITLE_MAX_CODE_POINTS - 1
+    val prefixEnd = normalized.offsetByCodePoints(0, prefixCodePoints)
+    return normalized.substring(0, prefixEnd).trimEnd() + "…"
+}
+
 internal fun fallbackConversationTitle(response: String): String =
     response.replace(TITLE_WHITESPACE, " ").trim().take(60)
 

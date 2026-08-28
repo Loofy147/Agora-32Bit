@@ -100,8 +100,8 @@ internal fun ComposerSendButton(
         }
     }
 
-    LaunchedEffect(composer.pendingSend, anyProcessing) {
-        if (composer.pendingSend && !anyProcessing) {
+    LaunchedEffect(composer.pendingSend, anyProcessing, isSwitching) {
+        if (composer.pendingSend && !anyProcessing && !isSwitching) {
             val submittedText = textFieldState.text.toString()
             val submittedAttachments = composer.selectedAttachments.toList()
             composer.pendingSend = false

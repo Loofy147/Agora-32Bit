@@ -168,8 +168,8 @@ fun ChatApp(
     val conversationSettings by viewModel.settings.conversationSettings.collectAsState()
     val pendingSettings by viewModel.pendingConversationSettings.collectAsState()
     // Resolved per-conversation values: override → global default
-    val convId = currentConversationId
-    val convOverride = if (convId != null) conversationSettings[convId] else pendingSettings
+    val settingsOwnerId = conversationSettingsOwnerId(isNewChatMode, currentConversationId)
+    val convOverride = if (isNewChatMode) pendingSettings else settingsOwnerId?.let(conversationSettings::get)
     val codeExecutionEnabled = convOverride?.codeExecutionEnabled ?: globalCodeExecution
     val googleSearchEnabled = convOverride?.googleSearchEnabled ?: globalGoogleSearch
     val thinkingEnabled = convOverride?.thinkingEnabled ?: globalThinkingEnabled
@@ -541,6 +541,7 @@ fun ChatApp(
                             Box(modifier = Modifier.fillMaxSize()) {
                             MessageList(
                                 messages = StableMessageList(renderMessagesState.value),
+                                authoritativeMessages = StableMessageList(displayMessagesState.value),
                                 allMessages = StableMessageList(allMessagesState.value),
                                 conversationId = currentConversationId,
                                 modifier = messageListModifier.verticalBottomOverlayFade(
@@ -557,7 +558,7 @@ fun ChatApp(
                                 compactPreview = viewModel.compactPreview,
                                 isStopping = isStopping,
                                 isSwitching = isSwitching,
-                                streamingMessageId = generationSnapshot.streamingMessage?.id,
+                                streamingMessage = generationSnapshot.streamingMessage?.forDisplay(customProviders),
                                 streamingAutoFollowEnabled =
                                     streamingFollowAvailability.enabled && stickToBottom,
                                 streamingAutoFollowPaused =
@@ -575,7 +576,6 @@ fun ChatApp(
                                 toolCallDisplayMode = toolCallDisplayMode,
                                 thinkingSegmentDisplayMode = thinkingSegmentDisplayMode,
                                 autoExpandActiveGroup = autoExpandActiveGroup,
-
                                 parseInlineDollarMath = parseInlineDollarMath,
                                 contextRetainedMessageIds = contextProjection.retainedMessageIds.orEmpty(),
                                 modelAliases = StableModelAliases(modelAliases),
@@ -917,22 +917,22 @@ fun ChatApp(
                         thinkingBudgetTokens = thinkingBudgetTokens,
                         openAiWebSearchAvailable = openAiWebSearchAvailable,
                         openAiWebSearchEnabled = openAiWebSearchEnabled,
-                        onOpenAiWebSearchToggle = { enabled -> updateOpenAiNativeSearch(viewModel, currentConversationId, haptics, enabled) },
+                        onOpenAiWebSearchToggle = { enabled -> updateOpenAiNativeSearch(viewModel, settingsOwnerId, haptics, enabled) },
                         openAiServiceTierAvailable = openAiServiceTierState.available,
                         openAiServiceTierEnabled = openAiServiceTierState.enabled,
                         openAiServiceTier = openAiServiceTierState.tier,
-                        onOpenAiServiceTierToggle = { enabled -> updateOpenAiConversationServiceTierEnabled(viewModel, currentConversationId, haptics, enabled) },
-                        onOpenAiServiceTierChange = { tier -> updateOpenAiConversationServiceTier(viewModel, currentConversationId, haptics, tier) },
-                        onCodeExecutionToggle = { enabled -> haptics.toggle(enabled); viewModel.updateConversationSetting(currentConversationId) { it.copy(codeExecutionEnabled = enabled) } },
-                        onGoogleSearchToggle = { enabled -> haptics.toggle(enabled); viewModel.updateConversationSetting(currentConversationId) { it.copy(googleSearchEnabled = enabled) } },
-                        onThinkingToggle = { enabled -> haptics.toggle(enabled); viewModel.updateConversationSetting(currentConversationId) { it.copy(thinkingEnabled = enabled) } },
-                        onThinkingLevelChange = { level -> viewModel.updateConversationSetting(currentConversationId) { it.copy(thinkingLevel = level) } },
-                        onThinkingBudgetEnabledChange = { enabled -> haptics.toggle(enabled); viewModel.updateConversationSetting(currentConversationId) { it.copy(thinkingBudgetEnabled = enabled) } },
-                        onThinkingBudgetTokensChange = { tokens -> viewModel.updateConversationSetting(currentConversationId) { it.copy(thinkingBudgetTokens = tokens) } },
+                        onOpenAiServiceTierToggle = { enabled -> updateOpenAiConversationServiceTierEnabled(viewModel, settingsOwnerId, haptics, enabled) },
+                        onOpenAiServiceTierChange = { tier -> updateOpenAiConversationServiceTier(viewModel, settingsOwnerId, haptics, tier) },
+                        onCodeExecutionToggle = { enabled -> haptics.toggle(enabled); viewModel.updateConversationSetting(settingsOwnerId) { it.copy(codeExecutionEnabled = enabled) } },
+                        onGoogleSearchToggle = { enabled -> haptics.toggle(enabled); viewModel.updateConversationSetting(settingsOwnerId) { it.copy(googleSearchEnabled = enabled) } },
+                        onThinkingToggle = { enabled -> haptics.toggle(enabled); viewModel.updateConversationSetting(settingsOwnerId) { it.copy(thinkingEnabled = enabled) } },
+                        onThinkingLevelChange = { level -> viewModel.updateConversationSetting(settingsOwnerId) { it.copy(thinkingLevel = level) } },
+                        onThinkingBudgetEnabledChange = { enabled -> haptics.toggle(enabled); viewModel.updateConversationSetting(settingsOwnerId) { it.copy(thinkingBudgetEnabled = enabled) } },
+                        onThinkingBudgetTokensChange = { tokens -> viewModel.updateConversationSetting(settingsOwnerId) { it.copy(thinkingBudgetTokens = tokens) } },
                         webSearchEnabled = webSearchEnabled,
-                        onWebSearchToggle = { enabled -> haptics.toggle(enabled); viewModel.updateConversationSetting(currentConversationId) { it.copy(webSearchEnabled = enabled) } },
+                        onWebSearchToggle = { enabled -> haptics.toggle(enabled); viewModel.updateConversationSetting(settingsOwnerId) { it.copy(webSearchEnabled = enabled) } },
                         shellEnabled = shellEnabled,
-                        onShellToggle = { enabled -> haptics.toggle(enabled); viewModel.updateConversationSetting(currentConversationId) { it.copy(shellEnabled = enabled) } },
+                        onShellToggle = { enabled -> haptics.toggle(enabled); viewModel.updateConversationSetting(settingsOwnerId) { it.copy(shellEnabled = enabled) } },
                         // The model row owns its selection tick. Repeating it here produced the
                         // previous double buzz for one physical tap.
                         onModelSelect = { viewModel.setActiveModel(it) },

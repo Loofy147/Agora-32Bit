@@ -526,6 +526,24 @@ class ToolPresentationResolverTest {
     }
 
     @Test
+    fun truncatedFileReadWithPartialContentRemainsCompleted() {
+        val presentation = ToolPresentationResolver.resolve(
+            MessageSegment(
+                type = "tool",
+                toolName = "file_read",
+                toolArgs = """{"path":"/tmp/large.txt","offset":0}""",
+                toolResult = """{"type":"file_read","path":"/tmp/large.txt","content":"partial content","lines":1,"total_lines":0,"total_bytes":1048577,"returned_bytes":15,"offset":0,"limit":1048576,"truncated":true}""",
+                toolState = ToolExecutionStates.SUCCEEDED,
+            ),
+        )
+        val result = presentation.result as JsonObject
+
+        assertEquals(ToolPresentationState.COMPLETED, presentation.state)
+        assertEquals("partial content", (result["content"] as JsonPrimitive).content)
+        assertEquals("true", (result["truncated"] as JsonPrimitive).content)
+    }
+
+    @Test
     fun truncatedConversationSearchCountsCompletedResults() {
         val presentation = ToolPresentationResolver.resolve(
             MessageSegment(

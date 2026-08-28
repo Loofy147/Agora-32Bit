@@ -45,6 +45,32 @@ interface ChatDao : ChatAutomationDao, ChatContextCompactDao, ChatProviderContex
     @Query("SELECT * FROM conversations WHERE id = :conversationId")
     fun observeConversation(conversationId: String): Flow<ChatEntity?>
 
+    @Query("SELECT * FROM new_chat_persist WHERE id = 0")
+    fun observeNewChatPersist(): Flow<NewChatPersistEntity?>
+
+    @Query("SELECT * FROM new_chat_persist WHERE id = 0")
+    suspend fun getNewChatPersist(): NewChatPersistEntity?
+
+    @Upsert
+    suspend fun upsertNewChatPersist(entity: NewChatPersistEntity)
+
+    @Query("DELETE FROM new_chat_persist WHERE id = 0")
+    suspend fun deleteNewChatPersist(): Int
+
+    @Query("SELECT * FROM conversation_settings_transfer WHERE conversationId = :conversationId")
+    suspend fun getConversationSettingsTransfer(
+        conversationId: String,
+    ): ConversationSettingsTransferEntity?
+
+    @Query("SELECT * FROM conversation_settings_transfer ORDER BY conversationId")
+    suspend fun getPendingConversationSettingsTransfers(): List<ConversationSettingsTransferEntity>
+
+    @Upsert
+    suspend fun upsertConversationSettingsTransfer(entity: ConversationSettingsTransferEntity)
+
+    @Query("DELETE FROM conversation_settings_transfer WHERE conversationId = :conversationId")
+    suspend fun deleteConversationSettingsTransfer(conversationId: String): Int
+
     @Query("SELECT * FROM messages WHERE id = :messageId")
     fun observeMessage(messageId: String): Flow<MessageEntity?>
 
@@ -95,6 +121,12 @@ interface ChatDao : ChatAutomationDao, ChatContextCompactDao, ChatProviderContex
 
     @Query("UPDATE conversations SET modelId = :newModelId WHERE modelId = :oldModelId")
     suspend fun replaceConversationModelReferences(
+        oldModelId: String,
+        newModelId: String?,
+    ): Int
+
+    @Query("UPDATE new_chat_persist SET modelId = :newModelId WHERE id = 0 AND modelId = :oldModelId")
+    suspend fun replaceNewChatModelReference(
         oldModelId: String,
         newModelId: String?,
     ): Int
@@ -242,6 +274,7 @@ interface ChatDao : ChatAutomationDao, ChatContextCompactDao, ChatProviderContex
         messages: List<MessageEntity>,
         messageSelectionUpdates: Map<String?, String>,
         conversationModelId: String,
+        conversationSettingsJson: String?,
         at: Long,
     ): RunGraphCommit {
         require(conversation.id == run.conversationId)
@@ -249,7 +282,14 @@ interface ChatDao : ChatAutomationDao, ChatContextCompactDao, ChatProviderContex
             "Conversation ${conversation.id} already exists"
         }
         require(conversationModelId.isNotBlank())
+        deleteNewChatPersist()
         upsertConversation(conversation.copy(modelId = conversationModelId))
+        upsertConversationSettingsTransfer(
+            ConversationSettingsTransferEntity(
+                conversationId = conversation.id,
+                settingsJson = conversationSettingsJson,
+            )
+        )
         return createRunWithMessages(
             run,
             messages,
@@ -809,6 +849,17 @@ interface ChatDao : ChatAutomationDao, ChatContextCompactDao, ChatProviderContex
         limit: Int,
     ): List<ConversationDraftAttachmentReference>
 
+    @Query(
+        """
+        SELECT draftAttachments
+        FROM new_chat_persist
+        WHERE id = 0
+          AND draftAttachments IS NOT NULL
+          AND draftAttachments != ''
+        """
+    )
+    suspend fun getNewChatDraftAttachmentReference(): NewChatDraftAttachmentReference?
+
     @Query("DELETE FROM conversations")
     suspend fun deleteAllConversations()
 
@@ -822,6 +873,7 @@ interface ChatDao : ChatAutomationDao, ChatContextCompactDao, ChatProviderContex
         newModelId: String?,
     ) {
         replaceConversationModelReferences(oldModelId, newModelId)
+        replaceNewChatModelReference(oldModelId, newModelId)
         replaceTaskModelReferences(oldModelId, newModelId)
     }
 
@@ -833,6 +885,19 @@ interface ChatDao : ChatAutomationDao, ChatContextCompactDao, ChatProviderContex
         """
     )
     suspend fun renameConversationProviderModelReferences(
+        oldProvider: String,
+        newProvider: String,
+    ): Int
+
+    @Query(
+        """
+        UPDATE new_chat_persist
+        SET modelId = :newProvider || substr(modelId, length(:oldProvider) + 1)
+        WHERE id = 0
+          AND substr(modelId, 1, length(:oldProvider) + 1) = :oldProvider || ':'
+        """
+    )
+    suspend fun renameNewChatProviderModelReference(
         oldProvider: String,
         newProvider: String,
     ): Int
@@ -852,6 +917,7 @@ interface ChatDao : ChatAutomationDao, ChatContextCompactDao, ChatProviderContex
     @Transaction
     suspend fun renameConfiguredProviderModelReferences(oldProvider: String, newProvider: String) {
         renameConversationProviderModelReferences(oldProvider, newProvider)
+        renameNewChatProviderModelReference(oldProvider, newProvider)
         renameTaskProviderModelReferences(oldProvider, newProvider)
         renameMessageProviderModelReferences(oldProvider, newProvider)
     }

@@ -76,8 +76,13 @@ For every ordinary Provider request:
 5. Failed, stopped, in-flight, missing, or off-branch Compact rows are not context boundaries.
 6. If no successful Compact exists on the selected ancestor chain, context continues to the oldest
    reachable ancestor.
-7. Provider projection may convert the successful Compact capsule into the established summary
-   input role, but it must preserve the boundary position and following message order.
+7. Provider projection converts the successful Compact capsule into a transient USER summary whose
+   text is exactly `<context_summary>\nSUMMARY\n</context_summary>`. The marker exists only in the
+   prepared API request; Room, UI projection, context usage, and retained-message projection keep
+   the durable raw summary. If no real USER message follows that Compact and no existing API-only
+   initial USER prompt terminates the request, shared request preparation appends `Please continue.`
+   as API-only USER input. Consecutive USER input is canonicalized with one blank line while
+   preserving the boundary position and following message order.
 
 `GenerationApiPathBuilder` and the ordinary Provider message projection own this contract.
 Manual/automatic Compact and Recompact use this same ordinary path from their requested graph
@@ -115,6 +120,19 @@ Completion releases the lease only when acquisition actually succeeded. Task and
 using their externally managed WorkManager foreground execution. Process death still uses the
 ordinary orphaned-Run recovery contract and does not recreate the coroutine or Provider stream.
 
+Foreground Chat terminal attention is conversation-aware. A conversation is visible only while the
+app is foreground, Chat owns top-level presentation, and that exact conversation is selected;
+Settings, Tasks, media/PDF preview, and text preview therefore hide it, while the drawer does not.
+After durable settlement, ordinary SUCCESS or ERROR marks an invisible source conversation unread
+and posts its stable per-conversation notification. A visible source conversation keeps neither.
+Queued/continuation SUCCESS remains an interim boundary and does not notify. Compact SUCCESS may
+mark unread but never notifies; Compact ERROR marks unread and notifies; STOPPED stays silent. Error
+notifications use the complete formatted generation error rather than replacing available detail
+with a generic failure body. The durable read boundary runs only for a foreground, presented Chat
+conversation; after its unread write succeeds, it cancels that conversation's stable notification
+without affecting any other conversation. Headless Task/Loop execution retains its independent
+foreground/background notification policy.
+
 ## 6. Review blockers
 
 A change is invalid if it:
@@ -128,7 +146,10 @@ A change is invalid if it:
   genuine stable consumers and without removing an existing responsibility or duplication;
 - mutates suffix/neighbor messages during same-position replacement;
 - merges actions or status across different Run IDs;
-- treats a non-successful Compact as a context boundary.
+- treats a non-successful Compact as a context boundary;
+- omits, summarizes, redacts, caps, truncates, drops, or replaces any information from the complete
+  formatted generation error in a later Provider request whose selected context includes the failed
+  MODEL row.
 
 Focused tests must cover each rule, including legacy blank IDs, protocol rows, failed/stopped
 Compact rows, nearest-successful-ancestor selection, fresh-Run Recompact, suffix isolation, and
@@ -283,6 +304,12 @@ and equivalent live detail text; active Tool summaries instead fade their last 4
 Static titles, terminal labels, Retry, error text, and citation metadata do not replay this stream
 animation merely because they share typography.
 
+`ToolSummaryText` uses the canonical `ToolPresentationState` as its only whole-summary Crossfade
+identity. Argument, subject, progress, output, and other incremental summary changes inside one state
+render directly through the shared muted-tail streaming text; they must not restart a whole-row
+Crossfade. A Crossfade is allowed only when the resolved Tool lifecycle state changes. Compact/grouped
+and individual Timeline rows use this same owner and contract.
+
 The fade is draw-only. One unchanged full AnnotatedString/Text layout owns shaping, kerning, wrapping,
 alignment, semantics, links, citations, selection mapping, search highlights, and code controls while
 only glyph paint alpha changes. Terminal settlement must not remove temporary foreground spans,
@@ -340,11 +367,18 @@ those supported string fields remains verbatim. This display extraction never ch
 Provider-facing text.
 
 A normal durable MODEL row ending in ERROR or STOPPED remains that exact assistant turn in every
-later Provider request. API-only canonicalization preserves its nonblank partial answer first and
-appends one terminal annotation to the same assistant text. ERROR then appends the exact last
-nonblank persisted `error` segment, without localization, JSON extraction, sentence casing,
-truncation, or other rewriting; only legacy error-only rows without an error segment may use their
-stored text as the detail. STOPPED appends its stopped annotation even when no partial answer exists.
+later Provider request whose selected context contains that row. API-only canonicalization
+preserves its nonblank partial answer first and appends one terminal annotation to the same assistant
+text.
+For ERROR, the complete formatted generation error is mandatory Provider-visible request content.
+API-only canonicalization sends the last nonblank persisted `error` through the established
+generation-error formatting and normalization path, then appends that complete formatted result.
+Formatting may normalize structure and presentation, but it must retain all error information. No
+request-building, context, projection, or Provider-adapter layer may omit, summarize, redact, cap,
+truncate, drop, or replace any part of the formatted result. If the failed MODEL row is in the
+selected context, dispatching an API request without that complete formatted error is
+contract-invalid. Only legacy error-only rows without an error segment may use their stored text as
+the formatter input. STOPPED appends its stopped annotation even when no partial answer exists.
 The API projection normalizes only its transient status to prevent duplicate projection; it never
 changes Room. It must not change either terminal row to USER, prepend it to a later user message, or
 drop the concrete error. Synthetic tool/result rows and Compact rows retain their dedicated
@@ -623,6 +657,22 @@ fabricate a tool-result continuation round. Whether a durable hosted segment is 
 independent UI policy. Provider semantic termination still owns whether the request succeeded; Stop
 and errors use the shared generation settlement.
 
+Tool visibility begins at the canonical creation event, not at execution start. A Provider emits a
+`ToolCallUpdate` as soon as a structured Tool block is observable. `GenerationManager` immediately
+publishes every newly created segment. For a `ToolCallsRequest`, it upserts every call first and then
+publishes one snapshot containing the complete batch before any Tool execution begins. A terminal-only
+text-recovery batch follows the same publication rule even though no earlier structured block existed.
+The batch executor's later per-call running updates do not own creation visibility. UI placeholders,
+delays, retries, or shadow Tool state must not substitute for this overlay publication boundary.
+
+Local Sandbox and Conch share one shell-tool baseline: foreground command/workdir validation,
+bounded retained output and cancellation propagation; bounded typed `file_read`; 1MB UTF-8
+`file_write`; backend-native `file_edit`; and home-default glob/grep with the documented caps,
+truncation metadata, regex failures, and line-content bounds. Conch durable background jobs,
+foreground continuation after the client wait budget, and `view_image` are explicit extensions rather
+than baseline behavior that Local must imitate. SSH may implement the transport-neutral interfaces,
+but it is not the authority for the Local/Conch baseline.
+
 Structured Provider citations follow [citations.md](citations.md). Protocol routers emit structured
 citation events rather than answer `TextChunk` or tool events. The existing streaming segment
 overlay and bounded checkpoint/terminal persistence retain accepted citation segments for the
@@ -636,7 +686,9 @@ terminal display and copy/export cleanup. Stored answer text, citation identity,
 safety remain unchanged.
 
 A message card with visible tool segments but no real `thought` segment displays only
-`Called x tools`. Message-level thought duration is a fallback only when at least one thought segment
+`Called x tools`. Terminal failed or stopped visible tool segments contribute to that count even
+without a result payload; an active group continues to display the current tool name. Message-level
+thought duration is a fallback only when at least one thought segment
 exists; it must not turn a tool-only card into `Thought for xs, called x tools`.
 Gemini keeps its hosted output protocol-local. Candidate `groundingMetadata` becomes a completed,
 durable `google_search` hosted block with normalized `results` and full grounding metadata. The shared
@@ -772,6 +824,17 @@ or Provider-visible materialization. Search and semantic-search reads use bounde
 instead of unbounded full-row materialization. LazyColumn eviction or rehydration may change object
 lifetime only; it must not change content, generation state, or glyph-birth metadata.
 
+An open Thinking-segment Bottom Sheet is owned above the LazyColumn and stores only durable message
+identity plus segment-selection mode. It never stores a copied row payload, observes the payload LRU,
+or depends on the source item remaining composed. Its authoritative payload order is the current
+generation snapshot, the atomic render-store payload retained for streaming-to-terminal handoff, then
+a direct Room observation by message ID. Scrolling, item disposal, payload eviction, or future chunk
+offload therefore cannot close, freeze, clear, or delay an already-open sheet. Group/list-first mode
+recomputes its complete current Thought/Tool/Transcription index set from every authoritative snapshot,
+so segments created after opening appear immediately without resetting the sheet's list/detail page.
+A direct single-segment sheet keeps its selected stable detail index and dismisses only when the
+message or selected authoritative segment is actually removed.
+
 After Room projection, Provider preparation remains the only rollout authority. No DAO, loader,
 Compact controller, UI projector, transcription stage, or automation caller may remove an older
 eligible row because of a token estimate before that shared boundary. This optimization therefore
@@ -874,7 +937,13 @@ retained-message calculation.
     commit boundary, the owner must re-read the exact proposed Run before treating the transaction
     as uncommitted or allowing the process slot to release.
 11. **Bounded persistence.** Final transforms may change only declared presentation text and the
-    shared persistence guard is reapplied afterward.
+    shared persistence guard is reapplied afterward. For an aggregate whose trimmable JSON-string
+    payload already proves it exceeds the byte budget, that guard measures escaped UTF-8 payload
+    bytes, derives fixed metadata/JSON overhead from a placeholder projection, performs all
+    largest-field-first reductions in memory, and encodes the bounded aggregate once. It must not
+    repeatedly serialize an unbounded checkpoint aggregate. The exact encoded UTF-8 bound remains
+    authoritative, and protected Provider continuation state fails explicitly rather than becoming
+    SQL NULL.
 12. **Fail closed.** Missing/cyclic parents, shared legacy Runs that cannot be substituted safely,
     selection drift, stale identity, and partial transaction results reject the operation rather
     than guessing or broadening mutation scope.

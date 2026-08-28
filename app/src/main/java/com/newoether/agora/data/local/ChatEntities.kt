@@ -46,6 +46,40 @@ class MessageConverters {
         }
     }
 }
+@Entity(tableName = "new_chat_persist")
+data class NewChatPersistEntity(
+    @PrimaryKey val id: Int = SINGLETON_ID,
+    val modelId: String? = null,
+    val systemPromptId: String? = null,
+    val conversationSettingsJson: String? = null,
+    val draftText: String = "",
+    val draftAttachments: String? = null,
+) {
+    init {
+        require(id == SINGLETON_ID)
+    }
+
+    companion object {
+        const val SINGLETON_ID = 0
+    }
+}
+
+@Entity(
+    tableName = "conversation_settings_transfer",
+    foreignKeys = [
+        ForeignKey(
+            entity = ChatEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["conversationId"],
+            onDelete = ForeignKey.CASCADE,
+        )
+    ],
+)
+data class ConversationSettingsTransferEntity(
+    @PrimaryKey val conversationId: String,
+    val settingsJson: String? = null,
+)
+
 @Entity(tableName = "conversations", indices = [Index(value = ["taskId"])])
 data class ChatEntity(
     @PrimaryKey val id: String,
@@ -249,6 +283,11 @@ data class MessageToolMediaReference(
 /** Draft-only projection used by the orphaned attachment sweep. */
 data class ConversationDraftAttachmentReference(
     val id: String,
+    val draftAttachments: String,
+)
+
+/** Singleton New Chat draft reference used by attachment reclamation. */
+data class NewChatDraftAttachmentReference(
     val draftAttachments: String,
 )
 

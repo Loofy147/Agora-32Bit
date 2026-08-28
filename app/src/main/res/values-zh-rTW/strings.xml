@@ -503,6 +503,9 @@
     <string name="dynamic_color">動態顏色</string>
     <string name="dynamic_color_desc">根據桌布使用系統生成的顏色（Android 12+）</string>
     <string name="appearance_interface">介面</string>
+    <string name="appearance_theme_color">主題與色彩</string>
+    <string name="appearance_motion_feedback">動效與回饋</string>
+    <string name="appearance_chat_display">聊天顯示</string>
     <string name="visual_effects">視覺效果</string>
     <string name="blur_effects">模糊效果</string>
     <string name="blur_effects_desc">對聊天列表頂部工具列下方套用模糊。關閉可節省效能。</string>
@@ -870,7 +873,7 @@
     <string name="rating_submitting">提交中…</string>
     <string name="rating_success">感謝您的回饋！</string>
     <string name="rating_failed">提交失敗，請重試。</string>
-    <string name="rating_privacy">您的評分將以匿名方式上傳至 newoether.space。僅上傳您填寫的欄位，不會收集其他資料。</string>
+    <string name="rating_privacy">您的評分將以匿名方式上傳至 newoether.com。僅上傳您填寫的欄位，不會收集其他資料。</string>
 
     <!-- Data Control -->
     <string name="settings_data_control">資料控制</string>
@@ -1050,7 +1053,7 @@
     <string name="crash_message">很抱歉。您可以透過傳送匿名崩潰報告來協助修復此問題。</string>
     <string name="crash_submit">提交報告</string>
     <string name="crash_dismiss">不傳送</string>
-    <string name="crash_privacy_note">僅向 newoether.space 傳送崩潰記錄，不收集任何其他資訊。</string>
+    <string name="crash_privacy_note">僅向 newoether.com 傳送崩潰記錄，不收集任何其他資訊。</string>
     <string name="crash_submitted">崩潰報告已傳送，謝謝！</string>
     <string name="settings_group_network">網路</string>
     <string name="settings_proxy">代理</string>
@@ -1222,4 +1225,5 @@
     <string name="tool_create_skill">建立技能</string>
     <string name="tool_edit_skill">編輯技能</string>
     <string name="tool_delete_skill">刪除技能</string>
+    <string name="tool_read_file_truncated">已顯示部分內容 · 從位元組 %1$d 繼續</string>
 </resources>

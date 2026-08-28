@@ -369,6 +369,9 @@
     <string name="advanced_generation_title">Erweiterte Einstellungen</string>
     <string name="advanced_per_conversation">Überschreibungen pro Unterhaltung</string>
     <string name="appearance_interface">Oberfläche</string>
+    <string name="appearance_theme_color">Design und Farben</string>
+    <string name="appearance_motion_feedback">Bewegung und Feedback</string>
+    <string name="appearance_chat_display">Chat-Anzeige</string>
     <string name="message_display">Nachrichtenanzeige</string>
     <string name="tool_call_display_mode">Nachdenk- und Werkzeugblöcke</string>
     <string name="tool_call_display_mode_timeline">Zeitverlauf</string>
@@ -803,7 +806,7 @@
     <string name="rating_submitting">Wird gesendet…</string>
     <string name="rating_success">Danke für dein Feedback!</string>
     <string name="rating_failed">Senden fehlgeschlagen. Bitte versuche es erneut.</string>
-    <string name="rating_privacy">Deine Bewertung wird anonym an newoether.space hochgeladen. Es werden nur die von dir ausgefüllten Felder übertragen. Es werden keine weiteren Daten erfasst.</string>
+    <string name="rating_privacy">Deine Bewertung wird anonym an newoether.com hochgeladen. Es werden nur die von dir ausgefüllten Felder übertragen. Es werden keine weiteren Daten erfasst.</string>
 
     <!-- Data Control -->
     <string name="settings_data_control">Datenkontrolle</string>
@@ -1003,7 +1006,7 @@
     <string name="crash_message">Das tut uns leid. Du kannst bei der Behebung helfen, indem du einen anonymen Absturzbericht sendest.</string>
     <string name="crash_submit">Bericht senden</string>
     <string name="crash_dismiss">Nicht senden</string>
-    <string name="crash_privacy_note">Es wird nur das Absturzprotokoll an newoether.space gesendet. Es werden keine weiteren Informationen erfasst.</string>
+    <string name="crash_privacy_note">Es wird nur das Absturzprotokoll an newoether.com gesendet. Es werden keine weiteren Informationen erfasst.</string>
     <string name="crash_submitted">Absturzbericht gesendet. Danke!</string>
     <string name="settings_group_network">Netzwerk</string>
     <string name="settings_proxy">Proxy</string>
@@ -1214,4 +1217,5 @@
     <string name="tool_create_skill">Skill erstellen</string>
     <string name="tool_edit_skill">Skill bearbeiten</string>
     <string name="tool_delete_skill">Skill löschen</string>
+    <string name="tool_read_file_truncated">Teilinhalt angezeigt · bei Byte %1$d fortfahren</string>
 </resources>

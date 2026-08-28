@@ -24,6 +24,7 @@ import com.newoether.agora.service.AgoraForegroundService
 import com.newoether.agora.service.AppForegroundTracker
 import com.newoether.agora.api.util.ContextTokenEstimator
 import com.newoether.agora.tool.ToolProvider
+import com.newoether.agora.util.Constants
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -79,13 +80,7 @@ class GenerationManager(
     private val completionEffects = GenerationCompletionEffectsExecutor(
         isAppInForeground = { AppForegroundTracker.isInForeground },
         releaseForegroundLease = AgoraForegroundService::release,
-        notify = { text, conversationId ->
-            AgoraForegroundService.showCompletionNotification(
-                app,
-                replaceCustomProviderIdsForDisplay(text, customProviders()),
-                conversationId,
-            )
-        },
+        notify = ::showTerminalNotification,
     )
 
     // Image/video frame extraction lives in ImageProcessor (single source of truth).
@@ -101,6 +96,19 @@ class GenerationManager(
      *  in-app conversation search. */
     suspend fun semanticSearch(query: String, limit: Int, ctx: GenerationContext): List<Pair<MessageEntity, Float>> =
         toolExecutor.semanticSearch(query, limit, ctx)
+
+    internal fun showTerminalNotification(
+        text: String,
+        conversationId: String,
+        status: MessageStatus,
+    ) {
+        AgoraForegroundService.showTerminalNotification(
+            context = app,
+            responseText = replaceCustomProviderIdsForDisplay(text, customProviders()),
+            conversationId = conversationId,
+            isError = status == MessageStatus.ERROR,
+        )
+    }
 
     internal fun fixedContextTokenCost(
         config: GenerationConfig,
@@ -181,6 +189,7 @@ class GenerationManager(
             },
         )
         var terminalPersisted = false
+        var terminalConversationVisible: Boolean? = null
 
         fun adoptIncompleteTranscriptionSnapshot() {
             transcriptionExecution.incompleteSnapshot()?.let { snapshot ->
@@ -683,6 +692,15 @@ class GenerationManager(
                         expectedPass = commitIdentity.pass,
                     )
                 }
+                toolOverlay.releaseCommittedResponseState(
+                    tcds.mapTo(linkedSetOf()) { call ->
+                        checkNotNull(call.toolCallId) {
+                            "Committed tool call is missing its provider call id"
+                        }
+                    },
+                )
+                publishStreamUpdate(forceCheckpoint = true)
+                uiUpdateGate.recordPublished(System.currentTimeMillis())
                 // A terminal Conch job may be deleted only after the complete tool result is
                 // durable. ACK is best-effort and cannot influence the already-authorized
                 // continuation; Conch's bounded retention remains the failure fallback.
@@ -773,7 +791,7 @@ class GenerationManager(
             currentStatus = if (isCancelled) MessageStatus.STOPPED else MessageStatus.ERROR
             if (!isCancelled) {
                 generationErrorMessage =
-                    "Error: ${e.localizedMessage ?: "An unexpected error occurred."}"
+                    "Error: ${e.localizedMessage?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName}"
             }
         } finally {
             // Fence the asynchronous checkpoint lane before any terminal transaction. Without
@@ -822,10 +840,12 @@ class GenerationManager(
                         val finalMessage = generatedMessage.withBoundedFinalTextTransform(
                             callbacks.transformFinalText,
                         )
+                        terminalConversationVisible = callbacks.isConversationVisible?.invoke()
                         val terminalDisposition = generationTerminalDisposition(
                             messageStatus = currentStatus,
                             hasPendingGuidance =
                                 callbacks.hasQueuedSends() || endedForFollowUp,
+                            conversationVisible = terminalConversationVisible,
                         )
                         val finalizationIdentity = RunEffectIdentity(
                             conversationId = conversationId,
@@ -864,6 +884,7 @@ class GenerationManager(
                     }
                 } catch (e: Exception) {
                     DebugLog.e("AgoraVM", "Failed to execute terminal generation effect", e)
+                    throw e
                 }
             }
             completionEffects.execute(
@@ -871,9 +892,16 @@ class GenerationManager(
                     terminalPersisted = terminalPersisted,
                     status = currentStatus,
                     text = totalText,
+                    notificationText = if (currentStatus == MessageStatus.ERROR) {
+                        generationErrorMessage.orEmpty()
+                    } else {
+                        totalText
+                    },
                     conversationId = conversationId,
                     modelMessageId = modelMessageId,
                     foregroundLeaseAcquired = foregroundLeaseAcquired,
+                    isContextCompact = modelMessageId.startsWith(Constants.COMPACT_MSG_PREFIX),
+                    conversationVisible = terminalConversationVisible,
                     hasPendingContinuation = endedForFollowUp,
                 ),
                 callbacks = callbacks.completionEffectsCallbacks(onMessagePersisted),

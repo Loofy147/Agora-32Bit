@@ -1,5 +1,6 @@
 package com.newoether.agora.viewmodel
 
+import com.newoether.agora.data.ConversationSettings
 import com.newoether.agora.data.local.MessageContextTopology
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.data.local.ProviderContextTopologySnapshot
@@ -14,6 +15,8 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -73,13 +76,16 @@ class AcceptedInputGraphWriterTest {
     @Test
     fun newConversation_startsAtTheRootWithoutReadingAStaleGraph() = runTest {
         val repository = mockk<ConversationRepository>()
+        val capturedSettings = ConversationSettings(temperature = 0.3f, maxTokens = 640)
+        var insertedSettingsJson: String? = null
         coEvery {
             repository.createConversationRunWithMessages(
-                any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(),
             )
         } coAnswers {
             val messages = thirdArg<List<MessageEntity>>()
             val selections = arg<Map<String?, String>>(3)
+            insertedSettingsJson = arg(5)
             RunGraphCommit(messages, selections, emptyMap())
         }
 
@@ -95,11 +101,16 @@ class AcceptedInputGraphWriterTest {
                     id = "conversation",
                     title = "New",
                 ),
+                newConversationSettings = capturedSettings,
             )
         )
 
         assertNull(result.userMessage.parentId)
         assertEquals("model", result.messageSelections["user"])
+        assertEquals(
+            capturedSettings,
+            Json.decodeFromString<ConversationSettings>(checkNotNull(insertedSettingsJson)),
+        )
     }
 
     private fun message(

@@ -257,7 +257,6 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     modelAliases,
                     customProviders,
                 )
-                val activeApiModelName = modelApiDisplayName(selectedModel, customProviders)
                 val activeIconRes = providerIcon(providerName)
                 val isActiveLocal = providerName.equals(Constants.PROVIDER_LOCAL, ignoreCase = true)
                 val hasEnabledModels = enabledModels.isNotEmpty()
@@ -273,7 +272,7 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                         supportingContent = if (hasEnabledModels) {
                             {
                                 Text(
-                                    "$activeApiModelName · $providerName",
+                                    providerName,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
                                         alpha = 0.6f,
@@ -509,7 +508,6 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             parsed.providerName,
                             customProviders,
                         )
-                        val apiModelName = modelApiDisplayName(model, customProviders)
 
                         SettingsItem(
                             headlineContent = {
@@ -517,7 +515,7 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             },
                             supportingContent = {
                                 Text(
-                                    "$apiModelName · $providerName",
+                                    providerName,
                                     style = MaterialTheme.typography.bodySmall,
                                 )
                             },

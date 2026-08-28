@@ -1,11 +1,14 @@
 package com.newoether.agora.ui.chat.message
 
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
@@ -49,18 +52,37 @@ internal fun StreamingThoughtPreviewText(
     )
 }
 
+@OptIn(ExperimentalAnimationApi::class)
 @Composable
-internal fun ToolSummaryText(summary: String) = Crossfade(
-    targetState = summary,
-    animationSpec = tween(STATUS_CROSSFADE_DURATION_MS, easing = LinearEasing),
-) { text ->
-    Text(
-        text = text,
-        style = ChatType.metaNormal,
-        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
+internal fun ToolSummaryText(
+    presentation: ToolPresentation,
+    streaming: Boolean,
+) {
+    val summary = toolSummary(presentation)
+    val transition = updateTransition(
+        targetState = presentation.state,
+        label = "toolSummaryState",
     )
+    transition.Crossfade(
+        animationSpec = tween(STATUS_CROSSFADE_DURATION_MS, easing = LinearEasing),
+    ) { renderedState ->
+        val lastSummary = remember(renderedState) { mutableStateOf(summary) }
+        val isCurrentState = renderedState == presentation.state
+        val renderedSummary = if (isCurrentState) summary else lastSummary.value
+        SideEffect {
+            if (isCurrentState && lastSummary.value != summary) {
+                lastSummary.value = summary
+            }
+        }
+        StreamingMutedText(
+            text = renderedSummary,
+            streaming =
+                streaming &&
+                    presentation.isActive &&
+                    isCurrentState &&
+                    !transition.isRunning,
+        )
+    }
 }
 
 private fun thoughtPreviewTail(

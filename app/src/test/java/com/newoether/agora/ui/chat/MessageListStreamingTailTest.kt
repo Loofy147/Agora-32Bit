@@ -7,6 +7,8 @@ import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
 import com.newoether.agora.ui.chat.message.AssistantInlineActivityMode
 import com.newoether.agora.ui.chat.message.assistantInlineActivityMode
+import com.newoether.agora.ui.chat.message.resolveSegmentDetailMessage
+import com.newoether.agora.ui.chat.message.segmentDetailIndicesForSnapshot
 import com.newoether.agora.ui.chat.message.userBubbleSizeAnimationEnabled
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -513,6 +515,77 @@ class MessageListStreamingTailTest {
         assertSame(observed, resolveMessagePayloadForRender(stub, null, observed, cached))
         assertSame(cached, resolveMessagePayloadForRender(stub, null, null, cached))
         assertSame(stub, resolveMessagePayloadForRender(stub, null, null, null))
+    }
+
+    @Test
+    fun segmentDetailUsesRuntimeThenTerminalHandoffThenRoomAfterOffload() {
+        val room = ChatMessage(
+            id = "detail",
+            participant = Participant.MODEL,
+            text = "",
+            status = MessageStatus.SUCCESS,
+            segments = listOf(MessageSegment(type = "thought", content = "room")),
+        )
+        val terminalHandoff = room.copy(
+            segments = listOf(MessageSegment(type = "thought", content = "terminal")),
+        )
+        val streaming = room.copy(
+            status = MessageStatus.THINKING,
+            segments = listOf(MessageSegment(type = "thought", content = "streaming")),
+        )
+
+        assertSame(
+            streaming,
+            resolveSegmentDetailMessage("detail", streaming, terminalHandoff, room),
+        )
+        assertSame(
+            terminalHandoff,
+            resolveSegmentDetailMessage("detail", null, terminalHandoff, room),
+        )
+        assertSame(
+            room,
+            resolveSegmentDetailMessage(
+                messageId = "detail",
+                streamingMessage = null,
+                authoritativeMessage = room.copy(text = "topology stub", segments = null),
+                roomMessage = room,
+            ),
+        )
+        assertSame(
+            room,
+            resolveSegmentDetailMessage("detail", null, null, room),
+        )
+    }
+
+    @Test
+    fun groupedSegmentDetailSelectionTracksNewAuthoritativeSegments() {
+        val initial = ChatMessage(
+            id = "detail",
+            participant = Participant.MODEL,
+            text = "",
+            segments = listOf(
+                MessageSegment(type = "thought", content = "reasoning"),
+                MessageSegment(type = "answer", content = "partial"),
+                MessageSegment(type = "tool", toolName = "shell"),
+            ),
+        )
+        val grown = initial.copy(
+            segments = initial.segments.orEmpty() +
+                MessageSegment(type = "transcription", content = "image text"),
+        )
+
+        assertEquals(
+            listOf(0, 1),
+            segmentDetailIndicesForSnapshot(initial, listOf(0), showSegmentListFirst = true),
+        )
+        assertEquals(
+            listOf(0, 1, 2),
+            segmentDetailIndicesForSnapshot(grown, listOf(0), showSegmentListFirst = true),
+        )
+        assertEquals(
+            listOf(1),
+            segmentDetailIndicesForSnapshot(grown, listOf(1), showSegmentListFirst = false),
+        )
     }
 
     @Test

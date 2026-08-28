@@ -369,6 +369,9 @@
     <string name="advanced_generation_title">Configurações avançadas</string>
     <string name="advanced_per_conversation">Substituições por conversa</string>
     <string name="appearance_interface">Interface</string>
+    <string name="appearance_theme_color">Tema e cores</string>
+    <string name="appearance_motion_feedback">Movimento e feedback</string>
+    <string name="appearance_chat_display">Exibição do chat</string>
     <string name="message_display">Exibição de mensagens</string>
     <string name="tool_call_display_mode">Blocos de raciocínio e ferramentas</string>
     <string name="tool_call_display_mode_timeline">Linha do tempo</string>
@@ -803,7 +806,7 @@
     <string name="rating_submitting">Enviando…</string>
     <string name="rating_success">Obrigado pelo seu feedback!</string>
     <string name="rating_failed">Falha ao enviar. Tente novamente.</string>
-    <string name="rating_privacy">Sua avaliação será enviada anonimamente para newoether.space. Apenas os campos que você preencher são transmitidos. Nenhum outro dado é coletado.</string>
+    <string name="rating_privacy">Sua avaliação será enviada anonimamente para newoether.com. Apenas os campos que você preencher são transmitidos. Nenhum outro dado é coletado.</string>
 
     <!-- Data Control -->
     <string name="settings_data_control">Controle de dados</string>
@@ -1003,7 +1006,7 @@
     <string name="crash_message">Sentimos muito. Você pode ajudar a corrigir isso enviando um relatório de falha anônimo.</string>
     <string name="crash_submit">Enviar relatório</string>
     <string name="crash_dismiss">Não enviar</string>
-    <string name="crash_privacy_note">Apenas o registro da falha é enviado para newoether.space. Nenhuma outra informação é coletada.</string>
+    <string name="crash_privacy_note">Apenas o registro da falha é enviado para newoether.com. Nenhuma outra informação é coletada.</string>
     <string name="crash_submitted">Relatório de falha enviado. Obrigado!</string>
     <string name="settings_group_network">Rede</string>
     <string name="settings_proxy">Proxy</string>
@@ -1214,4 +1217,5 @@
     <string name="tool_create_skill">Criar habilidade</string>
     <string name="tool_edit_skill">Editar habilidade</string>
     <string name="tool_delete_skill">Excluir habilidade</string>
+    <string name="tool_read_file_truncated">Conteúdo parcial exibido · continuar no byte %1$d</string>
 </resources>

@@ -28,6 +28,7 @@ internal class ComposerSendAdapter(
         images: List<String> = emptyList(),
         attachments: List<SelectedAttachment> = emptyList(),
         onAccepted: suspend () -> Unit = {},
+        draftOwnerId: String? = null,
     ): SendAcceptance? {
         val submittedRuntimeIds = attachments.asSequence()
             .filterNot { it.storage.reclaimWhenAbandoned }
@@ -36,7 +37,7 @@ internal class ComposerSendAdapter(
             // Acceptance transfers ownership before the composer clears. Direct inputs are
             // Room-owned; queued guidance remains memory-owned until its later drain boundary.
             val clearedDraftAttachments = withContext(NonCancellable) {
-                drafts.clearAccepted(acceptance.conversationId)
+                drafts.clearAccepted(draftOwnerId ?: acceptance.conversationId)
             }
             // The durable draft may still contain the pre-submission pending copy. Stable localId
             // prevents that stale snapshot from deleting a submitted runtime file.

@@ -369,6 +369,9 @@
     <string name="advanced_generation_title">詳細設定</string>
     <string name="advanced_per_conversation">会話ごとの上書き</string>
     <string name="appearance_interface">インターフェース</string>
+    <string name="appearance_theme_color">テーマと色</string>
+    <string name="appearance_motion_feedback">モーションとフィードバック</string>
+    <string name="appearance_chat_display">チャット表示</string>
     <string name="message_display">メッセージ表示</string>
     <string name="tool_call_display_mode">思考とツールブロック</string>
     <string name="tool_call_display_mode_timeline">タイムライン</string>
@@ -803,7 +806,7 @@
     <string name="rating_submitting">送信中…</string>
     <string name="rating_success">フィードバックありがとうございます!</string>
     <string name="rating_failed">送信に失敗しました。もう一度お試しください。</string>
-    <string name="rating_privacy">評価は匿名で newoether.space にアップロードされます。入力した項目のみが送信されます。それ以外のデータは収集されません。</string>
+    <string name="rating_privacy">評価は匿名で newoether.com にアップロードされます。入力した項目のみが送信されます。それ以外のデータは収集されません。</string>
 
     <!-- Data Control -->
     <string name="settings_data_control">データ管理</string>
@@ -1003,7 +1006,7 @@
     <string name="crash_message">申し訳ありません。匿名のクラッシュレポートを送信して修正にご協力いただけます。</string>
     <string name="crash_submit">レポートを送信</string>
     <string name="crash_dismiss">送信しない</string>
-    <string name="crash_privacy_note">クラッシュログのみが newoether.space に送信されます。それ以外の情報は収集されません。</string>
+    <string name="crash_privacy_note">クラッシュログのみが newoether.com に送信されます。それ以外の情報は収集されません。</string>
     <string name="crash_submitted">クラッシュレポートを送信しました。ありがとうございます!</string>
     <string name="settings_group_network">ネットワーク</string>
     <string name="settings_proxy">プロキシ</string>
@@ -1214,4 +1217,5 @@
     <string name="tool_create_skill">スキルを作成</string>
     <string name="tool_edit_skill">スキルを編集</string>
     <string name="tool_delete_skill">スキルを削除</string>
+    <string name="tool_read_file_truncated">一部の内容を表示 · バイト %1$d から続行</string>
 </resources>
