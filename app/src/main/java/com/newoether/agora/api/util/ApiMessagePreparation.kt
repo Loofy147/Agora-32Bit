@@ -9,6 +9,8 @@ private const val CONTEXT_SUMMARY_ID_PREFIX = "context_summary_"
 private const val API_INITIAL_USER_ID_PREFIX = "api_initial_user_"
 private const val API_COMPACT_CONTINUATION_ID_PREFIX = "api_compact_continuation_"
 private const val API_COMPACT_CONTINUATION_TEXT = "Please continue."
+internal const val CONTEXT_SUMMARY_OPEN_TAG = "<context_summary>"
+internal const val CONTEXT_SUMMARY_CLOSE_TAG = "</context_summary>"
 
 /**
  * Non-destructive Compact projection. The nearest successful Compact is the logical context start.
@@ -36,7 +38,7 @@ private fun projectNearestContextCompact(
     if (index < 0) return providerVisible
     val compact = providerVisible[index]
     val projectedText = if (markSummaryForApi) {
-        "<context_summary>\n${compact.text.trim()}\n</context_summary>"
+        "$CONTEXT_SUMMARY_OPEN_TAG\n${compact.text.trim()}\n$CONTEXT_SUMMARY_CLOSE_TAG"
     } else {
         compact.text
     }
