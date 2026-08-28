@@ -1,11 +1,37 @@
 package com.newoether.agora.ui.chat
 
 import java.io.File
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DrawerSearchLoadingSourceContractTest {
+    @Test
+    fun `keyword search uses a single SQLite LIKE escape character`() {
+        val dao = source("data/local/ChatDao.kt")
+        val repository = source("data/repository/ConversationRepository.kt")
+        val conversationSearchQuery = dao
+            .substringBefore("fun observeConversationSearchMatches")
+            .substringAfterLast("@Query(")
+        val globalSearchQuery = dao
+            .substringBefore("suspend fun searchMessages")
+            .substringAfterLast("@Query(")
+        val rawSqlSingleBackslashEscape = """ESCAPE '\'"""
+        val kotlinEncodedSingleBackslashEscape = """ESCAPE '\\'"""
+        val kotlinEncodedDoubleBackslashEscape = """ESCAPE '\\\\'"""
+
+        assertEquals(2, conversationSearchQuery.count(rawSqlSingleBackslashEscape))
+        assertFalse(conversationSearchQuery.contains(kotlinEncodedSingleBackslashEscape))
+        assertEquals(2, globalSearchQuery.count(kotlinEncodedSingleBackslashEscape))
+        assertFalse(globalSearchQuery.contains(kotlinEncodedDoubleBackslashEscape))
+        assertTrue(
+            repository.contains(
+                """query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")""",
+            ),
+        )
+    }
+
     @Test
     fun `drawer list uses a bounded projection with truthful fade-backed loading and search states`() {
         val dao = source("data/local/ChatDao.kt")
@@ -58,6 +84,8 @@ class DrawerSearchLoadingSourceContractTest {
         File(mainSourceRoot(), "com/newoether/agora/$relative").readText()
 
     private fun mainSourceRoot(): File = locate("app/src/main/java")
+
+    private fun String.count(needle: String): Int = split(needle).size - 1
 
     private fun locate(relative: String): File {
         var directory = File(requireNotNull(System.getProperty("user.dir"))).absoluteFile

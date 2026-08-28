@@ -80,8 +80,8 @@ interface ChatDao : ChatAutomationDao, ChatContextCompactDao, ChatProviderContex
         FROM messages
         WHERE conversationId = :conversationId
           AND (
-              text LIKE '%' || :escapedQuery || '%' ESCAPE '\\'
-              OR toolCallJson LIKE '%' || :escapedQuery || '%' ESCAPE '\\'
+              text LIKE '%' || :escapedQuery || '%' ESCAPE '\'
+              OR toolCallJson LIKE '%' || :escapedQuery || '%' ESCAPE '\'
           )
         ORDER BY timestamp ASC, id ASC
         """
