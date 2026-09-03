@@ -5,6 +5,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -52,10 +54,10 @@ class AceCapabilityExecutor(
                     }
                     val payload = json.parseToJsonElement(raw).jsonObject
                     val insights = payload["new_insights"]?.let { element ->
-                        element.jsonArray.mapNotNull { it as? JsonObject }
+                        element.jsonArray.mapNotNull { elementValue -> elementValue as? JsonObject }
                     }.orEmpty()
                     val entries = payload["playbook_entries"]?.let { element ->
-                        element.jsonArray.mapNotNull { it as? JsonObject }
+                        element.jsonArray.mapNotNull { elementValue -> elementValue as? JsonObject }
                     }.orEmpty()
                     AceCapabilityResult(
                         newInsights = insights,
