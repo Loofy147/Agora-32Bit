@@ -7,6 +7,7 @@ import java.util.UUID
 @Serializable
 enum class AgentCapability {
     MODEL_INFERENCE,
+    CONTEXT_ENGINEERING,
     WEB_SEARCH,
     WEB_FETCH,
     CODE_EXECUTION,
