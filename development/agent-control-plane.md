@@ -49,18 +49,39 @@ The minimal portable evidence fields are mission/task identity, kind, source, su
 content hash, verification flag, and timestamp. Durable schema design is deferred until one real
 consumer exists and should reuse an existing evidence/provenance contract where practical.
 
-## 5. Integration rule
+## 5. External capability boundary
+
+ACE is the first concrete external consumer. It exposes a protected FastAPI `/run-ace/` operation
+that accepts a non-empty task and returns structured `new_insights` and `playbook_entries`.
+
+Agora maps this service to the distinct `CONTEXT_ENGINEERING` capability. The ACE executor owns only
+HTTP request construction, authentication header placement, transport execution, and response
+normalization. It must not perform policy admission, create a Mission/Run, persist evidence, or
+choose whether the capability is allowed.
+
+Credentials are supplied by the caller at execution time; the adapter must not persist or log API
+keys. A production caller should obtain them from Agora's existing secret/configuration boundary.
+
+The current adapter is intentionally not registered as a model-visible ToolProvider. Until the
+Mission runtime binds approved tasks to existing execution paths, ACE remains a direct external
+capability boundary rather than a second tool lifecycle.
+
+## 6. Integration rule
 
 The next runtime slice must adapt existing Agora capability surfaces instead of duplicating them:
 
 `Mission -> policy gate -> existing Generation/Tool/MCP/Task runtime -> observation -> verification -> evidence`
 
+For external services the corresponding side-effect boundary is:
+
+`approved task -> capability executor -> structured result -> evidence`
+
 Do not add speculative capability descriptors, project registries, adapter factories, or multi-agent
 schedulers until two or more real consumers demonstrate a shared invariant or side-effect boundary.
 
-## 6. Required verification
+## 7. Required verification
 
 Focused tests must cover capability denial, side-effect approval, destructive denial, invalid lifecycle
-transitions, terminal immutability, budget enforcement, and invalid mission/task input. Integration
-work must additionally prove stale-result rejection and that the control plane does not create a
-parallel Run owner.
+transitions, terminal immutability, budget enforcement, and invalid mission/task input. External
+capability tests must additionally verify blank-input rejection, HTTP error handling, structured
+response preservation, credential non-persistence, and that the executor owns no Mission/Run state.
